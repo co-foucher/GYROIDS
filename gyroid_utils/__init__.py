@@ -14,7 +14,7 @@ print(f"[gyroid_utils] version {__version__} loaded")
 from . import mesh_tools
 from . import viz
 from . import occ_tools
-from . import io_tools
+from . import io_ops
 from .logger import logger, set_log_level
 
 
@@ -27,5 +27,6 @@ __all__ = [
     "set_log_level",
     "__version__",
 ]
+
 
 
