@@ -1,7 +1,6 @@
 # GYROIDS
-small library to support development of gyroid based structures
+small library to support the development of gyroid-based structures
 
 !!!! requires Python 3.10 !!!!
 
-You can copy the whole environmnet directly from the yml file
-Or use pip to install only this library and *some* dependency. note: you'll need conda to install OCC in python 3.10
+You can copy the whole environment directly from the yml file. Or use pip to install only this library and *some* dependency. Note: you'll need conda to install OCC in Python 3.10
