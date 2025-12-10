@@ -84,11 +84,11 @@ def reload_all():
         gyroid_utils.utils,
         gyroid_utils.io_ops,
         gyroid_utils.occ_tools,
-        gyroid_utils.logger,
         gyroid_utils.config,
     ]
 
     for m in modules:
         importlib.reload(m)
+
 
     print("gyroid_utils: all modules reloaded")
