@@ -11,6 +11,8 @@ from stl import mesh as stl_mesh
 1 - keep_largest_connected_component
 2 - simplify_mesh
 3 - TRIANGLE_AREAS
+4 - export_as_STL
+5 - mesh_from_matrix
 #=====================================================================================================================
 """
 
@@ -244,15 +246,35 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
         logger.warning("export_as_STL(): No faces to export; STL will be empty.")
         return
 
+    # ------------------------------------------------------------------
+    # drop degenerate triangles (zero area)
+    # ------------------------------------------------------------------
+    # (Keeps export clean for some viewers/meshing tools.)
+    v0 = verts[faces[:, 0]]
+    v1 = verts[faces[:, 1]]
+    v2 = verts[faces[:, 2]]
+    cross = np.cross(v1 - v0, v2 - v0)
+    area2 = np.einsum("ij,ij->i", cross, cross)  # proportional to area^2
+    keep = area2 > 0.0
+
+    if not np.all(keep):
+        removed = int(np.size(keep) - np.count_nonzero(keep))
+        logger.warning(f"export_as_STL(): Removing {removed} degenerate triangles.")
+        faces = faces[keep]
+        if len(faces) == 0:
+            logger.error("export_as_STL(): All triangles were degenerate; nothing to export.")
+            return
+        v0 = v0[keep]; v1 = v1[keep]; v2 = v2[keep]
+
+    # -------------------------
+    # Build STL mesh (vectorized)
+    # -------------------------
     try:
-        gyroid = stl_mesh.Mesh(np.zeros(faces.shape[0], dtype=stl_mesh.Mesh.dtype))
-
-        for i, tri in enumerate(faces):
-            gyroid.vectors[i, 0, :] = verts[tri[0], :]
-            gyroid.vectors[i, 1, :] = verts[tri[1], :]
-            gyroid.vectors[i, 2, :] = verts[tri[2], :]
-
-        gyroid.update_normals()
+        stl_obj = stl_mesh.Mesh(np.zeros(faces.shape[0], dtype=stl_mesh.Mesh.dtype))
+        stl_obj.vectors[:, 0, :] = v0
+        stl_obj.vectors[:, 1, :] = v1
+        stl_obj.vectors[:, 2, :] = v2
+        stl_obj.update_normals()
     except Exception as e:
         logger.error(f"STL mesh construction failed: {e}", exc_info=True)
         return
@@ -263,5 +285,45 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
     try:
         gyroid.save(path)
         logger.info(f"STL successfully saved: {path}")
+        print("sadfbgsadfbsdfbsbsgfbkjnsdlifkjnbvedslif")
     except Exception as e:
         logger.error(f"Failed to save STL file '{path}': {e}", exc_info=True)
+
+
+
+
+
+
+#=====================================================================
+#5) mesh_from_matrix
+#=====================================================================
+def mesh_from_matrix(matrix:np.ndarray, iso_level, spacing, algo_step_size, x=0, y=0, z=0):
+    # --- Ensure the surface is CLOSED (emulates MATLAB's isocaps(..., "below")) ---
+    # Strategy: we want the interior to be "v < iso_level" (the "below" side).
+    # If the surface hits the boundary, it's open. We close it by padding a 1-voxel thick
+    # frame of large POSITIVE values (>> iso_level) around v.
+    # That guarantees a crossing at the boundary and thus creates "caps" there.
+    pad_val = 0                                              # safely above any v near 0
+    v_padded = np.pad(v, pad_width=5, mode='constant', constant_values=pad_val)
+
+    # Because we padded the volume, the new grid extends one extra voxel outward on each face.
+    # The physical spacing of voxels is the same as our grid steps:
+    spacing = (dx_grid, dy_grid, dz_grid)                        # real-world size per voxel
+
+    # The physical origin of the padded grid is shifted by -1 voxel in each direction:
+    origin = (x1.min() - dx_grid, y1.min() - dy_grid, z1.min() - dz_grid)
+
+
+    # --- Extract the isosurface in one pass, scaled to physical units ---
+    # Using 'spacing' returns vertices already scaled; we still need to add 'origin'.
+    verts, faces, normals, values = measure.marching_cubes(
+        v_padded, level=iso_level, spacing=spacing, step_size=algo_step_size, allow_degenerate=False)
+
+    # Translate vertices so they live in the same physical coordinate system as (x,y,z)
+    verts[:, 0] += origin[0]
+    verts[:, 1] += origin[1]
+    verts[:, 2] += origin[2]
+
+    print(f"there are {len(faces)} faces in this model")
+
+    return verts, faces
