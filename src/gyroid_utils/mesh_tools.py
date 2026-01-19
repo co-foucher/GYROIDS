@@ -283,7 +283,7 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
     # Save file
     # ------------------------------------------------------------------
     try:
-        gyroid.save(path)
+        stl_obj.save(path)
         logger.info(f"STL successfully saved: {path}")
         print("sadfbgsadfbsdfbsbsgfbkjnsdlifkjnbvedslif")
     except Exception as e:
