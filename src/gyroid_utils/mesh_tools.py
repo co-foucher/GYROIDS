@@ -14,6 +14,7 @@ from skimage import measure
 3 - TRIANGLE_AREAS
 4 - export_as_STL
 5 - mesh_from_matrix
+6 - check_mesh_validity
 #=====================================================================================================================
 """
 
@@ -404,3 +405,58 @@ def mesh_from_matrix(
         return None, None
 
     return verts, faces
+
+
+
+#=====================================================================
+#6) check_mesh_validity
+#=====================================================================
+def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
+    """
+    ============================================================================
+    6) CHECK_MESH_VALIDITY
+    Performs basic topological and geometric validity checks on a triangle mesh
+    using trimesh.
+    ============================================================================
+    
+    PARAMETERS
+    ----------
+    verts : (N, 3) ndarray
+        Vertex coordinates.
+    faces : (M, 3) ndarray
+        Triangle face connectivity.
+
+    RETURNS
+    -------
+    info : dict
+        Dictionary with mesh validity indicators.
+    """
+    import trimesh
+    import numpy as np
+
+    logger.info("check_mesh_validity(): Checking mesh validity.")
+
+    # ------------------------------------------------------------------
+    # Build mesh (no auto-processing)
+    # ------------------------------------------------------------------
+    try:
+        m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+    except Exception as e:
+        logger.error(f"check_mesh_validity(): Mesh construction failed: {e}", exc_info=True)
+        return None
+
+    # ------------------------------------------------------------------
+    # Collect validity metrics
+    # ------------------------------------------------------------------
+    info = {
+        "watertight": m.is_watertight,
+        "winding_consistent": m.is_winding_consistent,
+        "is_volume": m.is_volume,
+        "boundary_edges": int(np.sum(m.edges_unique_counts == 1)),
+        "nonmanifold_edges": int(np.sum(m.edges_unique_counts > 2)),
+        "self_intersecting": m.is_self_intersecting,
+    }
+
+    logger.info(f"check_mesh_validity(): {info}")
+    return info
+
