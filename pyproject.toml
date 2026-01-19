@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gyroid_utils"
-version = "0.1.9"
+version = "0.1.10"
 description = "mesh processing, OCC geometry handling, and visualization utilities for gyroid and lattice structures."
 authors = [
     { name = "Corentin Foucher", email = "corentin.foucher@empa.ch" }

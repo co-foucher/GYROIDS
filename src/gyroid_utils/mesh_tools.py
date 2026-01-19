@@ -3,6 +3,7 @@ import trimesh
 import open3d as o3d
 from .logger import logger
 from stl import mesh as stl_mesh
+from skimage import measure
 
 
 """
