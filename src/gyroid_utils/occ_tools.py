@@ -10,7 +10,8 @@ from OCC.Core.ShapeFix import ShapeFix_Shell
 from OCC.Core.TopAbs import TopAbs_SHELL
 from OCC.Core.BRep import BRep_Builder
 from OCC.Core.BRepCheck import BRepCheck_Shell, BRepCheck_Analyzer
-from OCC.Core.TopoDS import TopoDS_Compound, TopoDS_Shape, topoDS_Shell
+from OCC.Core.TopoDS import TopoDS_Compound, TopoDS_Shape
+from OCC.Core.topods import topods_Shell
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopAbs import TopAbs_FACE
 
