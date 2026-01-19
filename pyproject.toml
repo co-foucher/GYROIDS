@@ -21,7 +21,6 @@ dependencies = [
     "trimesh",
     "open3d",
     "plotly",
-    "pythonocc-core",
 ]
 
 # Optional metadata (recommended)
