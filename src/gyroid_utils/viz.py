@@ -567,3 +567,5 @@ def view_mesh(faces, verts):
     except Exception as e:
         logger.error(f"Failed to build Plotly figure: {e}", exc_info=True)
         return
+
+    fig.show()
