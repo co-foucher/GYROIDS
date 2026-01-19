@@ -364,7 +364,7 @@ def mesh_from_matrix(
         verts, faces, normals, values = measure.marching_cubes(
             v_padded,
             level=iso_level,
-            spacing=(dx, dy, dz),
+            spacing=spacing,
             step_size=int(algo_step_size),
             allow_degenerate=False,
         )
