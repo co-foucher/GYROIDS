@@ -391,4 +391,16 @@ def mesh_from_matrix(
     logger.info(f"mesh_from_matrix(): Extracted mesh with {len(verts)} verts and {len(faces)} faces.")
     print(f"there are {len(faces)} faces in this model")
 
+    # ------------------------------------------------------------------
+    # Fix face winding / normals to ensure a valid oriented surface
+    # ------------------------------------------------------------------
+    try:
+        m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+        m.fix_normals()
+        verts = m.vertices
+        faces = m.faces
+    except Exception as e:
+        logger.error(f"mesh_from_matrix(): normal fixing failed: {e}", exc_info=True)
+        return None, None
+
     return verts, faces
