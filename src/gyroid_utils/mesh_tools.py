@@ -304,7 +304,7 @@ def mesh_from_matrix(matrix:np.ndarray, iso_level, spacing, algo_step_size, x=0,
     # frame of large POSITIVE values (>> iso_level) around v.
     # That guarantees a crossing at the boundary and thus creates "caps" there.
     pad_val = 0                                              # safely above any v near 0
-    v_padded = np.pad(v, pad_width=5, mode='constant', constant_values=pad_val)
+    v_padded = np.pad(matrix, pad_width=5, mode='constant', constant_values=pad_val)
 
     # Because we padded the volume, the new grid extends one extra voxel outward on each face.
     # The physical spacing of voxels is the same as our grid steps:
