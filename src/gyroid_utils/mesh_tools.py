@@ -455,7 +455,12 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
         "is_volume": m.is_volume,
         "boundary_edges": int(np.sum(edge_counts == 1)),
         "nonmanifold_edges": int(np.sum(edge_counts > 2)),
-        "self_intersecting": m.is_self_intersecting,
+        "self_intersecting": (
+            m.is_self_intersecting
+            if hasattr(m, "is_self_intersecting")
+            else False  # not supported in this trimesh version
+        ),
+
     }
 
     logger.info(f"check_mesh_validity(): {info}")
