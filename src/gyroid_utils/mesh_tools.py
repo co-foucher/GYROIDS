@@ -287,7 +287,6 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
     try:
         stl_obj.save(path)
         logger.info(f"STL successfully saved: {path}")
-        print("sadfbgsadfbsdfbsbsgfbkjnsdlifkjnbvedslif")
     except Exception as e:
         logger.error(f"Failed to save STL file '{path}': {e}", exc_info=True)
 
@@ -445,6 +444,8 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
         logger.error(f"check_mesh_validity(): Mesh construction failed: {e}", exc_info=True)
         return None
 
+    edge_counts = np.bincount(m.edges_unique_inverse)
+
     # ------------------------------------------------------------------
     # Collect validity metrics
     # ------------------------------------------------------------------
@@ -452,8 +453,8 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
         "watertight": m.is_watertight,
         "winding_consistent": m.is_winding_consistent,
         "is_volume": m.is_volume,
-        "boundary_edges": int(np.sum(m.edges_unique_counts == 1)),
-        "nonmanifold_edges": int(np.sum(m.edges_unique_counts > 2)),
+        "boundary_edges": int(np.sum(edge_counts == 1)),
+        "nonmanifold_edges": int(np.sum(edge_counts > 2)),
         "self_intersecting": m.is_self_intersecting,
     }
 
