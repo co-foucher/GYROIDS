@@ -246,6 +246,10 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
     """
     logger.info(f"Exporting STL → {path}")
 
+    v0 = verts[faces[:, 0]]
+    v1 = verts[faces[:, 1]]
+    v2 = verts[faces[:, 2]]
+
     # ------------------------------------------------------------------
     # Validate inputs
     # ------------------------------------------------------------------
@@ -256,26 +260,6 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
     if len(faces) == 0:
         logger.warning("export_as_STL(): No faces to export; STL will be empty.")
         return
-
-    # ------------------------------------------------------------------
-    # drop degenerate triangles (zero area)
-    # ------------------------------------------------------------------
-    # (Keeps export clean for some viewers/meshing tools.)
-    v0 = verts[faces[:, 0]]
-    v1 = verts[faces[:, 1]]
-    v2 = verts[faces[:, 2]]
-    cross = np.cross(v1 - v0, v2 - v0)
-    area2 = np.einsum("ij,ij->i", cross, cross)  # proportional to area^2
-    keep = area2 > 0.0
-
-    if not np.all(keep):
-        removed = int(np.size(keep) - np.count_nonzero(keep))
-        logger.warning(f"export_as_STL(): Removing {removed} degenerate triangles.")
-        faces = faces[keep]
-        if len(faces) == 0:
-            logger.error("export_as_STL(): All triangles were degenerate; nothing to export.")
-            return
-        v0 = v0[keep]; v1 = v1[keep]; v2 = v2[keep]
 
     # -------------------------
     # Build STL mesh (vectorized)
@@ -297,7 +281,6 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
         logger.info(f"STL successfully saved: {path}")
     except Exception as e:
         logger.error(f"Failed to save STL file '{path}': {e}", exc_info=True)
-
 
 
 
