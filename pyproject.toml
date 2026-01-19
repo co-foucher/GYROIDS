@@ -51,8 +51,11 @@ Source = "https://github.com/your-account/gyroids"
 Issues = "https://github.com/your-account/gyroids/issues"
 
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["gyroid_utils*"]
 
 
