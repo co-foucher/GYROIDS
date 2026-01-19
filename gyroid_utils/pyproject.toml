@@ -16,6 +16,8 @@ requires-python = ">=3.9"
 
 dependencies = [
     "numpy",
+    "numpy-stl",
+    "scikit-image",
     "trimesh",
     "open3d",
     "plotly",
@@ -52,4 +54,5 @@ Issues = "https://github.com/your-account/gyroids/issues"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["gyroid_utils*"]
+
 
