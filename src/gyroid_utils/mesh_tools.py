@@ -297,29 +297,97 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
 #=====================================================================
 #5) mesh_from_matrix
 #=====================================================================
-def mesh_from_matrix(matrix:np.ndarray, iso_level, spacing, algo_step_size, x=0, y=0, z=0):
-    # --- Ensure the surface is CLOSED (emulates MATLAB's isocaps(..., "below")) ---
-    # Strategy: we want the interior to be "v < iso_level" (the "below" side).
-    # If the surface hits the boundary, it's open. We close it by padding a 1-voxel thick
-    # frame of large POSITIVE values (>> iso_level) around v.
-    # That guarantees a crossing at the boundary and thus creates "caps" there.
-    pad_val = 0                                              # safely above any v near 0
-    v_padded = np.pad(matrix, pad_width=5, mode='constant', constant_values=pad_val)
+def mesh_from_matrix(
+    matrix: np.ndarray,
+    iso_level: float,
+    spacing,
+    algo_step_size: int,
+    x: float = 0.0,
+    y: float = 0.0,
+    z: float = 0.0,
+    pad_width: int = 5,
+    pad_val: float = None,
+):
+    """
+    ============================================================================
+    5) MESH_FROM_MATRIX
+    Extracts an isosurface mesh (verts, faces) from a 3D scalar field using
+    marching cubes. Optionally pads the volume with a constant value to emulate
+    MATLAB-style "isocaps" behavior (i.e., help close surfaces touching the
+    boundary).
+    ============================================================================
+    
+    PARAMETERS
+    ----------
+    matrix : (nx, ny, nz) ndarray
+        Scalar field values sampled on a regular grid.
+    iso_level : float
+        Isosurface level (marching cubes "level").
+    spacing : tuple(float, float, float)
+        Voxel spacing (dx, dy, dz) in physical units.
+    algo_step_size : int
+        Marching cubes step size (larger = faster, less detail).
+    x, y, z : float, optional
+        Physical coordinate of voxel (0,0,0) in the *un-padded* matrix.
+    pad_width : int, optional
+        Number of voxels to pad on each face of the volume.
+    pad_val : float or None, optional
+        Constant padding value. If None, automatically chosen to be safely above
+        iso_level relative to the data range (encourages "caps" on boundaries).
+        If your "solid" is on the other side of the iso_level, you may want to
+        pass a value safely below iso_level instead.
 
-    # The physical origin of the padded grid is shifted by -1 voxel in each direction:
-    origin = (x1.min() - dx_grid, y1.min() - dy_grid, z1.min() - dz_grid)
+    RETURNS
+    -------
+    verts : (N, 3) ndarray
+        Vertex coordinates in physical units.
+    faces : (M, 3) ndarray
+        Triangle connectivity (indices into verts).
+    """
+    logger.info("mesh_from_matrix(): Extracting isosurface mesh from matrix.")
 
 
-    # --- Extract the isosurface in one pass, scaled to physical units ---
-    # Using 'spacing' returns vertices already scaled; we still need to add 'origin'.
-    verts, faces, normals, values = measure.marching_cubes(
-        v_padded, level=iso_level, spacing=spacing, step_size=algo_step_size, allow_degenerate=False)
+    # ------------------------------------------------------------------
+    # Pad volume to help close boundary openings ("caps")
+    # ------------------------------------------------------------------
+    try:
+        v_padded = np.pad(matrix, pad_width=pad_width, mode="constant", constant_values=pad_val)
+    except Exception as e:
+        logger.error(f"mesh_from_matrix(): np.pad failed: {e}", exc_info=True)
+        return None, None
 
-    # Translate vertices so they live in the same physical coordinate system as (x,y,z)
-    verts[:, 0] += origin[0]
-    verts[:, 1] += origin[1]
-    verts[:, 2] += origin[2]
+    # ------------------------------------------------------------------
+    # Extract isosurface
+    # ------------------------------------------------------------------
+    try:
+        verts, faces, normals, values = measure.marching_cubes(
+            v_padded,
+            level=iso_level,
+            spacing=(dx, dy, dz),
+            step_size=int(algo_step_size),
+            allow_degenerate=False,
+        )
+    except Exception as e:
+        logger.error(f"mesh_from_matrix(): marching_cubes failed: {e}", exc_info=True)
+        return None, None
 
+    # ------------------------------------------------------------------
+    # Translate vertices to the physical coordinate system of the unpadded grid
+    # ------------------------------------------------------------------
+    # marching_cubes vertices are relative to padded grid origin at index (0,0,0).
+    # But voxel (0,0,0) of the *unpadded* matrix sits at (pad_width, pad_width, pad_width)
+    # in padded index space. So physical origin shifts by -pad_width*spacing.
+    origin = (x - pad_width * dx, y - pad_width * dy, z - pad_width * dz)
+
+    try:
+        verts[:, 0] += origin[0]
+        verts[:, 1] += origin[1]
+        verts[:, 2] += origin[2]
+    except Exception as e:
+        logger.error(f"mesh_from_matrix(): vertex translation failed: {e}", exc_info=True)
+        return None, None
+
+    logger.info(f"mesh_from_matrix(): Extracted mesh with {len(verts)} verts and {len(faces)} faces.")
     print(f"there are {len(faces)} faces in this model")
 
     return verts, faces
