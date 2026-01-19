@@ -187,7 +187,7 @@ def save_mesh_as_html(faces, verts, file_name):
 #=====================================================================
 #2) plot_histogram
 #=====================================================================
-def plot_histogram(face_areas):
+def plot_histogram(face_areas, BINS=1000):
     """
     ============================================================================
     2) PLOT_HISTOGRAM
@@ -215,7 +215,7 @@ def plot_histogram(face_areas):
     logger.info(f"Plotting histogram for {len(face_areas)} triangle areas")
 
     try:
-        hist = np.histogram(face_areas, bins=1000)
+        hist = np.histogram(face_areas, bins=BINS)
         counts, bins = hist
         bin_centers = 0.5 * (bins[:-1] + bins[1:])
     except Exception as e:

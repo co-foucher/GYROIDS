@@ -49,6 +49,9 @@ def keep_largest_connected_component(verts, faces):
     """
     logger.info("Extracting largest connected component…")
 
+    # ------------------------------------------------------------------
+    # Validate inputs
+    # ------------------------------------------------------------------
     if verts is None or faces is None:
         logger.error("Input verts or faces is None.")
         return np.zeros((0, 3)), np.zeros((0, 3), dtype=int)
@@ -59,6 +62,9 @@ def keep_largest_connected_component(verts, faces):
 
     logger.debug(f"Input mesh: {len(verts)} vertices, {len(faces)} faces")
 
+    # ------------------------------------------------------------------
+    # find largest component
+    # ------------------------------------------------------------------
     try:
         mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
         components = mesh.split(only_watertight=False)
@@ -70,6 +76,9 @@ def keep_largest_connected_component(verts, faces):
         logger.warning("No connected components found in mesh.")
         return np.zeros((0, 3)), np.zeros((0, 3), dtype=int)
 
+    # ------------------------------------------------------------------
+    # result
+    # ------------------------------------------------------------------
     largest = max(components, key=lambda m: len(m.faces))
     logger.info(
         f"Selected largest component: {len(largest.vertices)} vertices, "
@@ -276,7 +285,6 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
         stl_obj.vectors[:, 0, :] = v0
         stl_obj.vectors[:, 1, :] = v1
         stl_obj.vectors[:, 2, :] = v2
-        stl_obj.update_normals()
     except Exception as e:
         logger.error(f"STL mesh construction failed: {e}", exc_info=True)
         return
@@ -313,9 +321,8 @@ def mesh_from_matrix(
     ============================================================================
     5) MESH_FROM_MATRIX
     Extracts an isosurface mesh (verts, faces) from a 3D scalar field using
-    marching cubes. Optionally pads the volume with a constant value to emulate
-    MATLAB-style "isocaps" behavior (i.e., help close surfaces touching the
-    boundary).
+    marching cubes. Optionally pads the volume with a constant value to help 
+    close surfaces touching the boundary).
     ============================================================================
     
     PARAMETERS
@@ -392,7 +399,7 @@ def mesh_from_matrix(
     print(f"there are {len(faces)} faces in this model")
 
     # ------------------------------------------------------------------
-    # Fix face winding / normals to ensure a valid oriented surface
+    # Fix normals to ensure a valid oriented surface
     # ------------------------------------------------------------------
     try:
         m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
@@ -403,6 +410,9 @@ def mesh_from_matrix(
         logger.error(f"mesh_from_matrix(): normal fixing failed: {e}", exc_info=True)
         return None, None
 
+    # ------------------------------------------------------------------
+    # result
+    # ------------------------------------------------------------------
     return verts, faces
 
 
@@ -430,8 +440,6 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
     info : dict
         Dictionary with mesh validity indicators.
     """
-    import trimesh
-    import numpy as np
 
     logger.info("check_mesh_validity(): Checking mesh validity.")
 

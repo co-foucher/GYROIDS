@@ -48,6 +48,9 @@ def load_stl(filepath):
     """
     logger.info(f"Loading STL file: {filepath}")
 
+    # ------------------------------------------------------------------
+    # Validate inputs
+    # ------------------------------------------------------------------
     try:
         mesh = o3d.io.read_triangle_mesh(filepath)
     except Exception as e:
@@ -58,6 +61,19 @@ def load_stl(filepath):
         logger.error(f"STL load failed: '{filepath}' contains no triangles.")
         raise ValueError("The STL file contains no triangles.")
 
+    # ------------------------------------------------------------------
+    # rebuild watertight mesh 
+    #    -> stl stores triangles only
+    #    -> every shared vertices are duplicated
+    # ------------------------------------------------------------------
+    mesh.remove_duplicated_vertices()
+    mesh.remove_duplicated_triangles()
+    mesh.remove_degenerate_triangles()
+    mesh.remove_unreferenced_vertices()
+
+    # ------------------------------------------------------------------
+    # results
+    # ------------------------------------------------------------------
     vertices = np.asarray(mesh.vertices, dtype=float)
     faces = np.asarray(mesh.triangles, dtype=int)
 
