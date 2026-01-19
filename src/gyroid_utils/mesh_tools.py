@@ -306,10 +306,6 @@ def mesh_from_matrix(matrix:np.ndarray, iso_level, spacing, algo_step_size, x=0,
     pad_val = 0                                              # safely above any v near 0
     v_padded = np.pad(matrix, pad_width=5, mode='constant', constant_values=pad_val)
 
-    # Because we padded the volume, the new grid extends one extra voxel outward on each face.
-    # The physical spacing of voxels is the same as our grid steps:
-    spacing = (dx_grid, dy_grid, dz_grid)                        # real-world size per voxel
-
     # The physical origin of the padded grid is shifted by -1 voxel in each direction:
     origin = (x1.min() - dx_grid, y1.min() - dy_grid, z1.min() - dz_grid)
 
