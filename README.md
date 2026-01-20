@@ -10,8 +10,8 @@
 # **INSTALLATION**
   - You could copy the whole environment directly from the yml file. Or use pip to install only this library and *some* dependency. 
   
-  - It is better to use first create a python 3.10 venv and then: pip install git+https://github.com/co-foucher/GYROIDS.git
-  you can add occ throught: conda install conda-forge::pythonocc-core
+  - It is better to first create a python 3.10 venv and then use pip install git+https://github.com/co-foucher/GYROIDS.git
+  and finally add OCC through: conda install conda-forge::pythonocc-core
   
   - For changes: update the toml file and then use pip install git+https://github.com/co-foucher/GYROIDS.git
 
