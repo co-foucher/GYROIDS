@@ -437,7 +437,7 @@ def faces_to_solid(vertices, faces, faces_area=None, sew_tol=1e-5):
     exp = TopExp_Explorer(shell, TopAbs_SHELL)
 
     while exp.More():
-        sh = topoDS_Shell(exp.Current())
+        sh = topoDS_Shell.DownCast(exp.Current())
 
         if is_shell_closed(sh):
             closed_shell = sh
