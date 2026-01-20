@@ -439,7 +439,7 @@ def faces_to_solid(vertices, faces, faces_area=None, sew_tol=1e-5):
     while exp.More():
         sh = exp.Current()
 
-         if sh.ShapeType() == TopAbs_SHELL: # sanity check: is it a shell?
+        if sh.ShapeType() == TopAbs_SHELL: # sanity check: is it a shell?
             if gyroid_utils.occ_tools.is_shell_closed(sh):  # if yes, is it closed?
                 closed_shell = sh
                 print("Closed shell found.")
