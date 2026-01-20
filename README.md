@@ -16,5 +16,30 @@
   - For changes: update the toml file and then use pip install git+https://github.com/co-foucher/GYROIDS.git
 
 
+# FEATURES
+### Complex Gyroid Generation
+- 2D view of matrix defining the gyroid
+- example of gyroid definition
 
+### Surface Mesh Processing (STL)
+- Create a mesh from matrix
+- Quadric mesh simplification (Open3D) 
+- Triangle area computation (NumPy)  
+- Mesh preview as interactive HTML (Plotly)
+- Extract the largest connected component 
+- Histogram visualization of triangle sizes
+- check_mesh_validity
+- export as an STL 
+
+### OpenCascade Tools to generate STEP from STL
+- Build planar faces from triangle data  
+- Stitch faces into closed shells  
+- Validate and simplify OCC shapes  
+- Export shapes to STEP files  
+- Check if a shell is watertight/closed  
+
+### Input / Output
+- Robust STL export and loading 
+- STEP export  
+- Configurable logging for all operations 
 
