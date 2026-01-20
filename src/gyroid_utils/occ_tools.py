@@ -372,7 +372,7 @@ def make_shell_from_faces(vertices, faces_chunk, sew_tol, faces_area=None):
 
 
 #=====================================================================
-#1) faces_to_solid
+#7) faces_to_solid
 #=====================================================================
 
 
@@ -437,12 +437,13 @@ def faces_to_solid(vertices, faces, faces_area=None, sew_tol=1e-5):
     exp = TopExp_Explorer(shell, TopAbs_SHELL)
 
     while exp.More():
-        sh = TopoDS_Shell.DownCast(exp.Current())
+        sh = exp.Current()
 
-        if is_shell_closed(sh):
-            closed_shell = sh
-            logger.info("Closed shell found.")
-            break
+         if sh.ShapeType() == TopAbs_SHELL: # sanity check: is it a shell?
+            if gyroid_utils.occ_tools.is_shell_closed(sh):  # if yes, is it closed?
+                closed_shell = sh
+                print("Closed shell found.")
+                break
 
         exp.Next()
 
