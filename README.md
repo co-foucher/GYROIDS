@@ -13,7 +13,9 @@
   - It is better to first create a python 3.10 venv and then use pip install git+https://github.com/co-foucher/GYROIDS.git
   and finally add OCC through: conda install conda-forge::pythonocc-core  
       -> conda create -n nameofenv python=3.10
+    
       -> pip install git+https://github.com/co-foucher/GYROIDS.git
+    
       -> conda install conda-forge::pythonocc-core 
   
   - For changes: update the toml file and then use pip install git+https://github.com/co-foucher/GYROIDS.git
