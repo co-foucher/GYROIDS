@@ -170,6 +170,8 @@ def save_gyroid_matrices(
         Z-period matrix.
     thickness : np.ndarray
         Thickness matrix.
+    gyroid_field: np.ndarray
+        the actual field of the gyroid
 
     RETURNS
     -------
