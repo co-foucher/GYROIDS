@@ -147,6 +147,7 @@ def save_gyroid_matrices(
     Yperiod: np.ndarray,
     Zperiod: np.ndarray,
     thickness: np.ndarray,
+    gyroid_field: np.ndarray,
     ):
     """
     ============================================================================
@@ -182,19 +183,20 @@ def save_gyroid_matrices(
     ... )
     """
 
-    arrays = [Xperiod, Yperiod, Zperiod, thickness]
+    arrays = [Xperiod, Yperiod, Zperiod, thickness, gyroid_field]
     same_shape = all(arr.shape == arrays[0].shape for arr in arrays)
 
     if not same_shape:
         logger.error("Cannot save arrays: input matrices have different shapes.")
         return
 
-    np.savez(
+    np.savez_compressed(
         outfile,
         Xperiod=Xperiod,
         Yperiod=Yperiod,
         Zperiod=Zperiod,
         thickness=thickness,
+        gyroid_field = gyroid_field
     )
 
     logger.info(f"Saved matrices successfully to: {outfile}")
@@ -238,6 +240,7 @@ def load_gyroid_matrices(infile: str):
             Yperiod = loaded_file["Yperiod"]
             Zperiod = loaded_file["Zperiod"]
             thickness = loaded_file["thickness"]
+            gyroid_field = loaded_file["gyroid_field"]
 
     except FileNotFoundError:
         logger.error(f"File not found: {infile}")
@@ -253,5 +256,5 @@ def load_gyroid_matrices(infile: str):
 
     logger.info(f"Matrices successfully loaded from: {infile}")
 
-    return Xperiod, Yperiod, Zperiod, thickness
+    return Xperiod, Yperiod, Zperiod, thickness, gyroid_field
 
