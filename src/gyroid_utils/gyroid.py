@@ -276,3 +276,41 @@ class GyroidModel:
         Convenience wrapper to the mesh_tools function.
         """
         return mesh_tools.keep_largest_connected_component(verts, faces)
+    
+
+    def add_baseplates(
+            self,
+            thickness: float = 5.0,
+        ) -> None:
+        """
+        Add solid baseplates on the two ends of the z-axis with given physical
+        thickness (same units as self.z). The method preserves the 3D shape of
+        self.v and sets voxels inside the baseplate regions to 1.
+        """
+        if self.v is None:
+            raise RuntimeError("Field not computed: call compute_field() before add_baseplates().")
+        if self.z is None:
+            raise RuntimeError("Grid coordinates missing: self.z is required to compute baseplate thickness in z.")
+
+        # extract 1D z-coordinate along the third axis (assumes indexing 'ij' meshgrid)
+        z_line = np.asarray(self.z[0, 0, :])
+        if z_line.ndim != 1:
+            raise RuntimeError("Unexpected z-grid shape; expected 1D slice along z axis at [0,0,:].")
+
+        # count how many z-slices lie below the requested thickness
+        n = int(np.count_nonzero(z_line < thickness))
+
+        # clamp to valid range
+        nz = self.v.shape[2]
+        if n <= 0:
+            logger.info("Requested baseplate thickness is zero or smaller than grid spacing; no baseplates added.")
+            return
+        if n >= nz:
+            logger.warning("Requested baseplate thickness >= entire z-size; filling whole volume.")
+            n = nz
+
+        # set the bottom and top n slices to solid (use in-place assignment to preserve dtype/shape)
+        self.v[:, :, 0:n] = 1
+        self.v[:, :, -n:] = 1
+
+        logger.info(f"Added baseplates of thickness {thickness} units ({n} z-slices).")
