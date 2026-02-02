@@ -299,43 +299,7 @@ def mesh_from_matrix(
     pad_width: int = 5,
     pad_val: float = None,
     ):
-    """
-    ============================================================================
-    5) MESH_FROM_MATRIX
-    Extracts an isosurface mesh (verts, faces) from a 3D scalar field using
-    marching cubes. Optionally pads the volume with a constant value to help 
-    close surfaces touching the boundary).
-    ============================================================================
-    
-    PARAMETERS
-    ----------
-    matrix : (nx, ny, nz) ndarray
-        Scalar field values sampled on a regular grid.
-    iso_level : float
-        Isosurface level (marching cubes "level").
-    spacing : tuple(float, float, float)
-        Voxel spacing (dx, dy, dz) in physical units.
-    algo_step_size : int
-        Marching cubes step size (larger = faster, less detail).
-    x, y, z : float, optional
-        Physical coordinate of voxel (0,0,0) in the *un-padded* matrix.
-    pad_width : int, optional
-        Number of voxels to pad on each face of the volume.
-    pad_val : float or None, optional
-        Constant padding value. If None, automatically chosen to be safely above
-        iso_level relative to the data range (encourages "caps" on boundaries).
-        If your "solid" is on the other side of the iso_level, you may want to
-        pass a value safely below iso_level instead.
-
-    RETURNS
-    -------
-    verts : (N, 3) ndarray
-        Vertex coordinates in physical units.
-    faces : (M, 3) ndarray
-        Triangle connectivity (indices into verts).
-    """
     logger.info("mesh_from_matrix(): Extracting isosurface mesh from matrix.")
-
 
     # ------------------------------------------------------------------
     # Pad volume to help close boundary openings ("caps")
@@ -349,60 +313,65 @@ def mesh_from_matrix(
     # ------------------------------------------------------------------
     # Extract isosurface
     # ------------------------------------------------------------------
-    spacing = ((np.max(x)-np.min(x))/ (np.size(x[:,0,0])), 
-            (np.max(y)-np.min(y))/ (np.size(y[0,:,0])),
-           (np.max(z)-np.min(z))/ (np.size(z[0,0,:]))) 
-
+    spacing = (np.abs(x[1,0,0]-x[0,0,0]),
+            np.abs(y[0,1,0]-y[0,0,0]),
+            np.abs(z[0,0,1]-z[0,0,0]))  
+    
+    logger.debug(f"mesh_from_matrix(): spacing = {spacing}")
     try:
         verts, faces, normals, values = measure.marching_cubes(
             v_padded,
             level=iso_level,
             spacing=spacing,
             step_size=int(algo_step_size),
-            allow_degenerate=False,
-        )
+            allow_degenerate=False)
     except Exception as e:
         logger.error(f"mesh_from_matrix(): marching_cubes failed: {e}", exc_info=True)
         return None, None
 
+    logger.debug(f"mesh_from_matrix(): raw verts bbox: [{np.min(verts[:, 0]):.3f}, {np.max(verts[:, 0]):.3f}] x [{np.min(verts[:, 1]):.3f}, {np.max(verts[:, 1]):.3f}] x [{np.min(verts[:, 2]):.3f}, {np.max(verts[:, 2]):.3f}]")
+    
     # ------------------------------------------------------------------
     # Translate vertices to the physical coordinate system of the unpadded grid
     # ------------------------------------------------------------------
-    # marching_cubes vertices are relative to padded grid origin .
-    # But voxel (0,0,0) of the *unpadded* matrix sits at (pad_width, pad_width, pad_width)
-    # in padded index space. So physical origin shifts by -pad_width*spacing.
-    x_origin = x[0,0,0]
-    y_origin = y[0,0,0]
-    z_origin = z[0,0,0]
-
-    origin = (x_origin - pad_width * spacing[0], y_origin - pad_width * spacing[1], z_origin - pad_width * spacing[2])
-
     try:
-        verts[:, 0] = verts[:,0] + origin[0]
-        verts[:, 1] = verts[:,1] + origin[1]
-        verts[:, 2] = verts[:,2] + origin[2]
+        # Extract 1D axis arrays
+        xa = np.asarray(x)
+        ya = np.asarray(y)
+        za = np.asarray(z)
+        if xa.ndim > 1:
+            xa = xa[:, 0, 0]
+        if ya.ndim > 1:
+            ya = ya[0, :, 0]
+        if za.ndim > 1:
+            za = za[0, 0, :]
+
+        Nx, Ny, Nz = len(xa), len(ya), len(za)
+
+        # Convert marching_cubes physical coords → padded fractional indices
+        verts_idx_x = verts[:, 0] / float(spacing[0]) - pad_width - 0.5
+        verts_idx_y = verts[:, 1] / float(spacing[1]) - pad_width - 0.5
+        verts_idx_z = verts[:, 2] / float(spacing[2]) - pad_width - 0.5
+
+        # Clamp and interpolate to physical axis coordinates
+        verts_idx_x = np.clip(verts_idx_x, 0.0, Nx - 1.0)
+        verts_idx_y = np.clip(verts_idx_y, 0.0, Ny - 1.0)
+        verts_idx_z = np.clip(verts_idx_z, 0.0, Nz - 1.0)
+
+        ix = np.arange(Nx)
+        iy = np.arange(Ny)
+        iz = np.arange(Nz)
+
+        verts[:, 0] = np.interp(verts_idx_x, ix, xa)
+        verts[:, 1] = np.interp(verts_idx_y, iy, ya)
+        verts[:, 2] = np.interp(verts_idx_z, iz, za)
+        
+        logger.debug(f"mesh_from_matrix(): mapped verts bbox: [{verts[:, 0].min():.3f}, {verts[:, 0].max():.3f}] x [{verts[:, 1].min():.3f}, {verts[:, 1].max():.3f}] x [{verts[:, 2].min():.3f}, {verts[:, 2].max():.3f}]")
     except Exception as e:
         logger.error(f"mesh_from_matrix(): vertex translation failed: {e}", exc_info=True)
         return None, None
 
-    logger.info(f"mesh_from_matrix(): Extracted mesh with {len(verts)} verts and {len(faces)} faces.")
-    print(f"there are {len(faces)} faces in this model")
-
-    # ------------------------------------------------------------------
-    # Fix normals to ensure a valid oriented surface
-    # ------------------------------------------------------------------
-    try:
-        m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
-        m.fix_normals()
-        verts = m.vertices
-        faces = m.faces
-    except Exception as e:
-        logger.error(f"mesh_from_matrix(): normal fixing failed: {e}", exc_info=True)
-        return None, None
-
-    # ------------------------------------------------------------------
-    # result
-    # ------------------------------------------------------------------
+    logger.info(f"mesh_from_matrix(): Extracted {len(verts)} vertices, {len(faces)} faces")
     return verts, faces
 
 
