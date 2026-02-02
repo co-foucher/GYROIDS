@@ -41,14 +41,17 @@
 - Stitch faces into closed shells  
 - Validate and simplify OCC shapes  
 - Export shapes to STEP files  
-- Check if a shell is watertight/closed  
+- Check if a shell is watertight/closed
+
+### ftetwild
+-to go from stl to tetrahedral mesh, check out ftetwild : https://github.com/wildmeshing/fTetWild
 
 ### Input / Output
 - Robust STL export and loading 
-- STEP export  
+- STEP export (slow)
 - Configurable logging for all operations
 
-### GyroidModel (class: src/gyroid_utils/gyroid.py)
+# GyroidModel (class: src/gyroid_utils/gyroid.py)
 A high-level helper class to create a gyroid scalar field on a 3D grid, convert it into a surface mesh, simplify/export the mesh and run quick checks/visualizations.
 
 Quick summary
