@@ -133,15 +133,18 @@ class GyroidModel:
             # distance_transform_edt supports a 'sampling' parameter for anisotropic voxels
             # second, compute in the solid part, the distance of every voxel to the nearest zero (empty part)
             dist_out = distance_transform_edt(~binary, sampling=spacing)
-            # second, do the same, but inverting the regions
+            # third, do the same, but inverting the regions
             dist_in = distance_transform_edt(binary, sampling=spacing)
 
             # distance: now the matrx shows the distance to the surface
             dist = dist_out + dist_in
 
             half_t = self.thickness / 2.0
+
+            mask = = dist < half_t
             # elementwise subtraction works for scalar or same-shaped array
-            self.v = dist[dist<half_t]
+            self.v = np.zeros_like(dist)
+            self.v[mask] = dist[mask]
             return self.v
 
         raise ValueError("mode must be one of: 'abs', 'signed', 'distance'")
