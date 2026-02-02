@@ -206,7 +206,6 @@ class GyroidModel:
         self.verts, self.faces = mesh_tools.mesh_from_matrix(
             matrix=self.v,
             iso_level=iso_level,
-            spacing=spacing,
             algo_step_size=algo_step_size,
             x=self.x,
             y=self.y,
