@@ -209,9 +209,9 @@ class GyroidModel:
             iso_level=iso_level,
             spacing=spacing,
             algo_step_size=algo_step_size,
-            x=0.0,
-            y=0.0,
-            z=0.0,
+            x=self.x,
+            y=self.y,
+            z=self.z,
             pad_width=pad_width,
             pad_val=pad_val,
         )

@@ -25,7 +25,7 @@ def save_mesh_as_html(faces, verts, file_name):
     ============================================================================
 
     PARAMETERS
-    ----------
+    ----------    
     faces : (M, 3) ndarray
         Triangle indices.
     verts : (N, 3) ndarray
