@@ -85,9 +85,7 @@ class GyroidModel:
 
     def compute_field(self,
                       mode: str = "abs",
-                      level: float = 0.0,
-                      spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0),
-                      physical_thickness: Optional[Union[float, np.ndarray]] = None) -> np.ndarray:
+                      spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0)) -> np.ndarray:
         """
         Compute the gyroid scalar field.
 
@@ -118,7 +116,7 @@ class GyroidModel:
 
         if mode == "signed":
             # signed level-set relative to provided level (C)
-            self.v = term - level
+            self.v = term - self.thickness
             return self.v
 
         if mode == "distance":
@@ -129,30 +127,21 @@ class GyroidModel:
                 raise RuntimeError("distance mode requires scipy.ndimage.distance_transform_edt") from e
 
             # binary solid from level-set (classical gyroid surface at 'level')
-            binary = (term > level)
+            # first create binary mask of solid region, the surface of interest is at the intersection of the two regions
+            binary = (term > 0)
 
             # distance_transform_edt supports a 'sampling' parameter for anisotropic voxels
+            # second, compute in the solid part, the distance of every voxel to the nearest zero (empty part)
             dist_out = distance_transform_edt(~binary, sampling=spacing)
+            # second, do the same, but inverting the regions
             dist_in = distance_transform_edt(binary, sampling=spacing)
 
-            # signed distance: negative inside the solid region, positive outside
-            signed_dist = dist_out - dist_in
+            # distance: now the matrx shows the distance to the surface
+            dist = dist_out + dist_in
 
-            if physical_thickness is None:
-                # return signed distance field (useful for mesh offsetting or isosurfacing)
-                self.v = signed_dist
-                return self.v
-
-            # physical_thickness may be scalar or array matching grid
-            if not np.isscalar(physical_thickness):
-                if not isinstance(physical_thickness, np.ndarray):
-                    raise TypeError("physical_thickness must be a scalar or numpy array matching x/y/z shape.")
-                if self.x is None or physical_thickness.shape != self.x.shape:
-                    raise ValueError("physical_thickness array must have the same shape as x/y/z.")
-
-            half_t = physical_thickness / 2.0
+            half_t = self.thickness / 2.0
             # elementwise subtraction works for scalar or same-shaped array
-            self.v = half_t - np.abs(signed_dist)
+            self.v = half_t - np.abs(dist)
             return self.v
 
         raise ValueError("mode must be one of: 'abs', 'signed', 'distance'")
