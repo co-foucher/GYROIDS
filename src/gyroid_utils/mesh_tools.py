@@ -294,12 +294,12 @@ def mesh_from_matrix(
     iso_level: float,
     spacing,
     algo_step_size: int,
-    x: float = 0.0,
-    y: float = 0.0,
-    z: float = 0.0,
+    x: np.ndarray
+    y: np.ndarray,
+    z: np.ndarray,
     pad_width: int = 5,
     pad_val: float = None,
-):
+    ):
     """
     ============================================================================
     5) MESH_FROM_MATRIX
@@ -368,7 +368,11 @@ def mesh_from_matrix(
     # marching_cubes vertices are relative to padded grid origin at index (0,0,0).
     # But voxel (0,0,0) of the *unpadded* matrix sits at (pad_width, pad_width, pad_width)
     # in padded index space. So physical origin shifts by -pad_width*spacing.
-    origin = (x - pad_width * spacing[0], y - pad_width * spacing[1], z - pad_width * spacing[2])
+    x_origin = x[0,0,0]
+    y_origin = y[0,0,0]
+    z_origin = z[0,0,0]
+
+    origin = (x_origin - pad_width * spacing[0], y_origin - pad_width * spacing[1], z_origin - pad_width * spacing[2])
 
     try:
         verts[:, 0] += origin[0]
