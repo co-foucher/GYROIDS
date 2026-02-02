@@ -13,6 +13,7 @@ io_ops       : STL/STEP loaders and exporters
 occ_tools    : OpenCascade-based modeling and shape validation
 utils        : Generic helpers and shared functionality
 config       : Global constants and tolerances
+gyroid       : defines a class for Gyroid surface generation and manipulation
 """
 
 from .config import DEFAULT_LINEAR_TOL, DEFAULT_ANGULAR_TOL_DEG
