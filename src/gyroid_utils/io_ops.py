@@ -228,7 +228,7 @@ def load_gyroid_matrices(infile: str):
     RETURNS
     -------
     tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] or None
-        (Xperiod, Yperiod, Zperiod, thickness) if successful,
+        (Xperiod, Yperiod, Zperiod, thickness, gyroid_field) if successful,
         otherwise None.
 
     EXAMPLE
