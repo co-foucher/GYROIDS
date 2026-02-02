@@ -372,12 +372,16 @@ def mesh_from_matrix(
     y_origin = y[0,0,0]
     z_origin = z[0,0,0]
 
+    x_length_factor = (np.max(x)-np.min(x))/(x.shape[0])
+    y_length_factor = (np.max(y)-np.min(y))/(y.shape[1])
+    z_length_factor = (np.max(z)-np.min(z))/(z.shape[2])
+
     origin = (x_origin - pad_width * spacing[0], y_origin - pad_width * spacing[1], z_origin - pad_width * spacing[2])
 
     try:
-        verts[:, 0] += origin[0]
-        verts[:, 1] += origin[1]
-        verts[:, 2] += origin[2]
+        verts[:, 0] = verts[:,0] * x_length_factor + origin[0]
+        verts[:, 1] = verts[:,1] * y_length_factor + origin[1]
+        verts[:, 2] = verts[:,2] * z_length_factor + origin[2]
     except Exception as e:
         logger.error(f"mesh_from_matrix(): vertex translation failed: {e}", exc_info=True)
         return None, None
