@@ -292,7 +292,6 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
 def mesh_from_matrix(
     matrix: np.ndarray,
     iso_level: float,
-    spacing,
     algo_step_size: int,
     x: np.ndarray,
     y: np.ndarray,
@@ -350,6 +349,10 @@ def mesh_from_matrix(
     # ------------------------------------------------------------------
     # Extract isosurface
     # ------------------------------------------------------------------
+    spacing = (np.abs(x[1,0,0]-x[0,0,0]),
+            np.abs(y[0,1,0]-y[0,0,0]),
+            np.abs(z[0,0,1]-z[0,0,0]))  
+
     try:
         verts, faces, normals, values = measure.marching_cubes(
             v_padded,
@@ -365,23 +368,19 @@ def mesh_from_matrix(
     # ------------------------------------------------------------------
     # Translate vertices to the physical coordinate system of the unpadded grid
     # ------------------------------------------------------------------
-    # marching_cubes vertices are relative to padded grid origin at index (0,0,0).
+    # marching_cubes vertices are relative to padded grid origin .
     # But voxel (0,0,0) of the *unpadded* matrix sits at (pad_width, pad_width, pad_width)
     # in padded index space. So physical origin shifts by -pad_width*spacing.
     x_origin = x[0,0,0]
     y_origin = y[0,0,0]
     z_origin = z[0,0,0]
 
-    x_length_factor = (np.max(x)-np.min(x))/(x.shape[0])
-    y_length_factor = (np.max(y)-np.min(y))/(y.shape[1])
-    z_length_factor = (np.max(z)-np.min(z))/(z.shape[2])
-
     origin = (x_origin - pad_width * spacing[0], y_origin - pad_width * spacing[1], z_origin - pad_width * spacing[2])
 
     try:
-        verts[:, 0] = verts[:,0] * x_length_factor + origin[0]
-        verts[:, 1] = verts[:,1] * y_length_factor + origin[1]
-        verts[:, 2] = verts[:,2] * z_length_factor + origin[2]
+        verts[:, 0] = verts[:,0] + origin[0]
+        verts[:, 1] = verts[:,1] + origin[1]
+        verts[:, 2] = verts[:,2] + origin[2]
     except Exception as e:
         logger.error(f"mesh_from_matrix(): vertex translation failed: {e}", exc_info=True)
         return None, None

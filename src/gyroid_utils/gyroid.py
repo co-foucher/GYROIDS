@@ -192,7 +192,6 @@ class GyroidModel:
     def generate_mesh(
         self,
         iso_level: float = 0.0,
-        spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0),
         algo_step_size: int = 3,
         pad_width: int = 5,
         pad_val: float = 0.0,
