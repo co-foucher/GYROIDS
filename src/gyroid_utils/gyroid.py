@@ -141,7 +141,7 @@ class GyroidModel:
 
             half_t = self.thickness / 2.0
             # elementwise subtraction works for scalar or same-shaped array
-            self.v = half_t - np.abs(dist)
+            self.v = dist[dist<half_t]
             return self.v
 
         raise ValueError("mode must be one of: 'abs', 'signed', 'distance'")
