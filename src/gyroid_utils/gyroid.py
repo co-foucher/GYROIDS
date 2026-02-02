@@ -139,10 +139,13 @@ class GyroidModel:
             # distance: now the matrx shows the distance to the surface
             dist = dist_out + dist_in
 
+            # actual distance to the surface need to be half the total distance
             half_t = self.thickness / 2.0
 
+            #crate a mask of the voxel the are below the max distance
             mask = dist < half_t
-            # elementwise subtraction works for scalar or same-shaped array
+
+            # final field: positive inside the desired wall band, zero outside
             self.v = np.zeros_like(dist)
             self.v[mask] = dist[mask]
             return self.v
