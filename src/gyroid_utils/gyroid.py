@@ -175,14 +175,13 @@ class GyroidModel:
     def load(cls, infile: str) -> "GyroidModel":
         """
         Load saved gyroid matrices and return a GyroidModel instance.
-        Note: x/y/z coordinate arrays are not restored by the current save format;
-        they will be None on the returned object. If you need coordinates, reconstruct them
-        before calling compute_field or set them on the returned object.
         """
-        px, py, pz, t, v = io_ops.load_gyroid_matrices(infile)
+        x, y, z, px, py, pz, t, v = io_ops.load_gyroid_matrices(infile)
         obj = cls.__new__(cls)
         # fill only what is stored; coordinates are unknown from the saved file
-        obj.x = obj.y = obj.z = None
+        obj.x = x
+        obj.y = y
+        obj.z = z
         obj.px, obj.py, obj.pz = px, py, pz
         obj.thickness = t
         obj.v = v

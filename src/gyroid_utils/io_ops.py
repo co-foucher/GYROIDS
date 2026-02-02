@@ -143,6 +143,9 @@ def write_step(shape, filepath: str):
 #=====================================================================
 def save_gyroid_matrices(
     outfile: str,
+    Xres: np.ndarray,
+    Yres: np.ndarray,
+    Zres: np.ndarray,
     Xperiod: np.ndarray,
     Yperiod: np.ndarray,
     Zperiod: np.ndarray,
@@ -185,7 +188,7 @@ def save_gyroid_matrices(
     ... )
     """
 
-    arrays = [Xperiod, Yperiod, Zperiod, thickness, gyroid_field]
+    arrays = [Xres, Yres, Zres, Xperiod, Yperiod, Zperiod, thickness, gyroid_field]
     same_shape = all(arr.shape == arrays[0].shape for arr in arrays)
 
     if not same_shape:
@@ -194,6 +197,9 @@ def save_gyroid_matrices(
 
     np.savez_compressed(
         outfile,
+        Xres=Xres,
+        Yres=Yres,
+        Zres=Zres,
         Xperiod=Xperiod,
         Yperiod=Yperiod,
         Zperiod=Zperiod,
@@ -238,6 +244,9 @@ def load_gyroid_matrices(infile: str):
 
     try:
         with np.load(infile) as loaded_file:
+            Xres = loaded_file["Xres"]
+            Yres = loaded_file["Yres"]
+            Zres = loaded_file["Zres"]
             Xperiod = loaded_file["Xperiod"]
             Yperiod = loaded_file["Yperiod"]
             Zperiod = loaded_file["Zperiod"]
@@ -258,5 +267,5 @@ def load_gyroid_matrices(infile: str):
 
     logger.info(f"Matrices successfully loaded from: {infile}")
 
-    return Xperiod, Yperiod, Zperiod, thickness, gyroid_field
+    return Xres, Yres, Zres, Xperiod, Yperiod, Zperiod, thickness, gyroid_field
 
