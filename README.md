@@ -106,7 +106,14 @@ verts, faces = model.generate_mesh(iso_level=0.0)
 model.simplify_mesh(target_faces=10000)
 model.export_stl("gyroid.stl")
 ```
+# Examples in notebooks
+- Gyroids_STL.ipynb : how to parametrize and create a simple gyroid
+- Gyroids_STL_class.ipynb : how to use the gyroid class to generate gyroids faster and safer
+- STL_to_STEP.ipynb : how to use OCC to transform a STL to a STEP
+- STL_to_inp.ipynb : how to use fTetWild to transform a STL to an ABAQUS input file (inp)
 
-
-### known bugs
+# known bugs
 Coordinates in the stl mesh do not match exactly the definition in the matrix. his is due to the marching cube algorithm, resulting in strcute about a pixel larger in every dimension.
+
+
+
