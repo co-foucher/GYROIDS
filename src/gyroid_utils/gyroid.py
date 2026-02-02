@@ -298,19 +298,20 @@ class GyroidModel:
             raise RuntimeError("Unexpected z-grid shape; expected 1D slice along z axis at [0,0,:].")
 
         # count how many z-slices lie below the requested thickness
-        n = int(np.count_nonzero(z_line < thickness))
+        n = np.abs(self.z[0,0,1] - self.z[0,0,0])  # distance of one slice
+        N = int(thickness/n)                       # number of slices to fill
 
         # clamp to valid range
         nz = self.v.shape[2]
-        if n <= 0:
+        if N <= 0:
             logger.info("Requested baseplate thickness is zero or smaller than grid spacing; no baseplates added.")
             return
-        if n >= nz:
+        if N >= nz:
             logger.warning("Requested baseplate thickness >= entire z-size; filling whole volume.")
-            n = nz
+            N = nz
 
         # set the bottom and top n slices to solid (use in-place assignment to preserve dtype/shape)
-        self.v[:, :, 0:n] = 1
-        self.v[:, :, -n:] = 1
+        self.v[:, :, 0:N] = 1
+        self.v[:, :, -N:] = 1
 
-        logger.info(f"Added baseplates of thickness {thickness} units ({n} z-slices).")
+        logger.info(f"Added baseplates of thickness {thickness} units ({N} z-slices).")
