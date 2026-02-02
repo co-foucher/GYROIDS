@@ -294,7 +294,7 @@ def mesh_from_matrix(
     iso_level: float,
     spacing,
     algo_step_size: int,
-    x: np.ndarray
+    x: np.ndarray,
     y: np.ndarray,
     z: np.ndarray,
     pad_width: int = 5,
