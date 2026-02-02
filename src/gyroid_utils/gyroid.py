@@ -161,6 +161,9 @@ class GyroidModel:
 
         io_ops.save_gyroid_matrices(
             outfile,
+            Xres = self.x,
+            Yres = self.y,
+            Zres = self.z,
             Xperiod=self.px,
             Yperiod=self.py,
             Zperiod=self.pz,
@@ -266,3 +269,11 @@ class GyroidModel:
         return areas
 
 
+    def keep_largest_connected_component(
+        verts: np.ndarray,
+        faces: np.ndarray,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Convenience wrapper to the mesh_tools function.
+        """
+        return mesh_tools.keep_largest_connected_component(verts, faces)

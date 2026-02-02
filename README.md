@@ -46,5 +46,61 @@
 ### Input / Output
 - Robust STL export and loading 
 - STEP export  
-- Configurable logging for all operations 
+- Configurable logging for all operations
+
+### GyroidModel (class: src/gyroid_utils/gyroid.py)
+A high-level helper class to create a gyroid scalar field on a 3D grid, convert it into a surface mesh, simplify/export the mesh and run quick checks/visualizations.
+
+Quick summary
+- Location: src/gyroid_utils/gyroid.py
+- Main purpose: generate a gyroid (level-set) field, produce a triangular mesh, and export/inspect it.
+- Typical workflow:
+  1. Instantiate GyroidModel with coordinate grids and parameters.
+  2. Call compute_field(...) to build the scalar field.
+  3. Call generate_mesh(...) to extract an isosurface mesh (default iso_level = 0).
+  4. Optionally simplify, export to STL/STEP, preview or check mesh quality.
+
+Constructor
+- GyroidModel(x, y, z, px, py, pz, thickness)
+  - x, y, z: numpy ndarrays describing the sampling grid (must have identical shape).
+  - px, py, pz: period parameters (scalar or ndarray matching x.shape).
+  - thickness: scalar or ndarray (same shape as x) used to control wall thickness in some modes.
+
+main helper: ompute_field(...)
+- Builds the internal scalar field self.v. Modes:
+  - mode="abs" (default): v = thickness - |term|
+    - Fast, threshold in function-value space. Good for quick "wall" masks.
+  - mode="signed": v = term - level
+    - Classical signed level-set (use level=0 for canonical gyroid).
+  - mode="distance": builds a distance-based field using scipy.ndimage.distance_transform_edt
+    - Produces a signed-distance field (if physical_thickness is None) or a band-field
+      based on a spatial thickness (if physical_thickness provided).
+    - spacing parameter controls voxel sizes for the distance transform.
+    - physical_thickness may be scalar or an ndarray matching the grid.
+
+Other helpers
+- generate_mesh(...): Produces (verts, faces) from self.v using marching-cubes (mesh_tools.mesh_from_matrix).
+- simplify_mesh(target_faces): simplify and retain largest connected component.
+- export_stl(filepath): save current mesh as STL.
+- save_mesh_preview(html_path): save interactive HTML preview.
+- check_mesh_quality(): compute triangle areas, plot histogram, run validity checks.
+
+
+Minimal example
+```python
+import numpy as np
+from gyroid_utils.gyroid import GyroidModel
+
+# build grid
+x, y, z = np.meshgrid(np.linspace(0,1,64),
+                      np.linspace(0,1,64),
+                      np.linspace(0,1,64), indexing='ij')
+
+model = GyroidModel(x, y, z, px=1.0, py=1.0, pz=1.0, thickness=0.2)
+# distance-based wall of physical thickness 0.5 (voxel units), requires scipy
+model.compute_field(mode='distance', spacing=(1.0,1.0,1.0), thickness=0.5)
+verts, faces = model.generate_mesh(iso_level=0.0)
+model.simplify_mesh(target_faces=10000)
+model.export_stl("gyroid.stl")
+```
 
