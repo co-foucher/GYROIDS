@@ -141,7 +141,7 @@ class GyroidModel:
 
             half_t = self.thickness / 2.0
 
-            mask = = dist < half_t
+            mask = dist < half_t
             # elementwise subtraction works for scalar or same-shaped array
             self.v = np.zeros_like(dist)
             self.v[mask] = dist[mask]
