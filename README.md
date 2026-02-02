@@ -104,3 +104,6 @@ model.simplify_mesh(target_faces=10000)
 model.export_stl("gyroid.stl")
 ```
 
+
+### known bugs
+Coordinates in the stl mesh do not match exactly the definition in the matrix. his is due to the marching cube algorithm, resulting in strcute about a pixel larger in every dimension.
