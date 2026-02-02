@@ -349,9 +349,9 @@ def mesh_from_matrix(
     # ------------------------------------------------------------------
     # Extract isosurface
     # ------------------------------------------------------------------
-    spacing = (np.abs(x[1,0,0]-x[0,0,0]),
-            np.abs(y[0,1,0]-y[0,0,0]),
-            np.abs(z[0,0,1]-z[0,0,0]))  
+    spacing = ((np.max(x)-np.min(x))/ (np.size(x[:,0,0])), 
+            (np.max(y)-np.min(y))/ (np.size(y[0,:,0])),
+           (np.max(z)-np.min(z))/ (np.size(z[0,0,:]))) 
 
     try:
         verts, faces, normals, values = measure.marching_cubes(
