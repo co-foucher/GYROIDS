@@ -95,6 +95,22 @@ def save_mesh_as_html(faces, verts, file_name):
         logger.error(f"Failed to build edges: {e}", exc_info=True)
         return
 
+    # If there are *too many* edges for Plotly/Edge to handle, export a
+    # lightweight Three.js HTML viewer which scales much better for large
+    # line counts. This avoids browser crashes when plotting millions of
+    # edges with Plotly's higher-level renderer.
+    try:
+        threejs_threshold = 150_000
+        if edges.shape[0] > threejs_threshold:
+            logger.info(
+                f"Large edge count ({edges.shape[0]}) — using Three.js exporter for '{file_name}.html'"
+            )
+            _write_threejs_html(file_name, verts, faces, edges)
+            return
+    except Exception:
+        # Fall back to existing behaviour if Three.js path fails.
+        logger.exception("Three.js export attempt failed — falling back to Plotly.")
+
     # =========================================================
     # 2) EDGE DECIMATION
     # =========================================================
@@ -569,3 +585,118 @@ def view_mesh(faces, verts):
         return
 
     fig.show()
+
+
+# ---------------------------------------------------------------------------
+# Three.js HTML exporter (fast for many line segments)
+# ---------------------------------------------------------------------------
+def _write_threejs_html(file_name, verts, faces, edges, show_mesh=True):
+        """
+        Write a minimal standalone HTML file that renders the mesh and edges
+        using Three.js. This scales much better for large numbers of line
+        segments than Plotly's higher-level Scatter3d in some browsers.
+        """
+        try:
+                verts = np.asarray(verts, dtype=float)
+                faces = np.asarray(faces, dtype=np.int32)
+                edges = np.asarray(edges, dtype=np.int32)
+
+                # Prepare flat arrays for JS
+                # Line positions: for each edge, two vertices (x,y,z)
+                E = edges.shape[0]
+                line_positions = np.empty((E * 2, 3), dtype=float)
+                line_positions[0::2] = verts[edges[:, 0]]
+                line_positions[1::2] = verts[edges[:, 1]]
+
+                verts_flat = verts.reshape(-1).tolist()
+                faces_flat = faces.reshape(-1).tolist()
+                line_pos_flat = line_positions.reshape(-1).tolist()
+
+                html = f"""<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Mesh Preview</title>
+    <style>body{{margin:0}}canvas{{width:100%;height:100%}}#info{{position:absolute;top:6px;left:6px;color:#fff;z-index:1}}</style>
+</head>
+<body>
+<div id="info">Drag to rotate, scroll to zoom</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const verts = new Float32Array({line_pos_size});
+// placeholder
+</script>
+<script>
+// Data arrays
+const vertices = new Float32Array({verts_array});
+const faceIdx = new Uint32Array({faces_array});
+const linePositions = new Float32Array({lines_array});
+
+// Scene
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.001, 1000);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Controls
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+// Lights
+const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+scene.add(hemi);
+const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+dir.position.set(1,2,3);
+scene.add(dir);
+
+// Lines (edges)
+{
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+    const mat = new THREE.LineBasicMaterial({color:0x000000});
+    const lines = new THREE.LineSegments(geom, mat);
+    scene.add(lines);
+}
+
+// Mesh (optional)
+if ({show_mesh_js}){
+    const geom2 = new THREE.BufferGeometry();
+    geom2.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geom2.setIndex(new THREE.BufferAttribute(faceIdx, 1));
+    geom2.computeVertexNormals();
+    const mat2 = new THREE.MeshPhongMaterial({color:0xadd8e6, transparent:true, opacity:0.9, side:THREE.DoubleSide});
+    const mesh = new THREE.Mesh(geom2, mat2);
+    scene.add(mesh);
+}
+
+// Camera framing
+const bb = new THREE.Box3();
+bb.setFromBufferAttribute(new THREE.BufferAttribute(vertices, 3));
+const center = bb.getCenter(new THREE.Vector3());
+const size = bb.getSize(new THREE.Vector3()).length();
+camera.position.copy(center.clone().add(new THREE.Vector3(size*1.2, size*1.2, size*1.2)));
+camera.lookAt(center);
+controls.target.copy(center);
+
+// Resize
+window.addEventListener('resize', ()=>{camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight)}, false);
+
+function animate(){requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera)}
+animate();
+</script>
+</body>
+</html>"""
+
+                # Insert arrays (avoid extremely long f-strings by replacing placeholders)
+                html = html.replace('{verts_array}', str(verts_flat))
+                html = html.replace('{faces_array}', str(faces_flat))
+                html = html.replace('{lines_array}', str(line_pos_flat))
+                html = html.replace('{show_mesh_js}', 'true' if show_mesh else 'false')
+
+                out_path = f"{file_name}.html"
+                with open(out_path, 'w', encoding='utf-8') as f:
+                        f.write(html)
+                logger.info(f"Three.js HTML visualization saved → {out_path}")
+        except Exception as e:
+                logger.error(f"Failed to write Three.js HTML: {e}", exc_info=True)
