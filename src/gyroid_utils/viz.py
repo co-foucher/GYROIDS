@@ -99,6 +99,7 @@ def save_mesh_as_html(faces, verts, file_name, save: bool = True):
     # lightweight Three.js HTML viewer which scales much better for large
     # line counts. This avoids browser crashes when plotting millions of
     # edges with Plotly's higher-level renderer.
+    """
     try:
         threejs_threshold = 150_000
         if edges.shape[0] > threejs_threshold:
@@ -110,7 +111,7 @@ def save_mesh_as_html(faces, verts, file_name, save: bool = True):
     except Exception:
         # Fall back to existing behaviour if Three.js path fails.
         logger.exception("Three.js export attempt failed — falling back to Plotly.")
-
+    """
     # =========================================================
     # 2) EDGE DECIMATION
     # =========================================================
