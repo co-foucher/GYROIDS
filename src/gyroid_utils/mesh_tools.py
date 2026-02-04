@@ -297,8 +297,7 @@ def mesh_from_matrix(
     y: np.ndarray,
     z: np.ndarray,
     pad_width: int = 5,
-    pad_val: float = None,
-    repair: bool = True,
+    pad_val: float = -1
     ):
     """
     ============================================================================
@@ -390,49 +389,6 @@ def mesh_from_matrix(
     try:
         m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
         m.fix_normals()
-
-        # Optional best-effort repair steps to produce a watertight, correctly
-        # oriented mesh. These are conservative operations that aim to remove
-        # duplicate/degenerate faces, merge vertices and fix winding so that
-        # `is_volume` becomes True when possible.
-        if repair:
-            for fn in (
-                "remove_duplicate_faces",
-                "remove_degenerate_faces",
-                "remove_unreferenced_vertices",
-                "merge_vertices",
-            ):
-                try:
-                    getattr(m, fn)()
-                except Exception:
-                    pass
-
-            try:
-                trimesh.repair.fix_winding(m)
-            except Exception:
-                try:
-                    m.fix_normals()
-                except Exception:
-                    pass
-
-            try:
-                m.fill_holes()
-            except Exception:
-                pass
-
-            try:
-                m.remove_unreferenced_vertices()
-            except Exception:
-                pass
-            try:
-                m.remove_duplicate_faces()
-            except Exception:
-                pass
-            try:
-                m.fix_normals()
-            except Exception:
-                pass
-
         verts = m.vertices
         faces = m.faces
     except Exception as e:
