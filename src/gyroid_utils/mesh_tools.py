@@ -11,7 +11,7 @@ from skimage import measure
 0 - (reserved)
 1 - keep_largest_connected_component
 2 - simplify_mesh
-3 - TRIANGLE_AREAS
+3 - calculate_triangle_areas
 4 - export_as_STL
 5 - mesh_from_matrix
 6 - check_mesh_validity
@@ -382,7 +382,6 @@ def mesh_from_matrix(
         return None, None
 
     logger.info(f"mesh_from_matrix(): Extracted mesh with {len(verts)} verts and {len(faces)} faces.")
-    print(f"there are {len(faces)} faces in this model")
 
     # ------------------------------------------------------------------
     # Fix normals to ensure a valid oriented surface
@@ -453,10 +452,11 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
             m.is_self_intersecting
             if hasattr(m, "is_self_intersecting")
             else False  # not supported in this trimesh version
-        ),
-
-    }
-
-    logger.info(f"check_mesh_validity(): {info}")
+        ),}
+    
+    if m.is_volume:
+        logger.info(f"check_mesh_validity(): {info}")
+    else:
+        logger.warning(f"check_mesh_validity(): MESH IS NOT A VALID VOLUME. Details: is_volume :{m.is_volume,}")
     return info
 
