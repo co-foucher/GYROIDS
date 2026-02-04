@@ -12,7 +12,7 @@ handler.setLevel(logging.DEBUG)
 
 # Nice formatting
 formatter = logging.Formatter(
-    "[%(levelname)s] %(name)s: %(message)s"
+    "[%(levelname)s] %(name)s:%(funcName)s: %(message)s"
 )
 handler.setFormatter(formatter)
 
