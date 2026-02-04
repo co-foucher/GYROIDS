@@ -260,11 +260,10 @@ class GyroidModel:
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
 
-        areas = mesh_tools.calculate_triangle_areas(self.verts, self.faces)
-        viz.plot_histogram(areas)
+        #areas = mesh_tools.calculate_triangle_areas(self.verts, self.faces)
+        #viz.plot_histogram(areas)
         mesh_tools.check_mesh_validity(self.verts, self.faces)
-        return areas
-
+        return 
 
     def keep_largest_connected_component(
         verts: np.ndarray,
