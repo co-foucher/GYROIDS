@@ -366,7 +366,8 @@ def mesh_from_matrix(
             level=iso_level,
             spacing=spacing,
             step_size=int(algo_step_size),
-            allow_degenerate=False,
+            allow_degenerate=True,
+            method='lewiner'
         )
     except Exception as e:
         logger.error(f"marching_cubes failed: {e}", exc_info=True)
@@ -474,6 +475,7 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray):
     # - Call `fix_normals()` so face orientations are consistent where
     #   possible; this helps later checks like `is_volume`.
     # ------------------------------------------------------------------
+    logger.info("Attempting to fix with trimesh.")
     trimesh.repair.fix_normals(m)
     try:
         if hasattr(trimesh.repair, "fill_holes"):
@@ -493,6 +495,7 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray):
     # ------------------------------------------------------------------
     # Step B: use pymeshfix to attempt to fix non-manifold edges and other common issues.
     # ------------------------------------------------------------------
+    logger.info("Attempting to fix with pymesh.")
     mf = pymeshfix.MeshFix(verts, faces)
     mf.clean()
     mf.repair()        # modifies and repairs in-place
@@ -504,6 +507,7 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray):
     # ------------------------------------------------------------------
     # Step C: use mesh simplifier to attempt to fix any remaining issues
     # ------------------------------------------------------------------
+    logger.info("Attempting to fix with simplification.")
     verts, faces = simplify_mesh(faces, verts, target=int(len(faces)*0.95))
 
     if _is_mesh_fixed(verts, faces):
