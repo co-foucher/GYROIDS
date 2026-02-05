@@ -157,8 +157,14 @@ def simplify_mesh(faces, verts, target=100000):
         except Exception as e:
             logger.error(f"Mesh simplification failed at step {i}: {e}", exc_info=True)
             break
+    
+    # ------------------------------------------------------------------
+    # Fix mesh (normals, non-manifold edges)
+    # ------------------------------------------------------------------
+    verts, faces = fix_mesh(verts, faces)
 
     logger.info(f"Mesh simplification complete → {len(faces)} faces remain.")
+
     return faces, verts
 
 
@@ -384,16 +390,9 @@ def mesh_from_matrix(
     logger.info(f"mesh_from_matrix(): Extracted mesh with {len(verts)} verts and {len(faces)} faces.")
 
     # ------------------------------------------------------------------
-    # Fix normals to ensure a valid oriented surface
+    # Fix mesh (normals, non-manifold edges)
     # ------------------------------------------------------------------
-    try:
-        m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
-        m.fix_normals()
-        verts = m.vertices
-        faces = m.faces
-    except Exception as e:
-        logger.error(f"mesh_from_matrix(): normal fixing failed: {e}", exc_info=True)
-        return None, None
+    verts, faces = fix_mesh(verts, faces)
 
     # ------------------------------------------------------------------
     # result
@@ -429,7 +428,7 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
     logger.info("check_mesh_validity(): Checking mesh validity.")
 
     # ------------------------------------------------------------------
-    # Build mesh (no auto-processing)
+    # Build mesh
     # ------------------------------------------------------------------
     try:
         m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
@@ -459,4 +458,133 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
     else:
         logger.warning(f"check_mesh_validity(): Mesh is not a valid volume. Details: {info}")
     return info
+
+
+#=====================================================================
+#6) check_mesh_validity
+#=====================================================================
+def fix_mesh(verts: np.ndarray, faces: np.ndarray):
+    # ------------------------------------------------------------------
+    # Step A: Construct a trimesh object and attempt to fix normals.
+    # - Build a trimesh.Trimesh from the provided verts/faces (no extra
+    #   processing to avoid unexpected topology changes).
+    # - Call `fix_normals()` so face orientations are consistent where
+    #   possible; this helps later checks like `is_volume`.
+    # ------------------------------------------------------------------
+    try:
+        # build trimesh object without automatic processing
+        m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+        # attempt to correct inconsistent normal directions
+        m.fix_normals()
+        # pull possibly-updated vertex/face arrays back out
+        verts = m.vertices
+        faces = m.faces
+    except Exception as e:
+        # log and return None on failure to avoid propagating broken meshes
+        logger.error(f"mesh_from_matrix(): normal fixing failed: {e}", exc_info=True)
+        return None, None
+
+    # ------------------------------------------------------------------
+    # Step B: Detect non-manifold edges (edges referenced by >2 faces)
+    # - `edges_unique_inverse` maps each half-edge (face-edge) to a unique
+    #   undirected edge index; bincounting yields how many face-edges use
+    #   each unique edge.
+    # - Non-manifold edges are those with a count > 2.
+    # ------------------------------------------------------------------
+    try:
+        # counts per unique undirected edge
+        edge_counts = np.bincount(m.edges_unique_inverse)
+        # boolean mask of edges used by more than two faces
+        nonmanifold_mask = edge_counts > 2
+        # number of unique non-manifold edges
+        nm_edges = int(np.sum(nonmanifold_mask))
+
+        # only proceed if non-manifold edges exist
+        if nm_edges > 0:
+            # list of offending unique edges (each row = [v0, v1])
+            bad_edges = m.edges_unique[nonmanifold_mask]
+            # create a set of sorted vertex-index tuples for fast lookup
+            bad_set = {tuple(e) for e in (bad_edges.tolist())}
+
+            # ------------------------------------------------------------------
+            # Step B.1: Identify faces that reference any offending edge
+            # - For each face, form its three undirected edges as sorted tuples
+            # - If any of those tuples are in `bad_set`, mark the face as bad
+            # ------------------------------------------------------------------
+            bad_face_idx = []
+            for fi, f in enumerate(m.faces):
+                # build undirected edge tuples for this face
+                e01 = tuple(sorted((int(f[0]), int(f[1]))))
+                e12 = tuple(sorted((int(f[1]), int(f[2]))))
+                e20 = tuple(sorted((int(f[2]), int(f[0]))))
+                # if any edge is in the bad set, record the face index
+                if e01 in bad_set or e12 in bad_set or e20 in bad_set:
+                    bad_face_idx.append(fi)
+
+            # inform user how many bad edges/faces were found
+            logger.warning(f"fix_mesh(): {nm_edges} non-manifold edges detected touching {len(bad_face_idx)} faces; removing those faces conservatively")
+
+            # ------------------------------------------------------------------
+            # Step B.2: Conservative removal strategy
+            # - If removing all faces would empty the mesh, abort to avoid
+            #   destroying the mesh entirely.
+            # - Otherwise, remove the offending faces and rebuild a new mesh
+            #   from the remaining faces. Then clean and keep the largest
+            #   connected component to be conservative.
+            # ------------------------------------------------------------------
+            if len(bad_face_idx) == len(m.faces):
+                # abort if we'd remove the whole mesh
+                logger.error("fix_mesh(): removing all faces would result in empty mesh — aborting non-manifold fix")
+            else:
+                # indices of faces to keep (complement of bad_face_idx)
+                keep_idx = np.setdiff1d(np.arange(len(m.faces)), np.array(bad_face_idx, dtype=int))
+                try:
+                    # attempt to create a submesh using trimesh API (preferred)
+                    m2 = m.submesh([keep_idx], append=True)
+                    # submesh may return a list — take first element
+                    if isinstance(m2, list):
+                        m2 = m2[0]
+                except Exception:
+                    # fallback: manually build new trimesh from kept faces
+                    faces_keep = m.faces[keep_idx]
+                    verts_keep = m.vertices
+                    m2 = trimesh.Trimesh(vertices=verts_keep, faces=faces_keep, process=False)
+
+                # remove vertices that are no longer referenced by any face
+                try:
+                    m2.remove_unreferenced_vertices()
+                except Exception:
+                    # non-fatal – continue even if this step fails
+                    pass
+
+                # if mesh splits into multiple components, keep the largest one
+                try:
+                    comps = m2.split(only_watertight=False)
+                    if len(comps) > 1:
+                        m2 = max(comps, key=lambda mm: len(mm.faces))
+                except Exception:
+                    # splitting is optional; continue on failure
+                    pass
+
+                # attempt to fix normals of the new mesh as well
+                try:
+                    m2.fix_normals()
+                except Exception:
+                    pass
+
+                # pull updated arrays back out for return
+                verts = m2.vertices
+                faces = m2.faces
+        else:
+            # nothing to fix — document in debug logs
+            logger.debug("fix_mesh(): no non-manifold edges detected")
+    except Exception as e:
+        # catch-all: log problems encountered during detection/fixing
+        logger.error(f"fix_mesh(): failed while checking/fixing non-manifold edges: {e}", exc_info=True)
+
+    # ------------------------------------------------------------------
+    # Finalize: report resulting mesh size and return the arrays
+    # ------------------------------------------------------------------
+    logger.info(f"fix_mesh(): returning mesh with {len(faces)} faces and {len(verts)} verts")
+    return verts, faces
 
