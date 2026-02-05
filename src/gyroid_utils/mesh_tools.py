@@ -486,11 +486,7 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
         return verts, faces
     
     # ------------------------------------------------------------------
-    # Step B: Detect non-manifold edges (edges referenced by >2 faces)
-    # - `edges_unique_inverse` maps each half-edge (face-edge) to a unique
-    #   undirected edge index; bincounting yields how many face-edges use
-    #   each unique edge.
-    # - Non-manifold edges are those with a count > 2.
+    # Step B: use pymeshfix to attempt to fix non-manifold edges and other common issues.
     # ------------------------------------------------------------------
     try:
         # counts per unique undirected edge
@@ -503,14 +499,14 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
         if nm_edges > 0:
             mf = pymeshfix.MeshFix(m.vertices, m.faces)
             mf.repair()
-            m = trimesh.Trimesh(mf.v, mf.f, process=False)
+            m = trimesh.Trimesh(mf.verts, mf.faces, process=False)
 
             verts = m.vertices
             faces = m.faces
         else:
             # nothing to fix — document in debug logs
             logger.debug("fix_mesh(): no non-manifold edges detected")
-            
+
     except Exception as e:
         # catch-all: log problems encountered during detection/fixing
         logger.error(f"fix_mesh(): failed while checking/fixing non-manifold edges: {e}", exc_info=True)
@@ -521,7 +517,7 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
     # ------------------------------------------------------------------
     # Step C: use mesh simplifier to attempt to fix any remaining issues
     # ------------------------------------------------------------------
-    verts, faces = simplify_mesh(verts, faces, target=int(len(faces)*0.95))
+    verts, faces = simplify_mesh(faces, verts, target=int(len(faces)*0.95))
 
     if _is_mesh_fixed(verts, faces):
         logger.info("fix_mesh(): mesh successfully fixed and is now valid after simplification.")
