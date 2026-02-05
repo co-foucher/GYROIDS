@@ -195,7 +195,7 @@ def save_mesh_as_html(faces, verts, file_name, save: bool = True):
     # =========================================================
     if save:
         try:
-            out_path = f"{file_name}.html"
+            out_path = f"{file_name}"
             fig.write_html(out_path, auto_open=True)
             logger.info(f"HTML visualization saved → {out_path}")
         except Exception as e:

@@ -488,13 +488,12 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray):
         logger.info("mesh is already valid after normal fixing.")
         return verts, faces
 
-    
+    """
     # ------------------------------------------------------------------
     # Step B: use pymeshfix to attempt to fix non-manifold edges and other common issues.
     # ------------------------------------------------------------------
     logger.info("Attempting to fix with pymesh.")
     mf = pymeshfix.MeshFix(verts, faces)
-    mf.clean()
     mf.repair()        # modifies and repairs in-place
     verts, faces = mf.points, mf.faces   
 
@@ -502,7 +501,7 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray):
         logger.info("fix_mesh(): mesh successfully fixed and is now valid.")
     else:
         logger.warning("fix_mesh(): mesh is still invalid after all fixing attempts.")
-
+    """
     # ------------------------------------------------------------------
     # Finalize: report resulting mesh size and return the arrays
     # ------------------------------------------------------------------
