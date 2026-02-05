@@ -146,7 +146,7 @@ class GyroidModel:
             mask = dist < half_t
 
             # final field: positive inside the desired wall band, zero outside
-            self.v = np.zeros_like(dist)
+            self.v = np.zeros_like(dist) - 1
             self.v[mask] = dist[mask]
             return self.v
 
