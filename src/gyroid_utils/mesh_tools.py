@@ -427,9 +427,6 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
     info : dict
         Dictionary with mesh validity indicators.
     """
-
-    logger.info("check_mesh_validity(): Checking mesh validity.")
-
     # ------------------------------------------------------------------
     # Build mesh
     # ------------------------------------------------------------------
@@ -503,16 +500,6 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray):
 
     if _is_mesh_fixed(verts, faces):
         logger.info("fix_mesh(): mesh successfully fixed and is now valid.")
-
-    # ------------------------------------------------------------------
-    # Step C: use mesh simplifier to attempt to fix any remaining issues
-    # ------------------------------------------------------------------
-    logger.info("Attempting to fix with simplification.")
-    verts, faces = simplify_mesh(faces, verts, target=int(len(faces)*0.95))
-
-    if _is_mesh_fixed(verts, faces):
-        logger.info("fix_mesh(): mesh successfully fixed and is now valid after simplification.")
-
     else:
         logger.warning("fix_mesh(): mesh is still invalid after all fixing attempts.")
 
