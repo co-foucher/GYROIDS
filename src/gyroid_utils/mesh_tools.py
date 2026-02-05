@@ -15,6 +15,7 @@ from skimage import measure
 4 - export_as_STL
 5 - mesh_from_matrix
 6 - check_mesh_validity
+7 - fix_mesh
 #=====================================================================================================================
 """
 
@@ -392,7 +393,7 @@ def mesh_from_matrix(
     # ------------------------------------------------------------------
     # Fix mesh (normals, non-manifold edges)
     # ------------------------------------------------------------------
-    verts, faces = fix_mesh(verts, faces)
+    #verts, faces = fix_mesh(verts, faces)
 
     # ------------------------------------------------------------------
     # result
@@ -461,7 +462,7 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
 
 
 #=====================================================================
-#6) check_mesh_validity
+#7) fix_mesh
 #=====================================================================
 def fix_mesh(verts: np.ndarray, faces: np.ndarray):
     # ------------------------------------------------------------------
