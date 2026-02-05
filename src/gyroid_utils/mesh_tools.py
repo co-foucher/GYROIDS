@@ -475,46 +475,10 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
     # - Call `fix_normals()` so face orientations are consistent where
     #   possible; this helps later checks like `is_volume`.
     # ------------------------------------------------------------------
-    # Call repair functions defensively: some trimesh versions modify the
-    # mesh in-place, others may return a modified mesh or arrays. Handle
-    # both cases to stay compatible across versions.
-    try:
-        res = trimesh.repair.fix_normals(m)
-        if isinstance(res, trimesh.Trimesh):
-            m = res
-    except Exception:
-        pass
-
-    try:
-        res = trimesh.repair.remove_duplicate_faces(m)
-        if isinstance(res, trimesh.Trimesh):
-            m = res
-        elif isinstance(res, (list, tuple, np.ndarray)):
-            # some versions return faces or face-index arrays
-            try:
-                m.faces = np.asarray(res)
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-    try:
-        res = trimesh.repair.remove_degenerate_faces(m)
-        if isinstance(res, trimesh.Trimesh):
-            m = res
-        elif isinstance(res, (list, tuple, np.ndarray)):
-            try:
-                m.faces = np.asarray(res)
-            except Exception:
-                pass
-    except Exception:
-        pass
-
+    trimesh.repair.fix_normals(m)
     try:
         if hasattr(trimesh.repair, "fill_holes"):
-            res = trimesh.repair.fill_holes(m)
-            if isinstance(res, trimesh.Trimesh):
-                m = res
+            trimesh.repair.fill_holes(m)
     except Exception:
         pass
 
@@ -531,8 +495,9 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
     # Step B: use pymeshfix to attempt to fix non-manifold edges and other common issues.
     # ------------------------------------------------------------------
     mf = pymeshfix.MeshFix(verts, faces)
+    mf.clean()
     mf.repair()        # modifies and repairs in-place
-    verts, faces = mf.verts, mf.faces   
+    verts, faces = mf.points, mf.faces   
 
     if _is_mesh_fixed(verts, faces):
         logger.info("fix_mesh(): mesh successfully fixed and is now valid.")
@@ -540,7 +505,7 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
     # ------------------------------------------------------------------
     # Step C: use mesh simplifier to attempt to fix any remaining issues
     # ------------------------------------------------------------------
-    verts, faces = simplify_mesh(verts, faces, target=int(len(faces)*0.95))
+    verts, faces = simplify_mesh(faces, verts, target=int(len(faces)*0.95))
 
     if _is_mesh_fixed(verts, faces):
         logger.info("fix_mesh(): mesh successfully fixed and is now valid after simplification.")
