@@ -464,7 +464,8 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
 #=====================================================================
 #7) fix_mesh
 #=====================================================================
-def fix_mesh(verts: np.ndarray, faces: np.ndarray):
+def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
+    recursion_depth -= 1
     # ------------------------------------------------------------------
     # Step A: Construct a trimesh object and attempt to fix normals.
     # - Build a trimesh.Trimesh from the provided verts/faces (no extra
@@ -485,6 +486,10 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray):
         logger.error(f"mesh_from_matrix(): normal fixing failed: {e}", exc_info=True)
         return None, None
 
+    if _is_mesh_fixed(verts, faces):
+        # mesh is already valid after normal fixing; return early
+        logger.info("fix_mesh(): mesh is already valid after normal fixing.")
+        return verts, faces
     # ------------------------------------------------------------------
     # Step B: Detect non-manifold edges (edges referenced by >2 faces)
     # - `edges_unique_inverse` maps each half-edge (face-edge) to a unique
@@ -582,6 +587,23 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray):
     except Exception as e:
         # catch-all: log problems encountered during detection/fixing
         logger.error(f"fix_mesh(): failed while checking/fixing non-manifold edges: {e}", exc_info=True)
+    
+    if _is_mesh_fixed(verts, faces):
+        logger.info("fix_mesh(): mesh successfully fixed and is now valid.")
+
+    # ------------------------------------------------------------------
+    # Step C: use mesh simplifier to attempt to fix any remaining issues
+    # ------------------------------------------------------------------
+    verts, faces = simplify_mesh(verts, faces, target=int(len(faces)*0.95))
+
+    if _is_mesh_fixed(verts, faces):
+        logger.info("fix_mesh(): mesh successfully fixed and is now valid after simplification.")
+
+    else:
+        logger.warning("fix_mesh(): mesh may still be invalid after all fixing attempts.")
+        if recursion_depth > 0:
+            logger.info(f"fix_mesh(): retrying fix_mesh() (recursion depth remaining: {recursion_depth})")
+            return fix_mesh(verts, faces, recursion_depth=recursion_depth)
 
     # ------------------------------------------------------------------
     # Finalize: report resulting mesh size and return the arrays
@@ -589,3 +611,13 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray):
     logger.info(f"fix_mesh(): returning mesh with {len(faces)} faces and {len(verts)} verts")
     return verts, faces
 
+
+def _is_mesh_fixed(verts: np.ndarray, faces: np.ndarray) -> bool:
+    """
+    Helper function to check if a mesh is valid (watertight, manifold, etc.)
+    Used for internal testing purposes.
+    """
+    info = check_mesh_validity(verts, faces)
+    if info is None:
+        return False
+    return info["watertight"] and info["winding_consistent"] and info["nonmanifold_edges"] == 0
