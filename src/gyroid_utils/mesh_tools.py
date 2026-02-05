@@ -5,6 +5,7 @@ import open3d as o3d
 from .logger import logger
 from stl import mesh as stl_mesh
 from skimage import measure
+import pymeshfix
 
 
 """
@@ -163,7 +164,6 @@ def simplify_mesh(faces, verts, target=100000):
     # ------------------------------------------------------------------
     # Fix mesh (normals, non-manifold edges)
     # ------------------------------------------------------------------
-    verts, faces = fix_mesh(verts, faces)
 
     logger.info(f"Mesh simplification complete → {len(faces)} faces remain.")
 
@@ -342,7 +342,7 @@ def mesh_from_matrix(
     faces : (M, 3) ndarray
         Triangle connectivity (indices into verts).
     """
-    logger.info("mesh_from_matrix(): Extracting isosurface mesh from matrix.")
+    logger.info("Extracting isosurface mesh from matrix.")
 
     # ------------------------------------------------------------------
     # Pad volume to help close boundary openings ("caps")
@@ -350,7 +350,7 @@ def mesh_from_matrix(
     try:
         v_padded = np.pad(matrix, pad_width=pad_width, mode="constant", constant_values=pad_val)
     except Exception as e:
-        logger.error(f"mesh_from_matrix(): np.pad failed: {e}", exc_info=True)
+        logger.error(f"np.pad failed: {e}", exc_info=True)
         return None, None
 
     # ------------------------------------------------------------------
@@ -369,7 +369,7 @@ def mesh_from_matrix(
             allow_degenerate=False,
         )
     except Exception as e:
-        logger.error(f"mesh_from_matrix(): marching_cubes failed: {e}", exc_info=True)
+        logger.error(f"marching_cubes failed: {e}", exc_info=True)
         return None, None
 
     # ------------------------------------------------------------------
@@ -386,10 +386,10 @@ def mesh_from_matrix(
         verts[:, 1] = verts[:,1] + origin[1]
         verts[:, 2] = verts[:,2] + origin[2]
     except Exception as e:
-        logger.error(f"mesh_from_matrix(): vertex translation failed: {e}", exc_info=True)
+        logger.error(f"vertex translation failed: {e}", exc_info=True)
         return None, None
 
-    logger.info(f"mesh_from_matrix(): Extracted mesh with {len(verts)} verts and {len(faces)} faces.")
+    logger.info(f"Extracted mesh with {len(verts)} verts and {len(faces)} faces.")
 
     # ------------------------------------------------------------------
     # Fix mesh (normals, non-manifold edges)
@@ -467,30 +467,24 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
 #=====================================================================
 def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
     recursion_depth -= 1
+    # build trimesh object without automatic processing
+    m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+
     # ------------------------------------------------------------------
     # Step A: Construct a trimesh object and attempt to fix normals.
-    # - Build a trimesh.Trimesh from the provided verts/faces (no extra
-    #   processing to avoid unexpected topology changes).
     # - Call `fix_normals()` so face orientations are consistent where
     #   possible; this helps later checks like `is_volume`.
     # ------------------------------------------------------------------
-    try:
-        # build trimesh object without automatic processing
-        m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
-        # attempt to correct inconsistent normal directions
-        m.fix_normals()
-        # pull possibly-updated vertex/face arrays back out
-        verts = m.vertices
-        faces = m.faces
-    except Exception as e:
-        # log and return None on failure to avoid propagating broken meshes
-        logger.error(f"mesh_from_matrix(): normal fixing failed: {e}", exc_info=True)
-        return None, None
+    m.fix_normals()
+
+    verts = m.vertices
+    faces = m.faces
 
     if _is_mesh_fixed(verts, faces):
         # mesh is already valid after normal fixing; return early
-        logger.info("fix_mesh(): mesh is already valid after normal fixing.")
+        logger.info("mesh is already valid after normal fixing.")
         return verts, faces
+    
     # ------------------------------------------------------------------
     # Step B: Detect non-manifold edges (edges referenced by >2 faces)
     # - `edges_unique_inverse` maps each half-edge (face-edge) to a unique
@@ -505,59 +499,18 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
         nonmanifold_mask = edge_counts > 2
         # number of unique non-manifold edges
         nm_edges = int(np.sum(nonmanifold_mask))
-
         # only proceed if non-manifold edges exist; use repair utilities where possible
         if nm_edges > 0:
-            try:
-                # Prefer trimesh.repair utilities (best-effort, non-destructive)
-                if hasattr(trimesh, 'repair'):
-                    try:
-                        if hasattr(trimesh.repair, 'fix_inversion'):
-                            trimesh.repair.fix_inversion(m)
-                    except Exception:
-                        pass
-                    try:
-                        if hasattr(trimesh.repair, 'fix_normals'):
-                            trimesh.repair.fix_normals(m)
-                    except Exception:
-                        pass
-                    try:
-                        if hasattr(trimesh.repair, 'fill_holes'):
-                            trimesh.repair.fill_holes(m)
-                    except Exception:
-                        pass
-                    try:
-                        if hasattr(trimesh.repair, 'fix_winding'):
-                            trimesh.repair.fix_winding(m)
-                    except Exception:
-                        pass
+            mf = pymeshfix.MeshFix(m.vertices, m.faces)
+            mf.repair()
+            m = trimesh.Trimesh(mf.v, mf.f, process=False)
 
-                # If available, try a stronger repair using pymeshfix (optional)
-                try:
-                    import pymeshfix
-                    mf = pymeshfix.MeshFix(m.vertices, m.faces)
-                    mf.repair()
-                    m = trimesh.Trimesh(mf.v, mf.f, process=False)
-                except Exception:
-                    pass
-
-                # final cleanup and normalization
-                try:
-                    m.remove_unreferenced_vertices()
-                except Exception:
-                    pass
-                try:
-                    m.fix_normals()
-                except Exception:
-                    pass
-
-                verts = m.vertices
-                faces = m.faces
-            except Exception as e:
-                logger.error(f"fix_mesh(): trimesh/pymeshfix repair failed: {e}", exc_info=True)
+            verts = m.vertices
+            faces = m.faces
         else:
             # nothing to fix — document in debug logs
             logger.debug("fix_mesh(): no non-manifold edges detected")
+            
     except Exception as e:
         # catch-all: log problems encountered during detection/fixing
         logger.error(f"fix_mesh(): failed while checking/fixing non-manifold edges: {e}", exc_info=True)
