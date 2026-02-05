@@ -465,8 +465,7 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray):
 #=====================================================================
 #7) fix_mesh
 #=====================================================================
-def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
-    recursion_depth -= 1
+def fix_mesh(verts: np.ndarray, faces: np.ndarray):
     # build trimesh object without automatic processing
     m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
 
@@ -512,9 +511,6 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
 
     else:
         logger.warning("fix_mesh(): mesh is still invalid after all fixing attempts.")
-        if recursion_depth > 0:
-            logger.info(f"fix_mesh(): retrying fix_mesh() (recursion depth remaining: {recursion_depth})")
-            return fix_mesh(verts, faces, recursion_depth=recursion_depth)
 
     # ------------------------------------------------------------------
     # Finalize: report resulting mesh size and return the arrays
