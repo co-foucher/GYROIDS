@@ -243,14 +243,14 @@ class GyroidModel:
         mesh_tools.export_as_STL(self.verts, self.faces, filepath)
         logger.info(f"STL exported to: {filepath}")
 
-    def save_mesh_preview(self, html_path: str) -> None:
+    def save_mesh_preview(self, html_path: str, show_normal_colorscale: bool = False) -> None:
         """
         Save an interactive HTML preview of the mesh (via viz helper).
         """
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
 
-        viz.save_mesh_as_html(self.faces, self.verts, html_path)
+        viz.save_mesh_as_html(self.faces, self.verts, html_path, show_normal_colorscale=show_normal_colorscale)
 
     def check_mesh_quality(self) -> np.ndarray:
         """
