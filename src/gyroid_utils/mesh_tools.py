@@ -1,4 +1,5 @@
 import numpy as np
+from collections import defaultdict
 import trimesh
 import open3d as o3d
 from .logger import logger
@@ -509,45 +510,60 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
         if nm_edges > 0:
             # list of offending unique edges (each row = [v0, v1])
             bad_edges = m.edges_unique[nonmanifold_mask]
-            # create a set of sorted vertex-index tuples for fast lookup
-            bad_set = {tuple(e) for e in (bad_edges.tolist())}
+            # ensure edges are stored as sorted tuples for robust matching
+            bad_edges_sorted = [tuple(sorted(map(int, e))) for e in bad_edges.tolist()]
 
-            # ------------------------------------------------------------------
-            # Step B.1: Identify faces that reference any offending edge
-            # - For each face, form its three undirected edges as sorted tuples
-            # - If any of those tuples are in `bad_set`, mark the face as bad
-            # ------------------------------------------------------------------
-            bad_face_idx = []
+            # Build a mapping from undirected edge tuple -> list of face indices
+            edge_to_faces = defaultdict(list)
             for fi, f in enumerate(m.faces):
-                # build undirected edge tuples for this face
                 e01 = tuple(sorted((int(f[0]), int(f[1]))))
                 e12 = tuple(sorted((int(f[1]), int(f[2]))))
                 e20 = tuple(sorted((int(f[2]), int(f[0]))))
-                # if any edge is in the bad set, record the face index
-                if e01 in bad_set or e12 in bad_set or e20 in bad_set:
-                    bad_face_idx.append(fi)
+                edge_to_faces[e01].append(fi)
+                edge_to_faces[e12].append(fi)
+                edge_to_faces[e20].append(fi)
 
-            # inform user how many bad edges/faces were found
-            logger.warning(f"fix_mesh(): {nm_edges} non-manifold edges detected touching {len(bad_face_idx)} faces; removing those faces conservatively")
+            # compute per-face areas to allow informed removals (prefer keeping larger faces)
+            try:
+                face_areas = calculate_triangle_areas(m.vertices, m.faces)
+            except Exception:
+                face_areas = np.ones(len(m.faces))
+
+            # Conservative strategy: for each offending edge, remove only the
+            # excess faces (keep at most two faces per undirected edge), picking
+            # the largest faces to keep. This minimizes hole creation.
+            faces_to_remove = set()
+            for be in bad_edges_sorted:
+                incident = edge_to_faces.get(be, [])
+                if len(incident) <= 2:
+                    continue
+                # sort incident faces by area (largest first)
+                incident_sorted = sorted(incident, key=lambda idx: face_areas[idx], reverse=True)
+                # keep top 2, mark others for removal
+                for idx in incident_sorted[2:]:
+                    faces_to_remove.add(int(idx))
+
+            # Fallback: if no faces were identified (shouldn't happen), mark all touching faces
+            if len(faces_to_remove) == 0:
+                # collect any face touching bad edges (very conservative)
+                for be in bad_edges_sorted:
+                    faces_to_remove.update(edge_to_faces.get(be, []))
 
             # ------------------------------------------------------------------
             # Step B.2: Conservative removal strategy
             # - If removing all faces would empty the mesh, abort to avoid
             #   destroying the mesh entirely.
-            # - Otherwise, remove the offending faces and rebuild a new mesh
-            #   from the remaining faces. Then clean and keep the largest
-            #   connected component to be conservative.
+            # - Otherwise, remove only the selected offending faces and rebuild
+            #   a new mesh from the remaining faces. Then clean and keep the
+            #   largest connected component to be conservative.
             # ------------------------------------------------------------------
-            if len(bad_face_idx) == len(m.faces):
-                # abort if we'd remove the whole mesh
+            if len(faces_to_remove) == len(m.faces):
                 logger.error("fix_mesh(): removing all faces would result in empty mesh — aborting non-manifold fix")
             else:
-                # indices of faces to keep (complement of bad_face_idx)
-                keep_idx = np.setdiff1d(np.arange(len(m.faces)), np.array(bad_face_idx, dtype=int))
+                keep_idx = np.setdiff1d(np.arange(len(m.faces)), np.array(list(faces_to_remove), dtype=int))
                 try:
                     # attempt to create a submesh using trimesh API (preferred)
                     m2 = m.submesh([keep_idx], append=True)
-                    # submesh may return a list — take first element
                     if isinstance(m2, list):
                         m2 = m2[0]
                 except Exception:
@@ -560,7 +576,6 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
                 try:
                     m2.remove_unreferenced_vertices()
                 except Exception:
-                    # non-fatal – continue even if this step fails
                     pass
 
                 # if mesh splits into multiple components, keep the largest one
@@ -569,12 +584,27 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
                     if len(comps) > 1:
                         m2 = max(comps, key=lambda mm: len(mm.faces))
                 except Exception:
-                    # splitting is optional; continue on failure
                     pass
 
                 # attempt to fix normals of the new mesh as well
                 try:
                     m2.fix_normals()
+                except Exception:
+                    pass
+
+                # attempt to fill small holes that resulted from conservative face removal
+                try:
+                    if hasattr(trimesh, 'repair') and hasattr(trimesh.repair, 'fill_holes'):
+                        try:
+                            trimesh.repair.fill_holes(m2)
+                        except Exception:
+                            # best-effort; continue if filling fails
+                            pass
+                    elif hasattr(m2, 'fill_holes'):
+                        try:
+                            m2.fill_holes()
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
