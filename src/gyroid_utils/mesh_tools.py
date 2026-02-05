@@ -1,11 +1,11 @@
 import numpy as np
 from collections import defaultdict
-import trimesh
-import open3d as o3d
-from .logger import logger
-from stl import mesh as stl_mesh
-from skimage import measure
-import pymeshfix
+import trimesh # type: ignore
+import open3d as o3d # type: ignore
+from .logger import logger # type: ignore
+from stl import mesh as stl_mesh # type: ignore
+from skimage import measure # type: ignore
+import pymeshfix # type: ignore
 
 
 """
@@ -475,7 +475,14 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
     # - Call `fix_normals()` so face orientations are consistent where
     #   possible; this helps later checks like `is_volume`.
     # ------------------------------------------------------------------
-    m.fix_normals()
+    trimesh.repair.fix_normals(m)
+    trimesh.repair.remove_duplicate_faces(m)
+    trimesh.repair.remove_degenerate_faces(m)
+    try:
+        if hasattr(trimesh.repair, "fill_holes"):
+            trimesh.repair.fill_holes(m)
+    except Exception:
+        pass
 
     verts = m.vertices
     faces = m.faces
@@ -484,33 +491,15 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
         # mesh is already valid after normal fixing; return early
         logger.info("mesh is already valid after normal fixing.")
         return verts, faces
+
     
     # ------------------------------------------------------------------
     # Step B: use pymeshfix to attempt to fix non-manifold edges and other common issues.
     # ------------------------------------------------------------------
-    try:
-        # counts per unique undirected edge
-        edge_counts = np.bincount(m.edges_unique_inverse)
-        # boolean mask of edges used by more than two faces
-        nonmanifold_mask = edge_counts > 2
-        # number of unique non-manifold edges
-        nm_edges = int(np.sum(nonmanifold_mask))
-        # only proceed if non-manifold edges exist; use repair utilities where possible
-        if nm_edges > 0:
-            mf = pymeshfix.MeshFix(m.vertices, m.faces)
-            mf.repair()
-            m = trimesh.Trimesh(mf.verts, mf.faces, process=False)
+    mf = pymeshfix.MeshFix(verts, faces)
+    mf.repair()        # modifies and repairs in-place
+    verts, faces = mf.verts, mf.faces   
 
-            verts = m.vertices
-            faces = m.faces
-        else:
-            # nothing to fix — document in debug logs
-            logger.debug("fix_mesh(): no non-manifold edges detected")
-
-    except Exception as e:
-        # catch-all: log problems encountered during detection/fixing
-        logger.error(f"fix_mesh(): failed while checking/fixing non-manifold edges: {e}", exc_info=True)
-    
     if _is_mesh_fixed(verts, faces):
         logger.info("fix_mesh(): mesh successfully fixed and is now valid.")
 
@@ -523,7 +512,7 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray, recursion_depth: int = 5):
         logger.info("fix_mesh(): mesh successfully fixed and is now valid after simplification.")
 
     else:
-        logger.warning("fix_mesh(): mesh may still be invalid after all fixing attempts.")
+        logger.warning("fix_mesh(): mesh is still invalid after all fixing attempts.")
         if recursion_depth > 0:
             logger.info(f"fix_mesh(): retrying fix_mesh() (recursion depth remaining: {recursion_depth})")
             return fix_mesh(verts, faces, recursion_depth=recursion_depth)
@@ -543,4 +532,4 @@ def _is_mesh_fixed(verts: np.ndarray, faces: np.ndarray) -> bool:
     info = check_mesh_validity(verts, faces)
     if info is None:
         return False
-    return info["watertight"] and info["winding_consistent"] and info["nonmanifold_edges"] == 0
+    return info["watertight"] and info["winding_consistent"] and info["nonmanifold_edges"] == 0 and not info["self_intersecting"]==0

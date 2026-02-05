@@ -268,7 +268,7 @@ class GyroidModel:
     def keep_largest_connected_component(
         verts: np.ndarray,
         faces: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Convenience wrapper to the mesh_tools function.
         """
@@ -312,3 +312,12 @@ class GyroidModel:
         self.v[:, :, -N:] = 1
 
         logger.info(f"Added baseplates of thickness {thickness} units ({N} z-slices).")
+
+def fix_mesh(self):
+    """
+    Convenience wrapper to the mesh_tools fix_mesh function.
+    """
+    if self.verts is None or self.faces is None:
+        raise RuntimeError("Mesh has not been generated yet.")
+
+    self.verts, self.faces = mesh_tools.fix_mesh(self.verts, self.faces)
