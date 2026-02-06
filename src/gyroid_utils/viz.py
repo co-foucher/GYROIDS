@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 # =====================================================================
 # 1) save_mesh_as_html
 # =====================================================================
-def save_mesh_as_html(faces, verts, file_name, show_normal_colorscale: bool = False, save: bool = True):
+def save_mesh_as_html(faces, verts, file_name, show_normal_colorscale: bool = True, save: bool = True):
     """
     ============================================================================
     1) SAVE_MESH_AS_HTML
@@ -376,7 +376,7 @@ def twod_view_of_matrix(v: np.ndarray,
 # =====================================================================
 # 4) view_mesh
 # =====================================================================
-def view_mesh(faces, verts):
+def view_mesh(faces, verts, show_normal_colorscale: bool = True,):
     """
     ============================================================================
     4) view_mesh
@@ -384,5 +384,5 @@ def view_mesh(faces, verts):
     Handles face/edge reduction for performance.
     ============================================================================
     """
-    save_mesh_as_html(faces, verts, "nop", save = False)
+    save_mesh_as_html(faces, verts, "nop", show_normal_colorscale=show_normal_colorscale, save = False)
 
