@@ -23,7 +23,8 @@ dependencies = [
     "plotly",
     "pymeshfix",
     "pyvista",
-    "ipykernel"
+    "ipykernel",
+    "meshio"
 ]
 
 # Optional metadata (recommended)
