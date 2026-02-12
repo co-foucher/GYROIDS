@@ -5,7 +5,6 @@
 
 # **REQUIREMENTS**
   !!!! requires Python 3.10 !!!!
-  You'll need conda to install OCC, because it is in Python 3.10
 
 # **INSTALLATION**
   - You could copy the whole environment directly from the yml file. Or use pip to install only this library and *some* dependency. 
