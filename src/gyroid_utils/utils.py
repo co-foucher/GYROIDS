@@ -15,7 +15,7 @@ def reload_all():
     modules = [
         gyroid_utils,
         gyroid_utils.mesh_tools,
-        gyroid_utils.gyroids
+        gyroid_utils.gyroid,
         gyroid_utils.viz,
         gyroid_utils.utils,
         gyroid_utils.io_ops,
