@@ -2,14 +2,12 @@ import numpy as np
 import open3d as o3d
 from .logger import logger
 
-from OCC.Core.STEPControl import STEPControl_Writer, STEPControl_AsIs
-from OCC.Core.IFSelect import IFSelect_RetDone
 
 """
 #=====================================================================================================================
 0 - (reserved)
 1 - load_stl
-2 - write_step
+2 - 
 3 - SAVE MATRICES !!!!!
 4 - LOAD MATRICES !!!!!
 #=====================================================================================================================
@@ -93,49 +91,7 @@ def load_stl(filepath):
 #=====================================================================
 #2) WRITE_STEP
 #=====================================================================
-def write_step(shape, filepath: str):
-    """
-    ============================================================================
-    2) WRITE_STEP
-    Writes an OpenCascade shape to a STEP file.
-    ============================================================================
 
-    PARAMETERS
-    ----------
-    shape : TopoDS_Shape
-    filepath : str
-
-    RAISES
-    ------
-    RuntimeError
-        If STEP export fails.
-
-    EXAMPLE
-    -------
-    >>> write_step(my_shape, "model.step")
-    """
-    logger.info(f"Exporting STEP file to: {filepath}")
-
-    if shape is None or shape.IsNull():
-        logger.error("Cannot write STEP: input shape is NULL or invalid.")
-        raise ValueError("Cannot write STEP: input shape is NULL or invalid.")
-
-    writer = STEPControl_Writer()
-
-    try:
-        writer.Transfer(shape, STEPControl_AsIs)
-        stat = writer.Write(filepath)
-    except Exception as e:
-        logger.error(f"STEP export failed while writing '{filepath}': {e}", exc_info=True)
-        raise RuntimeError(f"STEP export failed: {e}") from e
-
-    if stat != IFSelect_RetDone:
-        logger.error(
-            f"STEP export failed with status {stat} for file '{filepath}'"
-        )
-        raise RuntimeError(f"STEP export failed with status {stat}")
-
-    logger.info(f"STEP export completed successfully: {filepath}")
 
 
 #=====================================================================
