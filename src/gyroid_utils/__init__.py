@@ -18,7 +18,6 @@ print(f"[gyroid_utils] version {__version__} loaded")
 # --- Public submodules --------------------------------------------------------
 from . import mesh_tools
 from . import viz
-from . import occ_tools
 from . import io_ops
 from . import gyroid
 from .logger import logger, set_log_level
