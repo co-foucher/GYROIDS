@@ -22,11 +22,10 @@ from . import io_ops
 from . import gyroid
 from .logger import logger, set_log_level
 
-
+#__all__ is a list that defines what gets exported when someone does from package import *.
 __all__ = [
     "mesh_tools",
     "viz",
-    "occ_tools",
     "io_ops",
     "gyroid",
     "logger",
