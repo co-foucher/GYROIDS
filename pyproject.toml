@@ -22,7 +22,8 @@ dependencies = [
     "open3d",
     "plotly",
     "pymeshfix",
-    "pyvista"
+    "pyvista",
+    "meshio"
 ]
 
 # Optional metadata (recommended)
