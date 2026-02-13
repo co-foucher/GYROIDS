@@ -240,10 +240,10 @@ class GyroidModel:
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
 
-        mesh_tools.export_as_STL(self.verts, self.faces, filepath)
-        logger.info(f"STL exported to: {filepath}")
+        mesh_tools.export_as_STL(self.verts, self.faces, filepath+'.stl')
+        logger.info(f"STL exported to: {filepath}.stl")
 
-    def save_mesh_preview(self, html_path: str, show_normal_colorscale: bool = False) -> None:
+    def save_mesh_preview(self, html_path: str, show_normal_colorscale: bool = True) -> None:
         """
         Save an interactive HTML preview of the mesh (via viz helper).
         """

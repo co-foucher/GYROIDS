@@ -5,18 +5,15 @@
 
 # **REQUIREMENTS**
   !!!! requires Python 3.10 !!!!
-  You'll need conda to install OCC, because it is in Python 3.10
 
 # **INSTALLATION**
   - You could copy the whole environment directly from the yml file. Or use pip to install only this library and *some* dependency. 
   
   - It is better to first create a python 3.10 venv and then use pip install git+https://github.com/co-foucher/GYROIDS.git
-  and finally add OCC through: conda install conda-forge::pythonocc-core
 
 ```powershell
       conda create -n nameofenv python=3.10
       pip install git+https://github.com/co-foucher/GYROIDS.git
-      conda install conda-forge::pythonocc-core 
   ```
   - For changes: update the toml file and then use pip install git+https://github.com/co-foucher/GYROIDS.git
 
@@ -35,13 +32,6 @@
 - Histogram visualization of triangle sizes
 - check_mesh_validity
 - export as an STL 
-
-### OpenCascade Tools to generate STEP from STL
-- Build planar faces from triangle data  
-- Stitch faces into closed shells  
-- Validate and simplify OCC shapes  
-- Export shapes to STEP files  
-- Check if a shell is watertight/closed
 
 ### ftetwild
 -to go from stl to tetrahedral mesh, check out ftetwild : https://github.com/wildmeshing/fTetWild
