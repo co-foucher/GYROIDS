@@ -7,6 +7,7 @@ from stl import mesh as stl_mesh # type: ignore
 from skimage import measure # type: ignore
 import pymeshfix # type: ignore4
 import vtk
+import pyvista as pv # type: ignore
 
 
 
@@ -164,10 +165,6 @@ def simplify_mesh(faces, verts, target=100000):
         except Exception as e:
             logger.error(f"Mesh simplification failed at step {i}: {e}", exc_info=True)
             break
-    
-    # ------------------------------------------------------------------
-    # Fix mesh (normals, non-manifold edges)
-    # ------------------------------------------------------------------
 
     logger.info(f"Mesh simplification complete → {len(faces)} faces remain.")
 
@@ -547,7 +544,9 @@ def fast_mesh_decimation(verts: np.ndarray, faces: np.ndarray, target_face_count
     VTK decimation - FASTEST option
     
     target_reduction: 0.9 means reduce to 10% of original triangles
-    """
+
+    original = len(faces)
+    logger.info(f"Simplifying mesh: {original} faces → target {target_face_count}")
     # Create VTK mesh
     points = vtk.vtkPoints()
     for v in verts:
@@ -581,4 +580,22 @@ def fast_mesh_decimation(verts: np.ndarray, faces: np.ndarray, target_face_count
         face = [cell.GetPointId(j) for j in range(cell.GetNumberOfPoints())]
         faces_out.append(face)
     
+    logger.info(f"Mesh simplification complete → {len(faces_out)} faces remain.")
+    
     return verts, np.array(faces_out)
+
+    
+    PyVista (VTK wrapper) - FAST and easier API than raw VTK
+    """
+    # Create mesh (faces need to be prepended with face size)
+    original = len(faces)
+    logger.info(f"Simplifying mesh: {original} faces → target {target_face_count}")
+
+    faces_pv = np.hstack([[3] + list(f) for f in faces])
+    mesh = pv.PolyData(verts, faces_pv)
+    
+    # Decimate
+    mesh_decimated = mesh.decimate(target_face_count)
+
+    logger.info(f"Mesh simplification complete → {len(mesh_decimated.faces) // 4} faces remain.")
+    return np.array(mesh_decimated.points), np.array(mesh_decimated.faces.reshape(-1, 4)[:, 1:])
