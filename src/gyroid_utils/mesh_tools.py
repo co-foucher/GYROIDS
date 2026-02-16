@@ -541,55 +541,17 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
 
 def fast_mesh_decimation(verts: np.ndarray, faces: np.ndarray, target_face_count: int):
     """
-    VTK decimation - FASTEST option
-    
-    target_reduction: 0.9 means reduce to 10% of original triangles
-
-    original = len(faces)
-    logger.info(f"Simplifying mesh: {original} faces → target {target_face_count}")
-    # Create VTK mesh
-    points = vtk.vtkPoints()
-    for v in verts:
-        points.InsertNextPoint(v)
-    
-    triangles = vtk.vtkCellArray()
-    for f in faces:
-        triangle = vtk.vtkTriangle()
-        for i, idx in enumerate(f):
-            triangle.GetPointIds().SetId(i, idx)
-        triangles.InsertNextCell(triangle)
-    
-    poly_data = vtk.vtkPolyData()
-    poly_data.SetPoints(points)
-    poly_data.SetPolys(triangles)
-    
-    # Decimate
-    decimate = vtk.vtkQuadricDecimation()
-    decimate.SetInputData(poly_data)
-    decimate.SetTargetReduction(target_face_count)
-    decimate.Update()
-    
-    # Extract result
-    output = decimate.GetOutput()
-    
-    # Convert back to numpy
-    verts = np.array([output.GetPoint(i) for i in range(output.GetNumberOfPoints())])
-    faces_out = []
-    for i in range(output.GetNumberOfCells()):
-        cell = output.GetCell(i)
-        face = [cell.GetPointId(j) for j in range(cell.GetNumberOfPoints())]
-        faces_out.append(face)
-    
-    logger.info(f"Mesh simplification complete → {len(faces_out)} faces remain.")
-    
-    return verts, np.array(faces_out)
-
-    
-    PyVista (VTK wrapper) - FAST and easier API than raw VTK
+    PyVista (VTK wrapper) - FASTer than trimesh and easier API than raw VTK
     """
     # Create mesh (faces need to be prepended with face size)
     original = len(faces)
     logger.info(f"Simplifying mesh: {original} faces → target {target_face_count}")
+    if original == 0:
+        logger.warning("Mesh has zero faces — skipping simplification.")
+        return verts, faces
+    if target_face_count >= original:
+        logger.info("Target face count is greater than or equal to original; skipping simplification.")
+        return verts, faces
 
     faces_pv = np.hstack([[3] + list(f) for f in faces])
     mesh = pv.PolyData(verts, faces_pv)

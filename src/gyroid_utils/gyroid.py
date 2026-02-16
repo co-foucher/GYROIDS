@@ -321,3 +321,12 @@ class GyroidModel:
             raise RuntimeError("Mesh has not been generated yet.")
 
         self.verts, self.faces = mesh_tools.fix_mesh(self.verts, self.faces)
+    
+    def smooth_mesh(self, smoothing_factor: float = 0.5):
+        """
+        Convenience wrapper to the mesh_tools.smooth_mesh function.
+        """
+        if self.verts is None or self.faces is None:
+            raise RuntimeError("Mesh has not been generated yet.")
+
+        self.verts, self.faces = mesh_tools.smooth_mesh(self.verts, self.faces, smoothing_factor=smoothing_factor)
