@@ -217,7 +217,7 @@ class GyroidModel:
         logger.info(f"Generated mesh with {len(self.faces)} faces")
         return self.verts, self.faces
 
-    def simplify_mesh(self, target_faces: int = 10000) -> Tuple[np.ndarray, np.ndarray]:
+    def simplify_mesh(self, target_faces: int = 10000, mode: str = "fast") -> Tuple[np.ndarray, np.ndarray]:
         """
         Simplify and clean the current mesh, returning (verts, faces).
         This uses the mesh_tools simplification and connected-component filtering helpers.
@@ -225,7 +225,10 @@ class GyroidModel:
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
 
-        self.faces, self.verts = mesh_tools.simplify_mesh(self.faces, self.verts, target=target_faces)
+        if mode == "fast":
+            self.verts, self.faces = mesh_tools.fast_mesh_decimation(self.verts, self.faces, target_face_count=target_faces)
+        else:
+            self.faces, self.verts = mesh_tools.simplify_mesh(self.faces, self.verts, target=target_faces)
 
         # keep the largest connected component and discard stray pieces
         self.verts, self.faces = mesh_tools.keep_largest_connected_component(self.verts, self.faces)
