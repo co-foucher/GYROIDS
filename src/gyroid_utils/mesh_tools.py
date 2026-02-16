@@ -595,7 +595,7 @@ def fast_mesh_decimation(verts: np.ndarray, faces: np.ndarray, target_face_count
     mesh = pv.PolyData(verts, faces_pv)
     
     # Decimate
-    mesh_decimated = mesh.decimate((target_face_count-original)/original)
+    mesh_decimated = mesh.decimate((original-target_face_count)/original)
 
     logger.info(f"Mesh simplification complete → {len(mesh_decimated.faces) // 4} faces remain.")
     return np.array(mesh_decimated.points), np.array(mesh_decimated.faces.reshape(-1, 4)[:, 1:])

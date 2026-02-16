@@ -217,7 +217,7 @@ class GyroidModel:
         logger.info(f"Generated mesh with {len(self.faces)} faces")
         return self.verts, self.faces
 
-    def simplify_mesh(self, target_faces: int = 10000, mode: str = "fast") -> Tuple[np.ndarray, np.ndarray]:
+    def simplify_mesh(self, target_faces: int = 10000, mode: str = "fast"):
         """
         Simplify and clean the current mesh, returning (verts, faces).
         This uses the mesh_tools simplification and connected-component filtering helpers.
@@ -234,7 +234,7 @@ class GyroidModel:
         self.verts, self.faces = mesh_tools.keep_largest_connected_component(self.verts, self.faces)
 
         logger.info(f"Mesh simplified to {len(self.faces)} faces")
-        return self.verts, self.faces
+        return
 
     def export_stl(self, filepath: str) -> None:
         """
