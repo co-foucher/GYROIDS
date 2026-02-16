@@ -268,14 +268,11 @@ class GyroidModel:
         mesh_tools.check_mesh_validity(self.verts, self.faces)
         return 
 
-    def keep_largest_connected_component(
-        verts: np.ndarray,
-        faces: np.ndarray,
-        ) -> Tuple[np.ndarray, np.ndarray]:
+    def keep_largest_connected_component(self) :
         """
         Convenience wrapper to the mesh_tools function.
         """
-        return mesh_tools.keep_largest_connected_component(verts, faces)
+        self.verts, self.faces = mesh_tools.keep_largest_connected_component(self.verts, self.faces)
     
 
     def add_baseplates(
