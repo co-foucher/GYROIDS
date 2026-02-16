@@ -529,8 +529,8 @@ def _is_mesh_fixed(verts: np.ndarray, faces: np.ndarray) -> bool:
 def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1):
     mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
     trimesh.smoothing.filter_humphrey(mesh, 
-                                      alpha=smoothing_factor, 
-                                      beta=0.1, 
+                                      alpha=0.1, 
+                                      beta=smoothing_factor, 
                                       iterations=1, 
                                       laplacian_operator=None)
     return mesh.vertices, mesh.faces
@@ -546,6 +546,8 @@ def fast_mesh_decimation(verts: np.ndarray, faces: np.ndarray, target_face_count
     # Create mesh (faces need to be prepended with face size)
     original = len(faces)
     logger.info(f"Simplifying mesh: {original} faces → target {target_face_count}")
+
+    # errors
     if original == 0:
         logger.warning("Mesh has zero faces — skipping simplification.")
         return verts, faces
