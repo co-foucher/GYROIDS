@@ -332,7 +332,22 @@ class GyroidModel:
         self.verts, self.faces = mesh_tools.smooth_mesh(self.verts, self.faces, smoothing_factor=smoothing_factor)
 
 
-def create_a_gyroid(x, y, z, px, py, pz, t, baseplate_thickness: float = 0.0, save_path, step_size:int=2, simplification_factor:int=0.9):
+
+
+
+
+
+def create_a_gyroid(x:np.ndarray, 
+                    y:np.ndarray, 
+                    z:np.ndarray, 
+                    px:np.ndarray, 
+                    py:np.ndarray, 
+                    pz:np.ndarray, 
+                    t:np.ndarray, 
+                    save_path: str, 
+                    baseplate_thickness: float = 0.0, 
+                    step_size:int=2, 
+                    simplification_factor:int=0.9):
     """
      Convenience function to create a gyroid model, compute the field, generate and simplify the mesh, and save results.
      Parameters:
