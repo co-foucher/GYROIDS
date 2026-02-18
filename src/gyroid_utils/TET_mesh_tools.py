@@ -1,0 +1,78 @@
+from pathlib import Path
+import meshio
+import subprocess
+from .logger import logger
+
+
+"""
+#=====================================================================================================================
+0 - (reserved)
+1 - mesh_a_gyroid
+2 - get_mesh_info
+#=====================================================================================================================
+"""
+
+
+# =====================================================================
+# 1) mesh_a_gyroid
+# =====================================================================
+def mesh_an_STL(input_path:str, 
+                output_path:str, 
+                file_name:str, 
+                FtetWild_path:str = "C:\Program Files\fTetWild\build\Release\FloatTetwild_bin.exe", 
+                stop_energy:float = 20.0, 
+                epsilon:float = 0.001):
+    """
+    Mesh a gyroid model using fTetWild and convert the mesh to Abaqus format.
+    Parameters:
+        input_path (str): path (folder) to the input STL file (without the .stl extension)
+        output_path (str): path (folder) to the output INP file (without the .inp extension)
+        file_name (str): base name used to locate the STL file and name the output files
+        stop_energy (float): controls when fTetWild stops optimizing the tetrahedral mesh quality.
+        epsilon (float): relative envelope size parameter in fTetWild, aka a multiplier of your model's bounding box diagonal length from whcih all tolerances are calculated
+            Smaller values lead to finer meshes but longer runtimes.
+    """
+    # define the path to ftetwild
+    ftetwild_exe = Path(
+        r"C:\Program Files\fTetWild\build\Release\FloatTetwild_bin.exe")
+    # define the path to files
+    input_stl = Path(input_path + file_name + '.stl')
+    output_msh = Path(output_path + file_name + '.msh')
+    output_inp = Path(output_path + file_name + '.inp')
+
+    print("Input STL file:", input_stl)
+    print("Output MSH file:", output_msh)
+
+    # run ftetwild
+    cmd = [str(ftetwild_exe),
+        "--input", str(input_stl),
+        "--output", str(output_msh),
+        "--epsr", str(0.001), 
+        "--stop-energy", str(20)]
+    subprocess.run(cmd, check=True)
+
+    #CONVERT MSH TO INP
+    mesh = meshio.read(output_msh)
+    meshio.write(output_inp, mesh, file_format="abaqus")
+
+    get_mesh_info(output_inp)
+
+    logger.info("Meshing finished:")
+
+
+# =====================================================================
+# 2) get_mesh_info
+# =====================================================================
+
+def get_mesh_info(path_to_mesh:str):
+    mesh = meshio.read(path_to_mesh)
+    num_nodes = len(mesh.points)
+    num_elements = len(mesh.cells_dict.get("tetra", []))
+    logger.info(f"Mesh info for {path_to_mesh}: {num_nodes} nodes, {num_elements} tetrahedral elements.")
+    return num_nodes, num_elements
+
+
+
+
+
+

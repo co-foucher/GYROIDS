@@ -30,6 +30,8 @@ __all__ = [
     "viz",
     "io_ops",
     "gyroid",
+    "abaqus_tools",
+    "TET_mesh_tools",
     "logger",
     "set_log_level",
     "__version__",

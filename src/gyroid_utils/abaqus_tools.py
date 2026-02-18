@@ -2,7 +2,7 @@ from pathlib import Path
 import time
 import subprocess
 import shutil
-
+from .logger import logger
 
 """
 #=====================================================================================================================
@@ -75,17 +75,17 @@ def create_simulation(input_path:str,
                 lines = [line.rstrip() for line in file]
             # If the last line indicates success, we're done
             if "Simulation created successfully" in lines[-1]:
-                print("Simulation created successfully.")
+                logger.info("Simulation created successfully.")
                 break
             else:
                 # Not ready yet: sleep briefly and try again
                 time.sleep(1)
-                print("simulation not created yet, waiting...")
-                print(f"last 2 lines are {lines[-2]}")
-                print(f"                 {lines[-1]}")
+                logger.info("simulation not created yet, waiting...")
+                logger.info(f"last 2 lines are {lines[-2]}")
+                logger.info(f"                 {lines[-1]}")
         except FileNotFoundError:
             # Log file not present yet; wait and retry
-            print("file not found, waiting...")
+            logger.info("file not found, waiting...")
             time.sleep(1)
 
     # --- delete temporary file (best-effort) ---
@@ -123,9 +123,9 @@ def _wait_for_simulation_start(ODB_path, file_name):
     """Wait for the simulation to start by polling the ODB folder for the .odb file."""
     odb_file = Path(ODB_path) / ("Job-" + file_name + ".odb")
     while not odb_file.exists():
-        print("Simulation not started yet, waiting...")
+        logger.info("Simulation not started yet, waiting...")
         time.sleep(30)  # wait before checking again
-    print("Simulation started, ODB file found.")
+    logger.info("Simulation started, ODB file found.")
 
 
 # =====================================================================
@@ -141,17 +141,17 @@ def wait_for_simulation_completed(ODB_path, file_name):
                 lines = [line.rstrip() for line in file]
             # If the last line indicates success, we're done
             if "COMPLETED" in lines[-1]:
-                print("Simulation run completed.")
+                logger.info("Simulation run completed.")
                 break
             elif "ABORTED" in lines:
-                print("Simulation run aborted.")
+                logger.info("Simulation run aborted.")
                 break
             else:
                 # Not ready yet: sleep briefly and try again
                 time.sleep(1)
-                print("simulation not completed yet, waiting...")
-                print(f"last line is {lines[-1]}")
+                logger.info("simulation not completed yet, waiting...")
+                logger.info(f"last line is {lines[-1]}")
         except :
             # Log file not present yet; wait and retry
-            print("file not found, waiting...")
+            logger.info("file not found, waiting...")
             time.sleep(1)
