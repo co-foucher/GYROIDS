@@ -18,6 +18,27 @@
   - For changes: update the toml file and then use pip install git+https://github.com/co-foucher/GYROIDS.git
 
 
+
+# Module Organization
+
+The library is organized into the following modules:
+
+- **gyroid.py**: Main GyroidModel class and convenience functions
+- **mesh_tools.py**: Mesh processing functions (simplification, smoothing, fixing, validation, export)
+- **io_ops.py**: Input/output operations (STL loading/saving, .npz archives)
+- **viz.py**: Visualization tools (HTML previews, histograms, 2D matrix views)
+- **abaqus_tools.py**: ABAQUS simulation integration
+- **TET_mesh_tools.py**: Tetrahedral mesh operations
+- **logger.py**: Logging configuration
+- **config.py**: Configuration constants
+
+# Examples in Notebooks
+- **Gyroids_STL.ipynb**: how to parametrize and create a simple gyroid
+- **Gyroids_STL_class.ipynb**: how to use the gyroid class to generate gyroids faster and safer
+- **STL_to_STEP.ipynb**: how to use OCC to transform a STL to a STEP
+- **STL_to_inp.ipynb**: how to use fTetWild to transform a STL to an ABAQUS input file (inp)
+
+
 # FEATURES
 ### Complex Gyroid Generation
 - Three field computation modes: 'abs', 'signed', and 'distance'
@@ -103,60 +124,34 @@ Produces (verts, faces) from self.v using marching-cubes (mesh_tools.mesh_from_m
 - pad_val: float - padding value (default: 0.0)
 
 ### simplify_mesh(target_faces, mode)
-Simplify and retain largest connected component.
-
-**Parameters:**
-- target_faces: int - target number of faces (default: 10000)
-- mode: str - 'fast' (PyVista) or 'slow' (Open3D) (default: 'fast')
+Simplify mesh and keep largest connected component. Modes: 'fast' (PyVista) or 'slow' (Open3D).
 
 ### smooth_mesh(smoothing_factor)
-Apply Humphrey smoothing filter to the mesh.
-
-**Parameters:**
-- smoothing_factor: float - smoothing intensity (default: 0.5)
+Apply Humphrey smoothing filter to mesh.
 
 ### fix_mesh()
-Attempt to fix mesh issues (non-manifold edges, holes, etc.) using Trimesh repair.
+Fix mesh issues (non-manifold edges, holes, etc.) using Trimesh repair.
 
 ### add_baseplates(thickness)
-Add solid baseplates on the bottom and top of the structure (z-axis).
-
-**Parameters:**
-- thickness: float - physical thickness of baseplates in spatial units (default: 5.0)
+Add solid baseplates on bottom and top (z-axis).
 
 ### export_stl(filepath)
-Save current mesh as STL.
-
-**Parameters:**
-- filepath: str - output path (without .stl extension)
+Save mesh as STL.
 
 ### save_mesh_preview(html_path, show_normal_colorscale)
 Save interactive HTML preview using Plotly.
 
-**Parameters:**
-- html_path: str - output HTML file path
-- show_normal_colorscale: bool - color faces by normals (default: True)
-
 ### check_mesh_quality()
-Compute triangle areas, plot histogram, run validity checks.
+Compute triangle areas and run validity checks.
 
 ### keep_largest_connected_component()
-Remove small disconnected components, keep only the largest.
+Keep only the largest connected component, remove others.
 
 ### save(outfile)
-Persist gyroid parameters and computed field to .npz archive.
-
-**Parameters:**
-- outfile: str - output .npz file path
+Persist gyroid parameters and field to .npz archive.
 
 ### load(infile) [classmethod]
-Load saved gyroid parameters and field from disk.
-
-**Parameters:**
-- infile: str - input .npz file path
-
-**Returns:**
-- GyroidModel instance
+Load saved gyroid parameters and field from disk. Returns GyroidModel instance.
 
 ## Convenience Function: create_a_gyroid()
 
@@ -216,25 +211,6 @@ create_a_gyroid(
     simplification_factor=0.8  # keep 80% of faces
 )
 ```
-
-# Module Organization
-
-The library is organized into the following modules:
-
-- **gyroid.py**: Main GyroidModel class and convenience functions
-- **mesh_tools.py**: Mesh processing functions (simplification, smoothing, fixing, validation, export)
-- **io_ops.py**: Input/output operations (STL loading/saving, .npz archives)
-- **viz.py**: Visualization tools (HTML previews, histograms, 2D matrix views)
-- **abaqus_tools.py**: ABAQUS simulation integration
-- **TET_mesh_tools.py**: Tetrahedral mesh operations
-- **logger.py**: Logging configuration
-- **config.py**: Configuration constants
-
-# Examples in Notebooks
-- **Gyroids_STL.ipynb**: how to parametrize and create a simple gyroid
-- **Gyroids_STL_class.ipynb**: how to use the gyroid class to generate gyroids faster and safer
-- **STL_to_STEP.ipynb**: how to use OCC to transform a STL to a STEP
-- **STL_to_inp.ipynb**: how to use fTetWild to transform a STL to an ABAQUS input file (inp)
 
 # Logging
 
