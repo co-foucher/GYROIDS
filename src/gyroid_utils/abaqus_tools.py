@@ -1,0 +1,157 @@
+from pathlib import Path
+import time
+import subprocess
+import shutil
+
+
+"""
+#=====================================================================================================================
+0 - (reserved)
+1 - create_simulation
+2 - run_simulation
+3 - _wait_for_simulation_start   
+4 - wait_for_simulation_completed
+#=====================================================================================================================
+"""
+
+# =====================================================================
+# 1) create_simulation
+# =====================================================================
+def create_simulation(input_path:str, 
+                      output_path:str, 
+                      file_name:str, 
+                      script_name:str = "generate_frequency_sim"):
+    """Create simulation input by invoking the appropriate Abaqus script."""
+    """
+    Parameters:
+        input_path (str): path to input files (kept for interface compatibility)
+        output_path (str): path where generate_sim.py lives and where temp files are written
+        file_name (str): base name used to create temp_file.txt so the Abaqus script can read it
+        script_name (str): name of the Abaqus script to run (without .py extension).
+
+    NECESSARY !!!!
+        !!!!! the python script to create the simulation must be named 'generate_frequency_sim.py' 
+        or 'generate_full_DSS_sim.py' and must be located in output_path !!!!!
+
+    Behavior:
+        - writes a small temp file named 'temp_file.txt' into INP_path with the file_name
+        - runs Abaqus in noGUI mode to execute the chosen script in that folder
+        - waits for the external script to write a log file 'generate_sim_logger.txt' and
+          polls that file until a 'Simulation created successfully' message is found in its last line
+        - deletes the temp_file.txt afterwards (best-effort)
+    """
+    # Compose path to the input .inp (kept for compatibility with other code)
+    input_inp = Path(input_path + file_name + '.inp')
+    # folder where generate_sim.py lives and where we'll write temp files
+    script_folder = Path(output_path)
+    # Choose which Abaqus wrapper script to run based on requested simulation type
+    try:
+        with open(script_folder / "abaqus.rpy", "r") as f:
+            content = f.read()
+    except FileNotFoundError:
+        # Protect against invalid usage
+        raise ValueError(f"Unknown script name: {script_name}")
+
+    # --- write a small temp file that the Abaqus script will read ---
+    # temp_file.txt contains the base file name so the Abaqus-side script knows which mesh to load
+    temp_path = script_folder / "temp_file.txt"
+    temp_path.parent.mkdir(parents=True, exist_ok=True)  # ensure folder exists
+    with open(temp_path, "w") as f:
+        f.write(f"{file_name}")
+
+    # --- run abaqus headless from that folder ---
+    # Running with `cwd=str(script_folder)` ensures Abaqus starts in the folder containing temp_file.txt
+    cmd = ["abaqus", "cae", "noGUI=" + script_name]
+    subprocess.run(cmd, check=True, cwd=str(script_folder), shell=True)
+
+    # --- wait for external script to signal completion ---
+    # The external script is expected to write 'generate_sim_logger.txt' and append a line
+    # containing 'Simulation created successfully' when done. We poll that file until we see it.
+    simulation_created = False
+    temp = Path(output_path) / "generate_sim_logger.txt"
+    while not simulation_created:
+        try:
+            with open(temp) as file:
+                lines = [line.rstrip() for line in file]
+            # If the last line indicates success, we're done
+            if "Simulation created successfully" in lines[-1]:
+                print("Simulation created successfully.")
+                break
+            else:
+                # Not ready yet: sleep briefly and try again
+                time.sleep(1)
+                print("simulation not created yet, waiting...")
+                print(f"last 2 lines are {lines[-2]}")
+                print(f"                 {lines[-1]}")
+        except FileNotFoundError:
+            # Log file not present yet; wait and retry
+            print("file not found, waiting...")
+            time.sleep(1)
+
+    # --- delete temporary file (best-effort) ---
+    # Use missing_ok=True so we don't raise if the file was removed elsewhere
+    temp_path.unlink(missing_ok=True)  
+    temp_path = script_folder / "abaqus.rpy"
+    temp_path.unlink(missing_ok=True)  
+
+
+# =====================================================================
+# 2) run_simulation
+# =====================================================================
+
+def run_simulation(input_path, 
+                   output_path, 
+                   file_name):
+    """Run the simulation by invoking the appropriate Abaqus input file."""
+    # 
+    src = Path(input_path) / ("Job-" + file_name + ".inp")
+    dst = Path(output_path) / ("Job-" + file_name + ".inp")
+    shutil.copyfile(src, dst)
+
+    # --- run abaqus headless from that folder ---
+    cmd = ["abaqus", "job=Job-" + file_name]
+    subprocess.run(cmd, check=True, cwd=str(output_path), shell=True)
+
+    #
+    _wait_for_simulation_start(output_path, file_name)
+    dst.unlink(missing_ok=True)  
+
+# =====================================================================
+# 3) _wait_for_simulation_start
+# =====================================================================
+def _wait_for_simulation_start(ODB_path, file_name):
+    """Wait for the simulation to start by polling the ODB folder for the .odb file."""
+    odb_file = Path(ODB_path) / ("Job-" + file_name + ".odb")
+    while not odb_file.exists():
+        print("Simulation not started yet, waiting...")
+        time.sleep(30)  # wait before checking again
+    print("Simulation started, ODB file found.")
+
+
+# =====================================================================
+# 4) wait_for_simulation_completed
+# =====================================================================
+def wait_for_simulation_completed(ODB_path, file_name):
+    """Wait for the simulation to complete by looking at the log file for specific key words."""
+    log_file = Path(ODB_path) / ("Job-" + file_name + ".log")
+    simulation_finished = False
+    while not simulation_finished:
+        try:
+            with open(log_file) as file:
+                lines = [line.rstrip() for line in file]
+            # If the last line indicates success, we're done
+            if "COMPLETED" in lines[-1]:
+                print("Simulation run completed.")
+                break
+            elif "ABORTED" in lines:
+                print("Simulation run aborted.")
+                break
+            else:
+                # Not ready yet: sleep briefly and try again
+                time.sleep(1)
+                print("simulation not completed yet, waiting...")
+                print(f"last line is {lines[-1]}")
+        except :
+            # Log file not present yet; wait and retry
+            print("file not found, waiting...")
+            time.sleep(1)

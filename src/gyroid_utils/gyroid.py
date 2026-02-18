@@ -330,3 +330,41 @@ class GyroidModel:
             raise RuntimeError("Mesh has not been generated yet.")
 
         self.verts, self.faces = mesh_tools.smooth_mesh(self.verts, self.faces, smoothing_factor=smoothing_factor)
+
+
+def create_a_gyroid(x, y, z, px, py, pz, t, baseplate_thickness: float = 0.0, save_path, step_size:int=2, simplification_factor:int=0.9):
+    """
+     Convenience function to create a gyroid model, compute the field, generate and simplify the mesh, and save results.
+     Parameters:
+        x, y, z: coordinate grids (3D arrays of identical shape)
+        px, py, pz: periods (scalars or arrays matching x/y/z shape)
+        t: thickness parameter (scalar or array matching x/y/z shape)
+        baseplate_thickness: thickness of the baseplates to add (same units as z)
+        save_path: base path for saving the .npz field and .stl mesh (without extension)
+        step_size: marching cubes step size (higher = faster but less detailed mesh)
+        simplification_factor: target fraction of faces to keep during simplification 
+                (0.5 = keep 50% of faces) 
+                or target number of faces if >1 (e.g. 10000)
+    """
+    #make the gyroid model with distance field
+    model_dist = GyroidModel(x, y, z, px, py, pz, t)
+    model_dist.compute_field(mode = "distance")
+    if baseplate_thickness > 0.0:
+        model_dist.add_baseplates(thickness=baseplate_thickness)
+    model_dist.save(save_path + ".npz")
+
+    #generate mesh
+    model_dist.generate_mesh(algo_step_size=step_size)
+    model_dist.smooth_mesh(smoothing_factor= 0.9)
+
+    if simplification_factor <= 1.0:
+        n_faces_target = int(model_dist.faces.shape[0]*simplification_factor)
+    elif simplification_factor > 1.0:
+        n_faces_target = int(simplification_factor)
+
+    model_dist.simplify_mesh(target_faces = n_faces_target, mode="fast")
+    model_dist.smooth_mesh(smoothing_factor= 0.6)
+    model_dist.fix_mesh()
+    #save preview and stl
+    model_dist.save_mesh_preview(save_path)
+    model_dist.export_stl(save_path)

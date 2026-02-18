@@ -20,6 +20,8 @@ def reload_all():
         gyroid_utils.utils,
         gyroid_utils.io_ops,
         gyroid_utils.config,
+        gyroid_utils.abaqus_tools,
+        gyroid_utils.TET_mesh_tools,
     ]
 
     for m in modules:
