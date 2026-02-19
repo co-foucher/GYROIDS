@@ -19,7 +19,7 @@ from .logger import logger
 def mesh_an_STL(input_path:str, 
                 output_path:str, 
                 file_name:str, 
-                FtetWild_path:str = "C:\Program Files\fTetWild\build\Release\FloatTetwild_bin.exe", 
+                FtetWild_path:str = "C:\\Program Files\\fTetWild\\build\\Release\\FloatTetwild_bin.exe", 
                 stop_energy:float = 20.0, 
                 epsilon:float = 0.001,
                 CPU_cores:int = 1):
@@ -34,7 +34,10 @@ def mesh_an_STL(input_path:str,
             Smaller values lead to finer meshes but longer runtimes.
         CPU_cores (int): number of CPU cores to use for meshing.
     """
+    
     # define the path to ftetwild
+    #ftetwild_exe = Path(
+    #    r"C:\Program Files\fTetWild\build\Release\FloatTetwild_bin.exe") #the r is to avoid issues with backslashes in the path on Windows. Adjust this path if your fTetWild executable is located elsewhere.
     ftetwild_exe = Path(FtetWild_path)
     # define the path to files
     input_stl = Path(input_path + file_name + '.stl')
@@ -65,6 +68,7 @@ def mesh_an_STL(input_path:str,
 # =====================================================================
 # 2) get_mesh_info
 # =====================================================================
+
 
 def get_mesh_info(path_to_mesh:str):
     mesh = meshio.read(path_to_mesh)
