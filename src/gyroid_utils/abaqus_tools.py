@@ -20,7 +20,7 @@ from .logger import logger
 def create_simulation(input_path:str, 
                       output_path:str, 
                       file_name:str, 
-                      script_name:str = "generate_frequency_sim"):
+                      script_name:str = "generate_frequency_sim.py"):
     """Create simulation input by invoking the appropriate Abaqus script."""
     """
     Parameters:
