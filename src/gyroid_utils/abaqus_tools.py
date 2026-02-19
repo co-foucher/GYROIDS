@@ -48,7 +48,7 @@ def create_simulation(input_path:str,
     try:
         with open(script_folder / "abaqus.rpy", "r") as f:
             content = f.read()
-    except FileNotFoundError:
+    except:
         # Protect against invalid usage
         raise ValueError(f"Unknown script name: {script_name}")
 
