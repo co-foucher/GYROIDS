@@ -35,22 +35,21 @@ def mesh_an_STL(input_path:str,
         CPU_cores (int): number of CPU cores to use for meshing.
     """
     # define the path to ftetwild
-    ftetwild_exe = Path(
-        r"C:\Program Files\fTetWild\build\Release\FloatTetwild_bin.exe")
+    ftetwild_exe = Path(FtetWild_path)
     # define the path to files
     input_stl = Path(input_path + file_name + '.stl')
     output_msh = Path(output_path + file_name + '.msh')
     output_inp = Path(output_path + file_name + '.inp')
 
-    logger.info("Input STL file:", input_stl)
-    logger.info("Output MSH file:", output_msh)
+    logger.info(f"Input STL file: {input_stl}")
+    logger.info(f"Output MSH file: {output_msh}")
 
     # run ftetwild
     cmd = [str(ftetwild_exe),
         "--input", str(input_stl),
         "--output", str(output_msh),
-        "--epsr", str(0.001), 
-        "--stop-energy", str(20),
+        "--epsr", str(epsilon), 
+        "--stop-energy", str(stop_energy),
         "--max-threads", str(CPU_cores)]
     subprocess.run(cmd, check=True)
 
