@@ -140,10 +140,11 @@ class GyroidModel:
                 # third, do the same, but inverting the regions
                 dist_in = distance_transform_edt(binary, sampling=spacing)
             else:
+                logger.warning("Using fast distance transform does not work for anisotropic voxels.")
                 # for a faster but less accurate approximation, compute the distance in the binary mask without inverting it
-                dist_out = distance_transform_cdt(~binary, sampling=spacing, metric="taxicab")
+                dist_out = distance_transform_cdt(~binary, metric="taxicab")
                 # third, do the same, but inverting the regions
-                dist_in = distance_transform_cdt(binary, sampling=spacing, metric="taxicab")
+                dist_in = distance_transform_cdt(binary, metric="taxicab")
 
             # distance: now the matrx shows the distance to the surface
             dist = dist_out + dist_in
