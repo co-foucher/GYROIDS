@@ -111,19 +111,19 @@ class GyroidModel:
 
         if mode == "abs":
             # original behaviour: thickness interpreted in term-value units (supports scalar or per-voxel thickness)
-            logger.info("Computing absolute field with thickness =", self.thickness)
+            logger.info(f"Computing absolute field")
             self.v = self.thickness - np.abs(term)
             return self.v
 
         if mode == "signed":
             # signed level-set relative to provided level (C)
-            logger.info("Computing signed field with level =", self.thickness)
+            logger.info(f"Computing signed field")    
             self.v = term - self.thickness
             return self.v
 
         if mode == "distance" or mode == "distance_fast":
             # requires scipy
-            logger.info("Computing distance field with thickness =", self.thickness)
+            logger.info(f"Computing distance field")
             try:
                 from scipy.ndimage import distance_transform_edt, distance_transform_cdt
             except Exception as e:
@@ -160,7 +160,7 @@ class GyroidModel:
             self.v[mask] = dist[mask]
             return self.v
 
-        raise ValueError("mode must be one of: 'abs', 'signed', 'distance'")
+        raise ValueError("mode must be one of: 'abs', 'signed', 'distance', 'distance_fast'")
 
     def save(self, outfile: str) -> None:
         """
