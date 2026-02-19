@@ -46,7 +46,7 @@ def create_simulation(input_path:str,
     script_folder = Path(output_path)
     # Choose which Abaqus wrapper script to run based on requested simulation type
     try:
-        with open(script_folder / "abaqus.rpy", "r") as f:
+        with open(script_folder / script_name, "r") as f:
             content = f.read()
     except:
         # Protect against invalid usage
