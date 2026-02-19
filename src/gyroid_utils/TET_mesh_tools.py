@@ -21,7 +21,8 @@ def mesh_an_STL(input_path:str,
                 file_name:str, 
                 FtetWild_path:str = "C:\Program Files\fTetWild\build\Release\FloatTetwild_bin.exe", 
                 stop_energy:float = 20.0, 
-                epsilon:float = 0.001):
+                epsilon:float = 0.001,
+                CPU_cores:int = 1):
     """
     Mesh a gyroid model using fTetWild and convert the mesh to Abaqus format.
     Parameters:
@@ -31,6 +32,7 @@ def mesh_an_STL(input_path:str,
         stop_energy (float): controls when fTetWild stops optimizing the tetrahedral mesh quality.
         epsilon (float): relative envelope size parameter in fTetWild, aka a multiplier of your model's bounding box diagonal length from whcih all tolerances are calculated
             Smaller values lead to finer meshes but longer runtimes.
+        CPU_cores (int): number of CPU cores to use for meshing.
     """
     # define the path to ftetwild
     ftetwild_exe = Path(
@@ -40,15 +42,16 @@ def mesh_an_STL(input_path:str,
     output_msh = Path(output_path + file_name + '.msh')
     output_inp = Path(output_path + file_name + '.inp')
 
-    print("Input STL file:", input_stl)
-    print("Output MSH file:", output_msh)
+    logger.info("Input STL file:", input_stl)
+    logger.info("Output MSH file:", output_msh)
 
     # run ftetwild
     cmd = [str(ftetwild_exe),
         "--input", str(input_stl),
         "--output", str(output_msh),
         "--epsr", str(0.001), 
-        "--stop-energy", str(20)]
+        "--stop-energy", str(20),
+        "--max-threads", str(CPU_cores)]
     subprocess.run(cmd, check=True)
 
     #CONVERT MSH TO INP

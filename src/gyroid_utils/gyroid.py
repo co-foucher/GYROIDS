@@ -111,18 +111,21 @@ class GyroidModel:
 
         if mode == "abs":
             # original behaviour: thickness interpreted in term-value units (supports scalar or per-voxel thickness)
+            logger.info("Computing absolute field with thickness =", self.thickness)
             self.v = self.thickness - np.abs(term)
             return self.v
 
         if mode == "signed":
             # signed level-set relative to provided level (C)
+            logger.info("Computing signed field with level =", self.thickness)
             self.v = term - self.thickness
             return self.v
 
-        if mode == "distance":
+        if mode == "distance" or mode == "distance_fast":
             # requires scipy
+            logger.info("Computing distance field with thickness =", self.thickness)
             try:
-                from scipy.ndimage import distance_transform_edt
+                from scipy.ndimage import distance_transform_edt, distance_transform_cdt
             except Exception as e:
                 raise RuntimeError("distance mode requires scipy.ndimage.distance_transform_edt") from e
 
@@ -132,9 +135,15 @@ class GyroidModel:
 
             # distance_transform_edt supports a 'sampling' parameter for anisotropic voxels
             # second, compute in the solid part, the distance of every voxel to the nearest zero (empty part)
-            dist_out = distance_transform_edt(~binary, sampling=spacing)
-            # third, do the same, but inverting the regions
-            dist_in = distance_transform_edt(binary, sampling=spacing)
+            if mode == "distance":
+                dist_out = distance_transform_edt(~binary, sampling=spacing)
+                # third, do the same, but inverting the regions
+                dist_in = distance_transform_edt(binary, sampling=spacing)
+            else:
+                # for a faster but less accurate approximation, compute the distance in the binary mask without inverting it
+                dist_out = distance_transform_cdt(~binary, sampling=spacing, metric="taxicab")
+                # third, do the same, but inverting the regions
+                dist_in = distance_transform_cdt(binary, sampling=spacing, metric="taxicab")
 
             # distance: now the matrx shows the distance to the surface
             dist = dist_out + dist_in
@@ -347,7 +356,8 @@ def create_a_gyroid(x:np.ndarray,
                     save_path: str, 
                     baseplate_thickness: float = 0.0, 
                     step_size:int=2, 
-                    simplification_factor:int=0.9):
+                    simplification_factor:int=0.9,
+                    field_mode:str = "distance"):
     """
      Convenience function to create a gyroid model, compute the field, generate and simplify the mesh, and save results.
      Parameters:
@@ -363,7 +373,7 @@ def create_a_gyroid(x:np.ndarray,
     """
     #make the gyroid model with distance field
     model_dist = GyroidModel(x, y, z, px, py, pz, t)
-    model_dist.compute_field(mode = "distance")
+    model_dist.compute_field(mode = field_mode)
     if baseplate_thickness > 0.0:
         model_dist.add_baseplates(thickness=baseplate_thickness)
     model_dist.save(save_path + ".npz")
