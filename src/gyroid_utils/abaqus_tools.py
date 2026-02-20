@@ -70,7 +70,7 @@ def create_simulation(input_path:str,
     # The external script is expected to write 'generate_sim_logger.txt' and append a line
     # containing 'Simulation created successfully' when done. We poll that file until we see it.
     simulation_created = False
-    temp = Path(output_path) / "generate_sim_logger_"+ file_name +".txt"
+    temp = Path(output_path) / ("generate_sim_logger_"+ file_name +".txt")
     while not simulation_created:
         try:
             with open(temp) as file:
