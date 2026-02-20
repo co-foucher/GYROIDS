@@ -56,6 +56,11 @@ def create_simulation(input_path:str,
     # temp_file.txt contains the base file name so the Abaqus-side script knows which mesh to load
     temp_path = script_folder / "temp_file.txt"
     temp_path.parent.mkdir(parents=True, exist_ok=True)  # ensure folder exists
+
+    #try to see if a temp file already exists, if so wait a bit before checking again
+    while temp_path.exists():
+        logger.info("temp file already exists, waiting...")
+        time.sleep(10)
     with open(temp_path, "w") as f:
         f.write(f"{file_name}")
         #note: no need to delete it as the abaqus python script does that after reading it
