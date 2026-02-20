@@ -396,11 +396,11 @@ def create_a_gyroid(x:np.ndarray,
     model_dist.simplify_mesh(target_faces = n_faces_target, mode="fast")
     model_dist.smooth_mesh(smoothing_factor= 0.6)
     model_dist.fix_mesh()
-    is_valid = model_dist.check_mesh_quality(model_dist)
+    is_valid = model_dist.check_mesh_quality()
+    #save preview and stl
+    model_dist.save_mesh_preview(save_path)
     if not is_valid:
         logger.warning("Generated mesh is not valid. Will ignore this one.")
         return False  # Signal failure to caller
-    #save preview and stl
-    model_dist.save_mesh_preview(save_path)
     model_dist.export_stl(save_path)
     return True  # Signal success to caller
