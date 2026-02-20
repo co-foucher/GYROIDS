@@ -265,18 +265,23 @@ class GyroidModel:
 
         viz.save_mesh_as_html(self.faces, self.verts, html_path, show_normal_colorscale=show_normal_colorscale)
 
-    def check_mesh_quality(self) -> np.ndarray:
+
+    def check_mesh_quality(self) -> bool:
         """
-        Calculate triangle areas, plot a histogram and run mesh validity checks.
-        Returns the computed areas array.
+        Check mesh validity and return a boolean indicating if the mesh is valid.   
         """
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
 
         #areas = mesh_tools.calculate_triangle_areas(self.verts, self.faces)
         #viz.plot_histogram(areas)
-        mesh_tools.check_mesh_validity(self.verts, self.faces)
-        return 
+        info = mesh_tools.check_mesh_validity(self.verts, self.faces)
+        if info["watertight"] and info["winding_consistent"] and not info["self_intersecting"]:
+            validty = True
+        else:            
+            validty = False
+        return validty
+    
 
     def keep_largest_connected_component(self) :
         """
@@ -391,6 +396,11 @@ def create_a_gyroid(x:np.ndarray,
     model_dist.simplify_mesh(target_faces = n_faces_target, mode="fast")
     model_dist.smooth_mesh(smoothing_factor= 0.6)
     model_dist.fix_mesh()
+    is_valid = model_dist.check_mesh_quality(model_dist)
+    if not is_valid:
+        logger.warning("Generated mesh is not valid. Will ignore this one.")
+        return False  # Signal failure to caller
     #save preview and stl
     model_dist.save_mesh_preview(save_path)
     model_dist.export_stl(save_path)
+    return True  # Signal success to caller

@@ -58,6 +58,8 @@ def create_simulation(input_path:str,
     temp_path.parent.mkdir(parents=True, exist_ok=True)  # ensure folder exists
     with open(temp_path, "w") as f:
         f.write(f"{file_name}")
+        #note: no need to delete it as the abaqus python script does that after reading it
+        #in parallel runs this is safer as having several script writting in the same file would be a problem...
 
     # --- run abaqus headless from that folder ---
     # Running with `cwd=str(script_folder)` ensures Abaqus starts in the folder containing temp_file.txt
@@ -68,7 +70,7 @@ def create_simulation(input_path:str,
     # The external script is expected to write 'generate_sim_logger.txt' and append a line
     # containing 'Simulation created successfully' when done. We poll that file until we see it.
     simulation_created = False
-    temp = Path(output_path) / "generate_sim_logger.txt"
+    temp = Path(output_path) / "generate_sim_logger_"+ file_name +".txt"
     while not simulation_created:
         try:
             with open(temp) as file:
