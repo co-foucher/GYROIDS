@@ -3,6 +3,7 @@ import time
 import subprocess
 import shutil
 from .logger import logger
+import numpy as np
 
 """
 #=====================================================================================================================
@@ -60,7 +61,7 @@ def create_simulation(input_path:str,
     #try to see if a temp file already exists, if so wait a bit before checking again
     while temp_path.exists():
         logger.info("temp file already exists, waiting...")
-        time.sleep(10)
+        time.sleep(np.random.uniform(10, 30))   # wait a random time before checking again to avoid conflicts in parallel runs
     with open(temp_path, "w") as f:
         f.write(f"{file_name}")
         #note: no need to delete it as the abaqus python script does that after reading it
