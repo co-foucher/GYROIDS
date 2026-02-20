@@ -22,7 +22,8 @@ def mesh_an_STL(input_path:str,
                 FtetWild_path:str = "C:\\Program Files\\fTetWild\\build\\Release\\FloatTetwild_bin.exe", 
                 stop_energy:float = 20.0, 
                 epsilon:float = 0.001,
-                CPU_cores:int = 1):
+                CPU_cores:int = 1,
+                print_outputs:bool = False):
     """
     Mesh a gyroid model using fTetWild and convert the mesh to Abaqus format.
     Parameters:
@@ -54,7 +55,10 @@ def mesh_an_STL(input_path:str,
         "--epsr", str(epsilon), 
         "--stop-energy", str(stop_energy),
         "--max-threads", str(CPU_cores)]
-    subprocess.run(cmd, check=True)
+    if not print_outputs:
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, check=True)
+    else:
+        subprocess.run(cmd, check=True)
 
     #CONVERT MSH TO INP
     mesh = meshio.read(output_msh)
