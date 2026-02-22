@@ -382,7 +382,7 @@ def create_a_gyroid(x:np.ndarray,
     model_dist.compute_field(mode = field_mode)
     if baseplate_thickness > 0.0:
         model_dist.add_baseplates(thickness=baseplate_thickness)
-    model_dist.save(save_path + ".npz")
+    #model_dist.save(save_path + ".npz")
 
     #generate mesh
     model_dist.generate_mesh(algo_step_size=step_size)
