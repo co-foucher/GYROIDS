@@ -109,20 +109,30 @@ def create_simulation(input_path:str,
 
 def run_simulation(input_path, 
                    output_path, 
-                   file_name):
-    """Run the simulation by invoking the appropriate Abaqus input file."""
+                   file_name) -> bool:
+    """Run the simulation by invoking the appropriate Abaqus input file.
+    returns True if no error, False otherwise."""
     # 
     src = Path(input_path) / ("Job-" + file_name + ".inp")
     dst = Path(output_path) / ("Job-" + file_name + ".inp")
-    shutil.copyfile(src, dst)
+    try:
+        shutil.copyfile(src, dst)
+    except (FileNotFoundError, FileExistsError) as e:
+        logger.error(f"Error copying input file: {e}")
+        return False
 
     # --- run abaqus headless from that folder ---
     cmd = ["abaqus", "job=Job-" + file_name]
-    subprocess.run(cmd, check=True, cwd=str(output_path), shell=True)
+    try:
+        subprocess.run(cmd, check=True, cwd=str(output_path), shell=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error running Abaqus simulation: {e}")
+        return False
 
     #
     _wait_for_simulation_start(output_path, file_name)
     dst.unlink(missing_ok=True)  
+    return True
 
 # =====================================================================
 # 3) _wait_for_simulation_start
