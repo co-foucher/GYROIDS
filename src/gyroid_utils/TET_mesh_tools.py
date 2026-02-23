@@ -63,10 +63,19 @@ def mesh_an_STL(input_path:str,
     #CONVERT MSH TO INP
     mesh = meshio.read(output_msh)
     meshio.write(output_inp, mesh, file_format="abaqus")
-
     get_mesh_info(output_inp)
-
     logger.info("Meshing finished:")
+
+    # delete the intermediate .msh file (best effort)
+    output_msh.unlink(missing_ok=True)
+    temp_stl = Path(output_msh + '.__tracked_surface.stl')
+    temp_stl.unlink(missing_ok=True)
+    temp_csv = Path(output_msh + '_.csv')
+    temp_csv.unlink(missing_ok=True)
+    temp_obj = Path(output_msh + '__sf.obj')
+    temp_obj.unlink(missing_ok=True)
+
+
 
 
 # =====================================================================
