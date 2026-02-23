@@ -125,24 +125,28 @@ def run_simulation(input_path,
     cmd = ["abaqus", "job=Job-" + file_name]
     try:
         subprocess.run(cmd, check=True, cwd=str(output_path), shell=True)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error running Abaqus simulation: {e}")
+    except Exception as e:
+        logger.error(f"Error running Abaqus simulation for {file_name}: {e}")
         return False
 
-    #
-    _wait_for_simulation_start(output_path, file_name)
+    # --- Wait for the simulation to start by polling the ODB folder for the .odb file ---
+    _wait_for_simulation_start(output_path, file_name,max_wait_time=300)  # wait up to 5 minutes for the simulation to start
     dst.unlink(missing_ok=True)  
     return True
 
 # =====================================================================
 # 3) _wait_for_simulation_start
 # =====================================================================
-def _wait_for_simulation_start(ODB_path, file_name):
+def _wait_for_simulation_start(ODB_path, file_name, max_wait_time=300):
     """Wait for the simulation to start by polling the ODB folder for the .odb file."""
     odb_file = Path(ODB_path) / ("Job-" + file_name + ".odb")
+    start_time = time.time()    
     while not odb_file.exists():
         logger.info("Simulation not started yet, waiting...")
         time.sleep(30)  # wait before checking again
+        if time.time() - start_time > max_wait_time:
+            logger.warning(f"Simulation did not start within {max_wait_time} seconds.")
+            break
     logger.info("Simulation started, ODB file found.")
 
 
