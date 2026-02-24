@@ -100,7 +100,7 @@ def create_simulation(input_path:str,
             time.sleep(1)
     # --- delete temporary file (best-effort) ---
     # Use missing_ok=True so we don't raise if the file was removed elsewhere
-    temp_path.unlink(missing_ok=True)  
+    #temp_path.unlink(missing_ok=True)  
     temp_path = script_folder / "abaqus.rpy"
     temp_path.unlink(missing_ok=True)  
 
