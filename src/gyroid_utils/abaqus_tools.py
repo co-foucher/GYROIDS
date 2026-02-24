@@ -31,11 +31,10 @@ def create_simulation(input_path:str,
         script_name (str): name of the Abaqus script to run (without .py extension).
 
     NECESSARY !!!!
-        !!!!! the python script to create the simulation must be named 'generate_frequency_sim.py' 
-        or 'generate_full_DSS_sim.py' and must be located in output_path !!!!!
+        !!!!! the python script to create the simulation must be located in output_path !!!!!
 
     Behavior:
-        - writes a small temp file named 'temp_file.txt' into INP_path with the file_name
+        - writes a small temp file named 'temp_file.txt' into INP_path with the file_name NOT ANYMORE (the Abaqus script will read this to know which mesh to load)
         - runs Abaqus in noGUI mode to execute the chosen script in that folder
         - waits for the external script to write a log file 'generate_sim_logger.txt' and
           polls that file until a 'Simulation created successfully' message is found in its last line
@@ -55,6 +54,7 @@ def create_simulation(input_path:str,
 
     # --- write a small temp file that the Abaqus script will read ---
     # temp_file.txt contains the base file name so the Abaqus-side script knows which mesh to load
+    """
     temp_path = script_folder / "temp_file.txt"
     temp_path.parent.mkdir(parents=True, exist_ok=True)  # ensure folder exists
 
@@ -66,10 +66,13 @@ def create_simulation(input_path:str,
         f.write(f"{file_name}")
         #note: no need to delete it as the abaqus python script does that after reading it
         #in parallel runs this is safer as having several script writting in the same file would be a problem...
-
+    """
     # --- run abaqus headless from that folder ---
     # Running with `cwd=str(script_folder)` ensures Abaqus starts in the folder containing temp_file.txt
-    cmd = ["abaqus", "cae", "noGUI=" + script_name]
+    cmd = ["abaqus", "cae", 
+           "noGUI=" + script_name,
+           "--input=" + file_name]  # pass the file name as an argument to the script
+    
     subprocess.run(cmd, check=True, cwd=str(script_folder), shell=True)
 
     # --- wait for external script to signal completion ---
