@@ -84,8 +84,7 @@ class GyroidModel:
         _check_param("thickness", self.thickness)
 
     def compute_field(self,
-                      mode: str = "abs",
-                      spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0)) -> np.ndarray:
+                      mode: str = "abs") -> np.ndarray:
         """
         Compute the gyroid scalar field.
 
@@ -124,6 +123,11 @@ class GyroidModel:
         if mode == "distance" or mode == "distance_fast":
             # requires scipy
             logger.info(f"Computing distance field")
+            # Auto-compute actual voxel spacing from the coordinate grids
+            dx = float(self.x[1, 0, 0] - self.x[0, 0, 0]) if self.x.shape[0] > 1 else 1.0
+            dy = float(self.y[0, 1, 0] - self.y[0, 0, 0]) if self.y.shape[1] > 1 else 1.0
+            dz = float(self.z[0, 0, 1] - self.z[0, 0, 0]) if self.z.shape[2] > 1 else 1.0
+            spacing = (dx, dy, dz)
             try:
                 from scipy.ndimage import distance_transform_edt, distance_transform_cdt
             except Exception as e:
@@ -140,7 +144,7 @@ class GyroidModel:
                 # third, do the same, but inverting the regions
                 dist_in = distance_transform_edt(binary, sampling=spacing)
             else:
-                logger.warning("Using fast distance transform does not work for anisotropic voxels.")
+                logger.warning("Using FAST distance transform does not work for anisotropic voxels.")
                 # for a faster but less accurate approximation, compute the distance in the binary mask without inverting it
                 dist_out = distance_transform_cdt(~binary, metric="taxicab")
                 # third, do the same, but inverting the regions
