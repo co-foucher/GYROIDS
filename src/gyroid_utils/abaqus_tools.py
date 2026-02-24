@@ -71,7 +71,7 @@ def create_simulation(input_path:str,
     # Running with `cwd=str(script_folder)` ensures Abaqus starts in the folder containing temp_file.txt
     cmd = ["abaqus", "cae", 
            "noGUI=" + script_name,
-           "--input=" + file_name]  # pass the file name as an argument to the script
+           "--", "input=" + file_name]  # pass the file name as an argument to the script
     
     subprocess.run(cmd, check=True, cwd=str(script_folder), shell=True)
 
