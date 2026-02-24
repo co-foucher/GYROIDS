@@ -114,7 +114,6 @@ def run_simulation(input_path,
                    file_name) -> bool:
     """Run the simulation by invoking the appropriate Abaqus input file.
     returns True if no error, False otherwise."""
-    print("I'm running the simulation, this may take a while...")
     src = Path(input_path) / ("Job-" + file_name + ".inp")
     dst = Path(output_path) / ("Job-" + file_name + ".inp")
     try:
