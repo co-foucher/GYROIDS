@@ -22,7 +22,7 @@ import pyvista as pv # type: ignore
 6 - check_mesh_validity
 7 - fix_mesh
 8 - smooth mesh
-9 - fast_mesh_decimation
+9 - 
 #=====================================================================================================================
 """
 
@@ -100,7 +100,7 @@ def keep_largest_connected_component(verts, faces):
 # =====================================================================
 # 2) simplify_mesh
 # =====================================================================
-def simplify_mesh(faces, verts, target=100000):
+def simplify_mesh(faces, verts, target=100000, mode="normal"):
     """
     ============================================================================
     2) SIMPLIFY_MESH
@@ -114,8 +114,11 @@ def simplify_mesh(faces, verts, target=100000):
         Triangular faces.
     verts : (N, 3) ndarray
         Vertex coordinates.
-    target : int, optional
-        Desired final number of faces (default = 100000).
+    target : float, optional
+        can be either the Desired final number of faces (default = 100000).
+        or the fraction of faces to keep (if between 0 and 1, e.g. 0.5 to keep 50% of faces).
+    mode : str, optional
+        "normal" (default) or "fast" (faster but less accurate).
 
     RETURNS
     -------
@@ -123,7 +126,7 @@ def simplify_mesh(faces, verts, target=100000):
         Simplified faces.
     verts_simplified : (S, 3) ndarray
         Simplified vertices.
-
+    
     EXAMPLE
     -------
     >>> f2, v2 = simplify_mesh(faces, verts, target=50000)
@@ -136,39 +139,59 @@ def simplify_mesh(faces, verts, target=100000):
     original = len(faces)
     current = original
 
-    logger.info(f"Simplifying mesh: {original} faces → target {target}")
+    if target <= 1.0:
+        n_faces_target = int(original * target)
+    elif target > 1.0:
+        n_faces_target = int(target)
+
+    logger.info(f"Simplifying mesh: {original} faces → target {n_faces_target}")
 
     if original == 0:
         logger.warning("Mesh has zero faces — skipping simplification.")
         return faces, verts
+    
+    # -------- FAST mode ---------------
+    if mode == "fast":
+        """
+        PyVista (VTK wrapper) - FASTer than trimesh and easier API than raw VTK
+        """
+        faces_pv = np.hstack([[3] + list(f) for f in faces])
+        mesh = pv.PolyData(verts, faces_pv)
+        
+        # Decimate
+        mesh_decimated = mesh.decimate((original-n_faces_target)/original)
 
-    i = 0
-    while current > target:
-        i += 1
-        current = max(int(current * 0.5), target)
+        logger.info(f"Mesh simplification complete → {len(mesh_decimated.faces) // 4} faces remain.")
+        return np.array(mesh_decimated.faces.reshape(-1, 4)[:, 1:]) , np.array(mesh_decimated.points)
 
-        logger.debug(f"[Step {i}] Target face count: {current}")
+    # -------- NORMAL mode (iterative halving) ---------------
+    else:        
+        i = 0
+        while current > n_faces_target:
+            i += 1
+            current = max(int(current * 0.5), n_faces_target)
 
-        try:
-            tri = o3d.geometry.TriangleMesh(
-                o3d.utility.Vector3dVector(verts),
-                o3d.utility.Vector3iVector(faces)
-            )
+            logger.debug(f"[Step {i}] Target face count: {current}")
 
-            tri = tri.simplify_quadric_decimation(
-                target_number_of_triangles=current
-            )
+            try:
+                tri = o3d.geometry.TriangleMesh(
+                    o3d.utility.Vector3dVector(verts),
+                    o3d.utility.Vector3iVector(faces)
+                )
 
-            verts = np.asarray(tri.vertices)
-            faces = np.asarray(tri.triangles)
+                tri = tri.simplify_quadric_decimation(
+                    target_number_of_triangles=current
+                )
 
-        except Exception as e:
-            logger.error(f"Mesh simplification failed at step {i}: {e}", exc_info=True)
-            break
+                verts = np.asarray(tri.vertices)
+                faces = np.asarray(tri.triangles)
 
-    logger.info(f"Mesh simplification complete → {len(faces)} faces remain.")
+            except Exception as e:
+                logger.error(f"Mesh simplification failed at step {i}: {e}", exc_info=True)
+                break
 
-    return faces, verts
+        logger.info(f"Mesh simplification complete → {len(faces)} faces remain.")
+        return faces, verts
 
 
 #=====================================================================
@@ -465,14 +488,29 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray) -> dict:
 #7) fix_mesh
 #=====================================================================
 def fix_mesh(verts: np.ndarray, faces: np.ndarray):
+    """
+    ============================================================================
+    7) fix_mesh
+    Attempts to fix common mesh issues (non-manifold edges, inconsistent normals)
+    ============================================================================
+    
+    PARAMETERS
+    ----------
+    verts : (N, 3) ndarray
+        Vertex coordinates.
+    faces : (M, 3) ndarray
+        Triangle face connectivity.
+
+    RETURNS
+    -------
+    verts : (N, 3) ndarray
+        Smoothed vertex coordinates.
+    faces : (M, 3) ndarray
+        triangle face connectivity.
+    """
     # build trimesh object without automatic processing
     m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
 
-    # ------------------------------------------------------------------
-    # Step A: Construct a trimesh object and attempt to fix normals.
-    # - Call `fix_normals()` so face orientations are consistent where
-    #   possible; this helps later checks like `is_volume`.
-    # ------------------------------------------------------------------
     logger.info("Attempting to fix with trimesh.")
     trimesh.repair.fix_normals(m)
     try:
@@ -489,10 +527,7 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray):
         logger.info("mesh is already valid after normal fixing.")
         return verts, faces
 
-
-    # ------------------------------------------------------------------
     # Finalize: report resulting mesh size and return the arrays
-    # ------------------------------------------------------------------
     logger.info(f"fix_mesh(): returning mesh with {len(faces)} faces and {len(verts)} verts")
     return verts, faces
 
@@ -514,6 +549,28 @@ def _is_mesh_fixed(verts: np.ndarray, faces: np.ndarray) -> bool:
 #8) smooth_mesh
 #=====================================================================
 def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1):
+    """
+    ============================================================================
+    8) smooth_mesh
+    Performs Laplacian smoothing on the mesh using trimesh's filter_humphrey
+    ============================================================================
+    
+    PARAMETERS
+    ----------
+    verts : (N, 3) ndarray
+        Vertex coordinates.
+    faces : (M, 3) ndarray
+        Triangle face connectivity.
+    smoothing_factor : float, optional
+        Smoothing strength (default = 0.1). Higher values result in more smoothing.
+
+    RETURNS
+    -------
+    verts_smoothed : (N, 3) ndarray
+        Smoothed vertex coordinates.
+    faces : (M, 3) ndarray
+        Unchanged triangle face connectivity.
+    """
     mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
     trimesh.smoothing.filter_humphrey(mesh, 
                                       alpha=0.1, 
@@ -522,31 +579,3 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
                                       laplacian_operator=None)
     return mesh.vertices, mesh.faces
 
-#=====================================================================
-#9) fast_mesh_decimation
-#=====================================================================
-
-def fast_mesh_decimation(verts: np.ndarray, faces: np.ndarray, target_face_count: int):
-    """
-    PyVista (VTK wrapper) - FASTer than trimesh and easier API than raw VTK
-    """
-    # Create mesh (faces need to be prepended with face size)
-    original = len(faces)
-    logger.info(f"Simplifying mesh: {original} faces → target {target_face_count}")
-
-    # errors
-    if original == 0:
-        logger.warning("Mesh has zero faces — skipping simplification.")
-        return verts, faces
-    if target_face_count >= original:
-        logger.info("Target face count is greater than or equal to original; skipping simplification.")
-        return verts, faces
-
-    faces_pv = np.hstack([[3] + list(f) for f in faces])
-    mesh = pv.PolyData(verts, faces_pv)
-    
-    # Decimate
-    mesh_decimated = mesh.decimate((original-target_face_count)/original)
-
-    logger.info(f"Mesh simplification complete → {len(mesh_decimated.faces) // 4} faces remain.")
-    return np.array(mesh_decimated.points), np.array(mesh_decimated.faces.reshape(-1, 4)[:, 1:])

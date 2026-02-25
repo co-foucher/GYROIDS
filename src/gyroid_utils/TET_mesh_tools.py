@@ -25,15 +25,33 @@ def mesh_an_STL(input_path:str,
                 CPU_cores:int = 1,
                 print_outputs:bool = False):
     """
+    ============================================================================
+    1) mesh_a_gyroid: 
     Mesh a gyroid model using fTetWild and convert the mesh to Abaqus format.
-    Parameters:
-        input_path (str): path (folder) to the input STL file (without the .stl extension)
-        output_path (str): path (folder) to the output INP file (without the .inp extension)
-        file_name (str): base name used to locate the STL file and name the output files
-        stop_energy (float): controls when fTetWild stops optimizing the tetrahedral mesh quality.
-        epsilon (float): relative envelope size parameter in fTetWild, aka a multiplier of your model's bounding box diagonal length from whcih all tolerances are calculated
-            Smaller values lead to finer meshes but longer runtimes.
-        CPU_cores (int): number of CPU cores to use for meshing.
+    ============================================================================
+    
+    PARAMETERS
+    ----------
+    input_path (str): 
+        path (folder) to the input STL file (without the .stl extension)
+    output_path (str): 
+        path (folder) to the output INP file (without the .inp extension)
+    file_name (str): 
+        base name used to locate the STL file and name the output files
+    FtetWild_path (str): = "C:\\Program Files\\fTetWild\\build\\Release\\FloatTetwild_bin.exe"
+        path to the fTetWild executable on your system. Adjust this if your fTetWild is located elsewhere.
+    stop_energy (float): = 20.0
+        controls when fTetWild stops optimizing the tetrahedral mesh quality.
+    epsilon (float): = 0.001
+        relative envelope size parameter in fTetWild, aka a multiplier of your model's bounding box diagonal length from whcih all tolerances are calculated
+        Smaller values lead to finer meshes but longer runtimes.
+    CPU_cores (int): = 1
+        number of CPU cores to use for meshing.
+    
+
+    RETURNS
+    -------
+    None (writes output files to disk)
     """
     
     # define the path to ftetwild
@@ -79,7 +97,6 @@ def mesh_an_STL(input_path:str,
 # =====================================================================
 # 2) get_mesh_info
 # =====================================================================
-
 
 def get_mesh_info(path_to_mesh:str):
     mesh = meshio.read(path_to_mesh)

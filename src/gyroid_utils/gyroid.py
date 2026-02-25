@@ -231,7 +231,7 @@ class GyroidModel:
         logger.info(f"Generated mesh with {len(self.faces)} faces")
         return self.verts, self.faces
 
-    def simplify_mesh(self, target_faces: int = 10000, mode: str = "fast"):
+    def simplify_mesh(self, target_faces: int = 10000, mode: str = "normal"):
         """
         Simplify and clean the current mesh, returning (verts, faces).
         This uses the mesh_tools simplification and connected-component filtering helpers.
@@ -240,9 +240,9 @@ class GyroidModel:
             raise RuntimeError("Mesh has not been generated yet.")
 
         if mode == "fast":
-            self.verts, self.faces = mesh_tools.fast_mesh_decimation(self.verts, self.faces, target_face_count=target_faces)
+            self.faces, self.verts = mesh_tools.simplify_mesh(self.faces, self.verts, target=target_faces, mode="fast")
         else:
-            self.faces, self.verts = mesh_tools.simplify_mesh(self.faces, self.verts, target=target_faces)
+            self.faces, self.verts = mesh_tools.simplify_mesh(self.faces, self.verts, target=target_faces, mode="normal")
 
         # keep the largest connected component and discard stray pieces
         self.verts, self.faces = mesh_tools.keep_largest_connected_component(self.verts, self.faces)
@@ -366,7 +366,7 @@ def create_a_gyroid(x:np.ndarray,
                     save_path: str, 
                     baseplate_thickness: float = 0.0, 
                     step_size:int=2, 
-                    simplification_factor:int=0.9,
+                    simplification_factor=0.9,
                     field_mode:str = "distance"):
     """
      Convenience function to create a gyroid model, compute the field, generate and simplify the mesh, and save results.
@@ -392,12 +392,7 @@ def create_a_gyroid(x:np.ndarray,
     model_dist.generate_mesh(algo_step_size=step_size)
     model_dist.smooth_mesh(smoothing_factor= 0.9)
 
-    if simplification_factor <= 1.0:
-        n_faces_target = int(model_dist.faces.shape[0]*simplification_factor)
-    elif simplification_factor > 1.0:
-        n_faces_target = int(simplification_factor)
-
-    model_dist.simplify_mesh(target_faces = n_faces_target, mode="fast")
+    model_dist.simplify_mesh(target_faces = simplification_factor, mode="fast")
     model_dist.smooth_mesh(smoothing_factor= 0.6)
     model_dist.fix_mesh()
     is_valid = model_dist.check_mesh_quality()

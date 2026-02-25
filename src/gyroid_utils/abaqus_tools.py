@@ -22,23 +22,36 @@ def create_simulation(input_path:str,
                       output_path:str, 
                       file_name:str, 
                       script_name:str = "generate_frequency_sim.py"):
-    """Create simulation input by invoking the appropriate Abaqus script."""
-    """
-    Parameters:
-        input_path (str): path to input files (kept for interface compatibility)
-        output_path (str): path where generate_sim.py lives and where temp files are written
-        file_name (str): base name used to create temp_file.txt so the Abaqus script can read it
-        script_name (str): name of the Abaqus script to run (without .py extension).
+    """ 
+    ===========================================================================
+    1) create_simulation
+    util function to create an Abaqus simulation by invoking the appropriate mesh file, output folder, and abaqus script. 
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    input_path (str): 
+        path to the folder containing the input mesh file (should be an inp file)
+    output_path (str): 
+        path to the folder where the simulation input file will be written (againas an inp file)
+    file_name (str): 
+        base name used to locate the input INP file and name the output files
+    script_name (str): = "generate_frequency_sim.py"
+        name of the Abaqus script to run (without .py extension). This script should be located in output_path 
+        and should be designed to read the mesh file specified by file_name and create the appropriate simulation input files. 
+        Adjust this if you have different scripts for different simulation types.
+
+    RETURNS
+    -------
+    None (writes output files to disk)
 
     NECESSARY !!!!
         !!!!! the python script to create the simulation must be located in output_path !!!!!
 
     Behavior:
-        - writes a small temp file named 'temp_file.txt' into INP_path with the file_name NOT ANYMORE (the Abaqus script will read this to know which mesh to load)
         - runs Abaqus in noGUI mode to execute the chosen script in that folder
         - waits for the external script to write a log file 'generate_sim_logger.txt' and
-          polls that file until a 'Simulation created successfully' message is found in its last line
-        - deletes the temp_file.txt afterwards (best-effort)
+            polls that file until a 'Simulation created successfully' message is found in its last line
     """
     # Compose path to the input .inp (kept for compatibility with other code)
     input_inp = Path(input_path + file_name + '.inp')
@@ -52,21 +65,6 @@ def create_simulation(input_path:str,
         # Protect against invalid usage
         raise ValueError(f"Unknown script name: {script_name}")
 
-    # --- write a small temp file that the Abaqus script will read ---
-    # temp_file.txt contains the base file name so the Abaqus-side script knows which mesh to load
-    """
-    temp_path = script_folder / "temp_file.txt"
-    temp_path.parent.mkdir(parents=True, exist_ok=True)  # ensure folder exists
-
-    #try to see if a temp file already exists, if so wait a bit before checking again
-    while temp_path.exists():
-        logger.info("temp file already exists, waiting...")
-        time.sleep(np.random.uniform(10, 30))   # wait a random time before checking again to avoid conflicts in parallel runs
-    with open(temp_path, "w") as f:
-        f.write(f"{file_name}")
-        #note: no need to delete it as the abaqus python script does that after reading it
-        #in parallel runs this is safer as having several script writting in the same file would be a problem...
-    """
     # --- run abaqus headless from that folder ---
     # Running with `cwd=str(script_folder)` ensures Abaqus starts in the folder containing temp_file.txt
     cmd = ["abaqus", "cae", 
@@ -112,8 +110,26 @@ def create_simulation(input_path:str,
 def run_simulation(input_path, 
                    output_path, 
                    file_name) -> bool:
-    """Run the simulation by invoking the appropriate Abaqus input file.
-    returns True if no error, False otherwise."""
+    """
+    ===========================================================================
+    2) run_simulation
+    util function to run an Abaqus simulation by invoking the appropriate input file, and output folder. 
+    It waits for the simulation to start by polling for the ODB file, then returns.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    input_path (str): 
+        path to the folder containing the input INP file (kept for interface compatibility)
+    output_path (str): 
+        path to the folder where the simulation will be run and where output files will be written
+    file_name (str): 
+        base name used to locate the input INP file and name the output files
+
+    RETURNS
+    -------
+    True if no error, False otherwise.
+    """
     src = Path(input_path) / ("Job-" + file_name + ".inp")
     dst = Path(output_path) / ("Job-" + file_name + ".inp")
     try:
