@@ -41,57 +41,6 @@ def parse_kv_args(argv):
     return out
 
 
-def load_gyroid_matrices(infile: str):
-    """
-    ============================================================================
-    4) LOAD_GYROID_MATRICES
-    Loads gyroid-related matrices from a NumPy .npz archive.
-    ============================================================================
-
-    The function expects the archive to contain the arrays:
-    'Xperiod', 'Yperiod', 'Zperiod', and 'thickness'.
-
-    Errors such as missing files, missing arrays, or corrupted files
-    are caught and logged. In these cases, the function returns None.
-
-    PARAMETERS
-    ----------
-    infile : str
-        Path to the input .npz file.
-
-    RETURNS
-    -------
-    tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] or None
-        (Xperiod, Yperiod, Zperiod, thickness, gyroid_field) if successful,
-        otherwise None.
-
-    EXAMPLE
-    -------
-    >>> Xp, Yp, Zp, t = load_gyroid_matrices("gyroid_data.npz")
-    """
-    try:
-        with np.load(infile) as loaded_file:
-            Xres = loaded_file["Xres"]
-            Yres = loaded_file["Yres"]
-            Zres = loaded_file["Zres"]
-            Xperiod = loaded_file["Xperiod"]
-            Yperiod = loaded_file["Yperiod"]
-            Zperiod = loaded_file["Zperiod"]
-            thickness = loaded_file["thickness"]
-            gyroid_field = loaded_file["gyroid_field"]
-
-    except FileNotFoundError:
-        logger.error(f"File not found: {infile}")
-        return None
-    except KeyError as e:
-        logger.error(f"Missing expected array in file {infile}: {e}")
-        return None
-    except Exception as e:
-        logger.error(f"Failed to load matrices from {infile}: {e}")
-        return None
-    logger.info(f"Matrices successfully loaded from: {infile}")
-    return Xres, Yres, Zres, Xperiod, Yperiod, Zperiod, thickness, gyroid_field
-
 
 def built_simulation_of_gyroid(model_name):
     # ================================================================
