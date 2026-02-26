@@ -5,8 +5,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gyroid_utils"
-version = "2.1.0"
-description = "mesh processing, OCC geometry handling, and visualization utilities for gyroid and lattice structures."
+version = "2.1.1"
+description = "Gyroid and lattice design utilities: field generation, mesh processing, STL/INP I/O, and simulation helpers."
 authors = [
     { name = "Corentin Foucher", email = "corentin.foucher@empa.ch" }
 ]
@@ -19,13 +19,12 @@ dependencies = [
     "numpy-stl",
     "scikit-image",
     "trimesh",
-    "open3d",
     "plotly",
     "pymeshfix",
     "pyvista",
     "meshio",
     "pathlib",
-    "pandas"
+    "pandas"   
 ]
 
 # Optional metadata (recommended)

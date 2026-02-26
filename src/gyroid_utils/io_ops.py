@@ -1,5 +1,5 @@
 import numpy as np
-import open3d as o3d
+import trimesh
 from .logger import logger
 
 
@@ -21,7 +21,7 @@ def load_stl(filepath):
     """
     ============================================================================
     1) LOAD_STL
-    Loads an STL file using Open3D and returns (vertices, faces) as NumPy arrays.
+    Loads an STL file using trimesh and returns (vertices, faces) as NumPy arrays.
     ============================================================================
 
     PARAMETERS
@@ -38,7 +38,7 @@ def load_stl(filepath):
 
     NOTES
     -----
-    - Uses Open3D because it handles ASCII + binary STL robustly.
+    - Uses trimesh to handle ASCII + binary STL.
     - Checks that triangle data exists.
 
     EXAMPLE
@@ -52,30 +52,26 @@ def load_stl(filepath):
     # Validate inputs
     # ------------------------------------------------------------------
     try:
-        mesh = o3d.io.read_triangle_mesh(filepath)
+        mesh = trimesh.load(filepath, force="mesh")
     except Exception as e:
         logger.error(f"Failed to read STL file '{filepath}': {e}", exc_info=True)
         raise
 
-    if not mesh.has_triangles():
+    if mesh is None or getattr(mesh, "faces", None) is None or len(mesh.faces) == 0:
         logger.error(f"STL load failed: '{filepath}' contains no triangles.")
         raise ValueError("The STL file contains no triangles.")
 
-    # ------------------------------------------------------------------
-    # rebuild watertight mesh 
-    #    -> stl stores triangles only
-    #    -> every shared vertices are duplicated
-    # ------------------------------------------------------------------
-    mesh.remove_duplicated_vertices()
-    mesh.remove_duplicated_triangles()
-    mesh.remove_degenerate_triangles()
-    mesh.remove_unreferenced_vertices()
+    # Clean common STL issues (duplicates, degenerate faces)
+    try:
+        mesh.process(validate=True)
+    except Exception as e:
+        logger.warning(f"STL cleanup skipped: {e}")
 
     # ------------------------------------------------------------------
     # results
     # ------------------------------------------------------------------
     vertices = np.asarray(mesh.vertices, dtype=float)
-    faces = np.asarray(mesh.triangles, dtype=int)
+    faces = np.asarray(mesh.faces, dtype=int)
 
     logger.info(
         f"Loaded STL successfully: {vertices.shape[0]} vertices, {faces.shape[0]} faces"

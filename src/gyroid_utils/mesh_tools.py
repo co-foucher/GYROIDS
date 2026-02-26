@@ -1,7 +1,6 @@
 import numpy as np
 from collections import defaultdict
 import trimesh # type: ignore
-import open3d as o3d # type: ignore
 from .logger import logger # type: ignore
 from stl import mesh as stl_mesh # type: ignore
 from skimage import measure # type: ignore
@@ -174,17 +173,10 @@ def simplify_mesh(faces, verts, target=100000, mode="normal"):
             logger.debug(f"[Step {i}] Target face count: {current}")
 
             try:
-                tri = o3d.geometry.TriangleMesh(
-                    o3d.utility.Vector3dVector(verts),
-                    o3d.utility.Vector3iVector(faces)
-                )
-
-                tri = tri.simplify_quadric_decimation(
-                    target_number_of_triangles=current
-                )
-
-                verts = np.asarray(tri.vertices)
-                faces = np.asarray(tri.triangles)
+                mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+                mesh = mesh.simplify_quadric_decimation(target_number_of_triangles=current)
+                verts = mesh.vertices
+                faces = mesh.faces
 
             except Exception as e:
                 logger.error(f"Mesh simplification failed at step {i}: {e}", exc_info=True)
