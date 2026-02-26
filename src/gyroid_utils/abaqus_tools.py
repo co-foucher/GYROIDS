@@ -21,7 +21,8 @@ import numpy as np
 def create_simulation(input_path:str, 
                       output_path:str, 
                       file_name:str, 
-                      script_name:str = "generate_frequency_sim.py"):
+                      script_name:str = "generate_frequency_sim.py",
+                      max_wait_time:int = 600):
     """ 
     ===========================================================================
     1) create_simulation
@@ -78,6 +79,7 @@ def create_simulation(input_path:str,
     # containing 'Simulation created successfully' when done. We poll that file until we see it.
     simulation_created = False
     temp = Path(output_path) / ("generate_sim_logger_"+ file_name +".txt")
+    start_time = time.time()
     while not simulation_created:
         try:
             with open(temp) as file:
@@ -89,13 +91,16 @@ def create_simulation(input_path:str,
             else:
                 # Not ready yet: sleep briefly and try again
                 time.sleep(1)
-                logger.info("simulation not created yet, waiting...")
-                logger.info(f"last 2 lines are {lines[-2]}")
-                logger.info(f"                 {lines[-1]}")
+                logger.debug("simulation not created yet, waiting...")
+                logger.debug(f"last 2 lines are {lines[-2]}")
+                logger.debug(f"                 {lines[-1]}")
         except FileNotFoundError:
             # Log file not present yet; wait and retry
-            logger.info("file not found, waiting...")
-            time.sleep(1)
+            if time.time() - start_time > max_wait_time:
+                logger.warning(f"Simulation creation did not complete within {max_wait_time} seconds. Giving up")
+                break
+            logger.debug("file not found, waiting...")
+            time.sleep(10)
     # --- delete temporary file (best-effort) ---
     # Use missing_ok=True so we don't raise if the file was removed elsewhere
     #temp_path.unlink(missing_ok=True)  

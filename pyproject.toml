@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gyroid_utils"
-version = "2.1.1"
+version = "2.1.2"
 description = "Gyroid and lattice design utilities: field generation, mesh processing, STL/INP I/O, and simulation helpers."
 authors = [
     { name = "Corentin Foucher", email = "corentin.foucher@empa.ch" }
