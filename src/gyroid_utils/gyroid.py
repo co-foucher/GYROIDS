@@ -208,14 +208,14 @@ class GyroidModel:
         iso_level: float = 0.0,
         algo_step_size: int = 3,
         pad_width: int = 5,
-        pad_val: float = 0.0,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        pad_val: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
         """
         Generate a triangular surface mesh from the scalar field using the mesh_tools helper.
         Returns (verts, faces).
         """
         if self.v is None:
-            raise RuntimeError("Gyroid field has not been computed yet.")
+            logger.error("Gyroid field has not been computed yet. Call compute_field() before generate_mesh().")
+            return None, None
 
         self.verts, self.faces = mesh_tools.mesh_from_matrix(
             matrix=self.v,
@@ -237,7 +237,8 @@ class GyroidModel:
         This uses the mesh_tools simplification and connected-component filtering helpers.
         """
         if self.verts is None or self.faces is None:
-            raise RuntimeError("Mesh has not been generated yet.")
+            logger.error("Mesh has not been generated yet.")
+            return
 
         if mode == "fast":
             self.faces, self.verts = mesh_tools.simplify_mesh(self.faces, self.verts, target=target_faces, mode="fast")
@@ -255,7 +256,8 @@ class GyroidModel:
         Export the current mesh as an STL file.
         """
         if self.verts is None or self.faces is None:
-            raise RuntimeError("Mesh has not been generated yet.")
+            logger.error("Mesh has not been generated yet.")
+            return
 
         mesh_tools.export_as_STL(self.verts, self.faces, filepath+'.stl')
         logger.info(f"STL exported to: {filepath}.stl")
@@ -265,7 +267,8 @@ class GyroidModel:
         Save an interactive HTML preview of the mesh (via viz helper).
         """
         if self.verts is None or self.faces is None:
-            raise RuntimeError("Mesh has not been generated yet.")
+            logger.error("Mesh has not been generated yet.")
+            return
 
         viz.save_mesh_as_html(self.faces, self.verts, html_path, show_normal_colorscale=show_normal_colorscale)
 

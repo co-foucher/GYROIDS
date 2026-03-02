@@ -22,7 +22,7 @@ def create_simulation(input_path:str,
                       output_path:str, 
                       file_name:str, 
                       script_name:str = "generate_frequency_sim.py",
-                      max_wait_time:int = 600):
+                      max_wait_time:int = 600) -> bool:
     """ 
     ===========================================================================
     1) create_simulation
@@ -44,7 +44,8 @@ def create_simulation(input_path:str,
 
     RETURNS
     -------
-    None (writes output files to disk)
+    bool : True if the inp file was created successfully, False otherwise.
+    (and writes output files to disk)
 
     NECESSARY !!!!
         !!!!! the python script to create the simulation must be located in output_path !!!!!
@@ -64,7 +65,8 @@ def create_simulation(input_path:str,
             content = f.read()
     except:
         # Protect against invalid usage
-        raise ValueError(f"Unknown script name: {script_name}")
+        logger.error(f"Unknown script name: {script_name}")
+        return False
 
     # --- run abaqus headless from that folder ---
     # Running with `cwd=str(script_folder)` ensures Abaqus starts in the folder containing temp_file.txt
@@ -98,7 +100,7 @@ def create_simulation(input_path:str,
             # Log file not present yet; wait and retry
             if time.time() - start_time > max_wait_time:
                 logger.warning(f"Simulation creation did not complete within {max_wait_time} seconds. Giving up")
-                break
+                return False
             logger.debug("file not found, waiting...")
             time.sleep(10)
     # --- delete temporary file (best-effort) ---
@@ -106,6 +108,7 @@ def create_simulation(input_path:str,
     #temp_path.unlink(missing_ok=True)  
     temp_path = script_folder / "abaqus.rpy"
     temp_path.unlink(missing_ok=True)  
+    return True
 
 
 # =====================================================================
@@ -114,7 +117,8 @@ def create_simulation(input_path:str,
 
 def run_simulation(input_path, 
                    output_path, 
-                   file_name) -> bool:
+                   file_name,
+                   max_wait_time=600) -> bool:
     """
     ===========================================================================
     2) run_simulation
@@ -152,14 +156,17 @@ def run_simulation(input_path,
         return False
 
     # --- Wait for the simulation to start by polling the ODB folder for the .odb file ---
-    _wait_for_simulation_start(output_path, file_name,max_wait_time=300)  # wait up to 5 minutes for the simulation to start
+    is_started = _is_simulation_started(output_path, file_name,max_wait_time=max_wait_time)  # wait up to 10 minutes for the simulation to start
+    if not is_started:
+        logger.warning(f"Simulation did not start properly for {file_name}")
+        return False
     dst.unlink(missing_ok=True)  
     return True
 
 # =====================================================================
 # 3) _wait_for_simulation_start
 # =====================================================================
-def _wait_for_simulation_start(ODB_path, file_name, max_wait_time=300):
+def _is_simulation_started(ODB_path, file_name, max_wait_time=300)->bool:
     """Wait for the simulation to start by polling the ODB folder for the .odb file."""
     odb_file = Path(ODB_path) / ("Job-" + file_name + ".odb")
     start_time = time.time()    
@@ -168,28 +175,54 @@ def _wait_for_simulation_start(ODB_path, file_name, max_wait_time=300):
         time.sleep(30)  # wait before checking again
         if time.time() - start_time > max_wait_time:
             logger.warning(f"Simulation did not start within {max_wait_time} seconds.")
-            break
+            return False
     logger.info("Simulation started, ODB file found.")
+    return True
 
 
 # =====================================================================
 # 4) wait_for_simulation_completed
 # =====================================================================
-def wait_for_simulation_completed(ODB_path, file_name):
-    """Wait for the simulation to complete by looking at the log file for specific key words."""
+def wait_for_simulation_completed(ODB_path:str, 
+                                  file_name:str, 
+                                  max_wait_time:int=300) -> bool:
+    """
+    ===========================================================================
+    4) wait_for_simulation_completed
+    util function to wait for an Abaqus simulation to complete by polling the log file 
+    for specific key words indicating completion or abortion.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    ODB_path (str): 
+        path to the folder containing the ODB file (output of Abaqus simulation)
+    file_name (str): 
+        base name used to locate the log file
+    max_wait_time (int):
+        maximum time to wait for simulation completion in seconds (default: 300 seconds = 5 minutes)
+
+    RETURNS
+    -------
+    True if no error, False otherwise.
+    """
     log_file = Path(ODB_path) / ("Job-" + file_name + ".log")
     simulation_finished = False
+    start_time = time.time()
     while not simulation_finished:
+        if time.time() - start_time > max_wait_time:
+            logger.warning(f"Simulation did not complete within {max_wait_time} seconds.")
+            return False
         try:
             with open(log_file) as file:
                 lines = [line.rstrip() for line in file]
             # If the last line indicates success, we're done
             if "COMPLETED" in lines[-1]:
                 logger.info("Simulation run completed.")
-                break
+                return True
             elif "ABORTED" in lines:
                 logger.info("Simulation run aborted.")
-                break
+                return False
             else:
                 # Not ready yet: sleep briefly and try again
                 time.sleep(1)

@@ -47,7 +47,8 @@ def mesh_an_STL(input_path:str,
         Smaller values lead to finer meshes but longer runtimes.
     CPU_cores (int): = 1
         number of CPU cores to use for meshing.
-    
+    print_outputs (bool): = False
+        whether to print the outputs of the fTetWild meshing process to the console.
 
     RETURNS
     -------

@@ -220,9 +220,9 @@ def plot_histogram(face_areas, BINS=1000):
 #=====================================================================
 
 def twod_view_of_matrix(v: np.ndarray,
-                        x: np.ndarray,
-                        y: np.ndarray,
-                        z: np.ndarray,
+                        x: np.ndarray = None,
+                        y: np.ndarray = None,
+                        z: np.ndarray = None,
                         zmin=None,
                         zmax=None):
     """
@@ -259,6 +259,13 @@ def twod_view_of_matrix(v: np.ndarray,
         return
 
     Nx, Ny, Nz = v.shape
+
+    if x is None:
+        x = np.arange(Nx)
+    if y is None:
+        y = np.arange(Ny)
+    if z is None:
+        z = np.arange(Nz)
 
     if x.shape[0] != Nx or y.shape[1] != Ny or z.shape[2] != Nz:
         logger.error("Grid dimensions of (x,y,z) do not match v.shape.")
