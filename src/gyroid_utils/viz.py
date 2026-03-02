@@ -266,6 +266,7 @@ def twod_view_of_matrix(v: np.ndarray,
         y = np.arange(Ny)
     if z is None:
         z = np.arange(Nz)
+    x, y, z = np.meshgrid(x, y, z, indexing='ij')
 
     if x.shape[0] != Nx or y.shape[1] != Ny or z.shape[2] != Nz:
         logger.error("Grid dimensions of (x,y,z) do not match v.shape.")
