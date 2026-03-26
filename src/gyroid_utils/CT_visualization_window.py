@@ -567,7 +567,8 @@ def open_window(input_images,level=logging.INFO):
     if "images_rgb" in globals():
         del globals()['images_rgb']
 
-    images = sitk.GetArrayFromImage(input_images)
+    if isinstance(input_images, sitk.SimpleITK.Image):
+        images = sitk.GetArrayFromImage(input_images)
     logger.debug(f"your image takes {images.nbytes/1000000000} gigabytes")
 
     setup_window()
