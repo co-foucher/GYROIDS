@@ -39,7 +39,7 @@ GENERAL NOTE ON FUNCTION DESIGN:
 def convert_dicomm_to_mhd(input_path, output_path, memory_saver=True):
     """ 
     ===========================================================================
-    1)  convert_dicomm_to_mhd(input_path, output_path, memory_saver=True)
+    1)  convert_dicomm_to_mhd(input_path, output_path, memory_saver=True) -> None
     ============================================================================
 
     PARAMETERS
@@ -157,7 +157,7 @@ def _loading_bar(current, total, bar_length=30):
 def convert_tiff_to_mhd(input_path, output_path, memory_saver=True):
     """ 
     ===========================================================================
-    3) convert_tiff_to_mhd(input_path, output_path, memory_saver=True)
+    3) convert_tiff_to_mhd(input_path, output_path, memory_saver=True) -> None
     ============================================================================
 
     PARAMETERS
@@ -230,7 +230,7 @@ def convert_tiff_to_mhd(input_path, output_path, memory_saver=True):
 def read_mhd_file(input_file_path):
     """
     ===========================================================================
-    4) read_mhd_file(input_file_path)
+    4) read_mhd_file(input_file_path) -> (image_array, spacing, origin)
     ============================================================================
 
     PARAMETERS
@@ -259,7 +259,7 @@ def read_mhd_file(input_file_path):
 def crop_images(point, direction, images):
     """
     ===========================================================================
-    5) crop_images(point, direction, images)
+    5) crop_images(point, direction, images)    -> cropped_image
     ============================================================================
 
     Crop an MHD image stack along a straight line (vertical or horizontal).
@@ -337,7 +337,7 @@ def crop_images(point, direction, images):
 def segment_from_threshold(image,lower_threshold,upper_threshold):
     """
     ===========================================================================
-    6) segment_from_threshold(image, lower_threshold, upper_threshold)
+    6) segment_from_threshold(image, lower_threshold, upper_threshold)  -> binary_image
     ============================================================================
 
     Apply dual threshold to an image and return the binary result.
@@ -376,7 +376,7 @@ def segment_from_threshold(image,lower_threshold,upper_threshold):
 def apply_threshold(image, lower_threshold, upper_threshold):
     """
     ===========================================================================
-    7) apply_threshold(image, lower_threshold, upper_threshold)
+    7) apply_threshold(image, lower_threshold, upper_threshold) -> thresholded_image
     ============================================================================
     Apply dual threshold to an image and set pixels outside the range to zero.
     Note: This is NOT segmentation, only thresholding.
@@ -412,7 +412,7 @@ def apply_threshold(image, lower_threshold, upper_threshold):
 def dilate_filter(image, kernel):
     """
     ===========================================================================
-    8) dilate_filter(image, kernel)
+    8) dilate_filter(image, kernel) -> dilated_image
     ============================================================================
 
     Apply grayscale dilation to an image.
@@ -445,7 +445,7 @@ def dilate_filter(image, kernel):
 def erode_filter(image, kernel):
     """
     ===========================================================================
-    9) erode_filter(image, kernel)
+    9) erode_filter(image, kernel)-> eroded_image
     ============================================================================
 
     Apply grayscale erosion to an image.
@@ -479,7 +479,7 @@ def erode_filter(image, kernel):
 def connected_filter(x: int, y: int, z: int, images):
     """
     ===========================================================================
-    10) connected_filter(x, y, z, images)
+    10) connected_filter(x, y, z, images)   -> filtered_image
     ============================================================================
     Apply connected component filtering to an image starting from a seed point.
 
