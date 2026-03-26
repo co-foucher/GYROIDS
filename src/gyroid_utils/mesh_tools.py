@@ -174,7 +174,7 @@ def simplify_mesh(faces, verts, target=100000, mode="normal"):
 
             try:
                 mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
-                mesh = mesh.simplify_quadric_decimation(current)
+                mesh = mesh.simplify_quadric_decimation(face_count=current)
                 verts = mesh.vertices
                 faces = mesh.faces
 
