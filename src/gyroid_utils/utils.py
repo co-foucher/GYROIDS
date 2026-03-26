@@ -48,3 +48,6 @@ def help():
            model = GyroidModel(x, y, z, px=1.0, py=1.0, pz=1.0, thickness=0.2)
     """
     print(help_text)
+
+
+

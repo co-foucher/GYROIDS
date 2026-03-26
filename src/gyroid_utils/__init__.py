@@ -22,6 +22,8 @@ from . import io_ops
 from . import gyroid
 from . import abaqus_tools
 from . import TET_mesh_tools
+from . import CT_scans
+from . import CT_visualization_window
 from .logger import logger, set_log_level
 
 #__all__ is a list that defines what gets exported when someone does from package import *.
