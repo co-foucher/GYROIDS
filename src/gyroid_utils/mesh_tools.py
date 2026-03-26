@@ -567,7 +567,7 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
     trimesh.smoothing.filter_humphrey(mesh, 
                                       alpha=0.1, 
                                       beta=smoothing_factor, 
-                                      iterations=1, 
+                                      iterations=10, 
                                       laplacian_operator=None)
     return mesh.vertices, mesh.faces
 
