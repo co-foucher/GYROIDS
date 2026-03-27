@@ -1,7 +1,8 @@
 import numpy as np
 import plotly.graph_objects as go
 from .logger import logger
-import plotly.graph_objects as go
+from plotly.colors import sample_colorscale
+
 
 """
 #=====================================================================================================================
@@ -16,7 +17,14 @@ import plotly.graph_objects as go
 # =====================================================================
 # 1) save_mesh_as_html
 # =====================================================================
-def save_mesh_as_html(faces, verts, file_name, show_normal_colorscale: bool = True, save: bool = True):
+def save_mesh_as_html(faces: np.ndarray, 
+                      verts: np.ndarray, 
+                      file_name: str, 
+                      show_normal_colorscale: bool = False, 
+                      show_flat_colorscale: bool = False,
+                      show_random_colorscale: bool = False,
+                      show_curvature_colorscale: bool = False,
+                      save: bool = True):
     """
     ============================================================================
     1) SAVE_MESH_AS_HTML
@@ -32,6 +40,19 @@ def save_mesh_as_html(faces, verts, file_name, show_normal_colorscale: bool = Tr
         Vertex coordinates.
     file_name : str
         Output HTML file name (without extension).
+    show_normal_colorscale : bool
+        If True, colors faces based on normal vectors.
+    show_flat_colorscale : bool
+        If True, colors faces with a flat color.
+    show_random_colorscale : bool
+        If True, colors faces with random colors.
+    show_curvature_colorscale : bool
+        If True, colors faces based on curvature (not implemented).
+    save : bool
+        If True, saves the HTML file. If False, displays the figure without saving.
+
+    NOTE: Only one colorscale option should be True. If multiple or none are True, normal colorscale takes precedence.
+    IT is a shitty system but legacy code is legacy code.
 
     OUTPUT
     ------
@@ -54,6 +75,16 @@ def save_mesh_as_html(faces, verts, file_name, show_normal_colorscale: bool = Tr
     if len(faces) == 0:
         logger.warning("save_mesh_as_html(): No faces provided. Export aborted.")
         return
+
+    if show_curvature_colorscale ==False and show_flat_colorscale == False and show_random_colorscale == False and show_normal_colorscale == False:
+        logger.warning("No colorscale option selected. Defaulting to normal colorscale.")
+        show_normal_colorscale = True
+    elif sum([show_curvature_colorscale, show_flat_colorscale, show_random_colorscale, show_normal_colorscale]) > 1:
+        logger.warning("Multiple colorscale options selected. Defaulting to normal colorscale.")
+        show_normal_colorscale = True
+        show_flat_colorscale = False
+        show_random_colorscale = False
+        show_curvature_colorscale = False
 
     logger.debug(f"Input mesh: {verts.shape[0]} vertices, {faces.shape[0]} faces")
 
@@ -100,13 +131,94 @@ def save_mesh_as_html(faces, verts, file_name, show_normal_colorscale: bool = Tr
                 f"rgb({int((n[0]+1)/2*255)},{int((n[1]+1)/2*255)},{int((n[2]+1)/2*255)})"
                 for n in face_normals
             ]
-        else:
+        elif show_random_colorscale:
             try:
                 rng = np.random.default_rng()
-                cols = rng.integers(0, 256, size=(faces.shape[0], 3), dtype=np.int32)
+                cols = rng.integers(0, 255, size=(faces.shape[0], 3), dtype=np.uint8)
                 facecolor = [f"rgb({r},{g},{b})" for r, g, b in cols]
             except Exception:
                 facecolor = None
+
+        elif show_flat_colorscale:
+            facecolor = 'lightblue'
+        
+        elif show_curvature_colorscale:
+            # ---------------------------------------------------------
+            # Vertex curvature from topological neighbors (mesh propagation)
+            # Uses BFS to find k-nearest neighbors along mesh edges
+            # avoids cross-wall artifacts on thin geometries
+            # (surface variation from local covariance eigenvalues)
+            # Then face curvature = mean of its 3 vertex curvatures.
+            # ---------------------------------------------------------
+
+            # Auto radius from mesh size if not provided
+            bbox = verts.max(axis=0) - verts.min(axis=0)
+            curvature_min_neighbors = 15  # minimum neighbors for curvature calc
+
+            n_verts = verts.shape[0]
+            vertex_curv = np.zeros(n_verts, dtype=np.float64)
+
+            # Build vertex adjacency list from faces
+            adj = [set() for _ in range(n_verts)]
+            for f in faces:
+                adj[f[0]].update([f[1], f[2]])
+                adj[f[1]].update([f[0], f[2]])
+                adj[f[2]].update([f[0], f[1]])
+
+            # BFS to find k topological neighbors for each vertex
+            def _find_topological_neighbors(start_vi, k):
+                """Returns k nearest neighbors along mesh topology via BFS"""
+                visited = {start_vi}
+                queue = [start_vi]
+                neighbors = []
+                
+                while queue and len(neighbors) < k:
+                    vi = queue.pop(0) #create a queue for breadth first search
+                    
+                    # Add unvisited neighbors to queue
+                    for next_vi in adj[vi]:
+                        if next_vi not in visited:
+                            visited.add(next_vi)
+                            neighbors.append(next_vi)
+                            queue.append(next_vi)
+                            if len(neighbors) >= k:
+                                break
+                return neighbors[:k]
+
+            # Calculate curvature for each vertex based on topological neighbors
+            for vi in range(n_verts):
+                nbrs = _find_topological_neighbors(vi, k=curvature_min_neighbors)
+                
+                if len(nbrs) < max(3, curvature_min_neighbors):
+                    # If too few neighbors, skip curvature calculation (will be zero)
+                    continue
+                    
+                # Calculate relative positions of neighbors
+                P = verts[nbrs] - verts[vi]  
+                
+                # Calculate covariance-like matrix
+                C = (P.T @ P) / max(P.shape[0], 1)
+                # Calculate eigenvalues of covariance matrix
+                evals = np.linalg.eigvalsh(C)  
+                # Surface variation = smallest eigenvalue / sum of eigenvalues
+                denom = float(evals.sum())
+                if denom > 0:
+                    # small when planar, larger in curved/rough regions
+                    vertex_curv[vi] = float(evals[0] / denom)
+                # Print progress every 10k verts                
+                if vi % 10000 == 0:
+                    logger.info(f"Curvature: processed vertex {vi}/{n_verts}")
+
+            # Clamp negative curvature values due to numerical issues
+            vnorm = np.clip(vertex_curv, 0.0, None)
+            # Normalize to [0, 1] using 95th percentile (less sensitive to outliers)
+            p95 = np.percentile(vnorm, 95)
+            if p95 > 0:
+                vnorm = vnorm / p95
+            vnorm = np.clip(vnorm, 0.0, 1.0)
+
+            face_curv = vnorm[faces].mean(axis=1)  # average node curvature per face
+            facecolor = sample_colorscale("Turbo", face_curv.tolist())
 
         mesh = go.Mesh3d(
             x=verts[:, 0],
@@ -392,4 +504,28 @@ def view_mesh(faces, verts, show_normal_colorscale: bool = True,):
     ============================================================================
     """
     save_mesh_as_html(faces, verts, "nop", show_normal_colorscale=show_normal_colorscale, save = False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
