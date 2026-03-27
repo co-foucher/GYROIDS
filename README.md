@@ -19,27 +19,37 @@
   - For changes: update the toml file and then use pip install git+https://github.com/co-foucher/GYROIDS.git
 
 
-
 # Module Organization
-
-The library is organized under three use cases:
+The library is organized around three main use cases:
 
 ## TPMS structure generation
-
-This is a small library to support the development of gyroid-based structures. The general idea to use it follows this structure:
+This is used to generate TPMS structures (especially gyroids) using the general workflow below:
 <img width="1894" height="921" alt="image" src="https://github.com/user-attachments/assets/c65cae60-cd07-47e0-a794-d1a3a486b6e0" />
 
+Scripts related to this use case:
 - **gyroid.py**: Main GyroidModel class and convenience functions
 - **mesh_tools.py**: Mesh processing functions (simplification, smoothing, fixing, validation, export)
 - **io_ops.py**: Input/output operations (STL loading/saving, .npz archives)
 - **viz.py**: Visualization tools (HTML previews, histograms, 2D matrix views)
 
+Example notebooks for this use case:
+- **Gyroids_STL.ipynb**
+- **Gyroids_STL_class.ipynb**
+
+
 ## Simulation of STL file
 
+
+Scripts related to this use case:
 - **abaqus_tools.py**: ABAQUS simulation integration
 - **TET_mesh_tools.py**: Tetrahedral mesh operations
 
 ## Analysis CT scans
+- **CT_scans.py**: MHD/CT read and preprocessing helpers
+- **mesh_tools.py**: Matrix-to-surface mesh conversion and cleanup
+- **viz.py**: Mesh preview/export utilities
+- **CT_visualization_window.py**: CT visualization tooling
+
 
 ## library tools and configuration
 - **logger.py**: Logging configuration
@@ -48,8 +58,10 @@ This is a small library to support the development of gyroid-based structures. T
 # Examples in Notebooks
 - **Gyroids_STL.ipynb**: how to parametrize and create a simple gyroid
 - **Gyroids_STL_class.ipynb**: how to use the gyroid class to generate gyroids faster and safer
+- **CT_scan_processing.ipynb**: CT-to-mesh pipeline and interactive mesh coloring (including curvature mode)
+- **full simulation workflow.ipynb**: end-to-end simulation preparation workflow
 - **STL_to_STEP.ipynb**: how to use OCC to transform a STL to a STEP
-- **STL_to_inp.ipynb**: how to use fTetWild to transform a STL to an ABAQUS input file (inp)
+- **STL_to_inp_ftetwild.ipynb**: how to use fTetWild to transform a STL to an ABAQUS input file (inp)
 
 
 # FEATURES
@@ -72,6 +84,12 @@ This is a small library to support the development of gyroid-based structures. T
 - Mesh preview as interactive HTML (Plotly)
 - Histogram visualization of triangle sizes
 - Export as STL
+
+### Curvature Visualization (CT/Surface meshes)
+- Curvature estimation from local covariance eigenvalues
+- Topological neighborhood search using mesh-edge BFS propagation
+- Better behavior on thin walls versus Euclidean radius-only neighbors
+- Color normalization from 0 to the 95th percentile for robust contrast
 
 ### Tetrahedral Meshing
 - ftetwild: to go from STL to tetrahedral mesh, check out ftetwild : https://github.com/wildmeshing/fTetWild
