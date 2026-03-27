@@ -540,7 +540,7 @@ def _is_mesh_fixed(verts: np.ndarray, faces: np.ndarray) -> bool:
 #=====================================================================
 #8) smooth_mesh
 #=====================================================================
-def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1):
+def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1, iterations:int=10):
     """
     ============================================================================
     8) smooth_mesh
@@ -567,7 +567,7 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
     trimesh.smoothing.filter_humphrey(mesh, 
                                       alpha=0.1, 
                                       beta=smoothing_factor, 
-                                      iterations=10, 
+                                      iterations=iterations, 
                                       laplacian_operator=None)
     return mesh.vertices, mesh.faces
 
