@@ -1,7 +1,8 @@
-# **GYROIDS**
-  This is a small library to support the development of gyroid-based structures. The general idea to use it follows this structure:
+# **GYROIDS UTILS**
 
-<img width="1894" height="921" alt="image" src="https://github.com/user-attachments/assets/c65cae60-cd07-47e0-a794-d1a3a486b6e0" />
+  This is a small library to support the development of TPMS structures. It is developed around three use cases, and its structure is shown below
+
+  <img width="972" height="545" alt="image" src="https://github.com/user-attachments/assets/23bcbd63-138a-4a05-8bf5-b935d98d3619" />
 
 # **REQUIREMENTS**
   !!!! requires Python 3.10 !!!!
@@ -21,14 +22,26 @@
 
 # Module Organization
 
-The library is organized into the following modules:
+The library is organized under three use cases:
+
+## TPMS structure generation
+
+This is a small library to support the development of gyroid-based structures. The general idea to use it follows this structure:
+<img width="1894" height="921" alt="image" src="https://github.com/user-attachments/assets/c65cae60-cd07-47e0-a794-d1a3a486b6e0" />
 
 - **gyroid.py**: Main GyroidModel class and convenience functions
 - **mesh_tools.py**: Mesh processing functions (simplification, smoothing, fixing, validation, export)
 - **io_ops.py**: Input/output operations (STL loading/saving, .npz archives)
 - **viz.py**: Visualization tools (HTML previews, histograms, 2D matrix views)
+
+## Simulation of STL file
+
 - **abaqus_tools.py**: ABAQUS simulation integration
 - **TET_mesh_tools.py**: Tetrahedral mesh operations
+
+## Analysis CT scans
+
+## library tools and configuration
 - **logger.py**: Logging configuration
 - **config.py**: Configuration constants
 
