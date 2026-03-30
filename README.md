@@ -41,7 +41,10 @@ Example notebooks for this use case:
 - **Gyroids_STL_class.ipynb**
 
 ## Simulation of STL file
-This is used to be able to create simulations of the generated structures. Morespecificaly to create tetrahedral mesh adapted to finite element modeling using FtetWild, manipulate them, create ABAQUS input files, and run them in batches.
+This is used to be able to create simulations of the generated structures. More specifically, to create a tetrahedral mesh adapted to finite element modeling using FtetWild, manipulate them, create ABAQUS input files, and run them in batches. Example use case in the image below is for simulating the first 10 natural frequencies of a simple gyroid.
+
+<img width="1533" height="857" alt="image" src="https://github.com/user-attachments/assets/d9eeb841-5424-44ac-96ac-d32f1f1bc317" />
+
 
 Scripts related to this use case:
 - **abaqus_tools.py**: ABAQUS simulation integration
