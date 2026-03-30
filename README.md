@@ -2,7 +2,8 @@
 
   This is a small library to support the development of TPMS structures. It is developed around three use cases, and its structure is shown below
 
- <img width="788" height="422" alt="image" src="https://github.com/user-attachments/assets/b63c8425-c57e-4a16-876f-61e976fb5344" />
+ <img width="1531" height="865" alt="image" src="https://github.com/user-attachments/assets/2d937bd7-631f-4cb0-888b-6f7126523808" />
+
 
 # **REQUIREMENTS**
   !!!! requires Python 3.10 !!!!
