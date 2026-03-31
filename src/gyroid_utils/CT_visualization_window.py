@@ -6,7 +6,7 @@ from matplotlib import gridspec
 import time
 import numpy.ma as ma
 import logging
-
+%matplotlib qt
 
 """
 This script is intended to be used as you would a library. Import it as such:
@@ -570,6 +570,8 @@ def open_window(input_images,level=logging.INFO):
     if isinstance(input_images, sitk.SimpleITK.Image):
         images = sitk.GetArrayFromImage(input_images)
     logger.debug(f"your image takes {images.nbytes/1000000000} gigabytes")
+
+    logger.warning(f"Please remember to use %matplotlib qt . It tells Matplotlib to open plots in a separate interactive Qt window instead of inline in the notebook.")
 
     setup_window()
 
