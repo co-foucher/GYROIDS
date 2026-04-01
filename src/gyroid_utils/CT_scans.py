@@ -21,6 +21,9 @@ from gyroid_utils import CT_visualization_window
 7 - apply_threshold
 8 - dilate_filter
 9 - erode_filter
+10 - connected_filter
+11 - find_small_holes
+12 - find_islands
 #=====================================================================================================================
 """
 
@@ -511,3 +514,204 @@ def connected_filter(x: int, y: int, z: int, images):
     out_image = connected_filter.Execute(images)
 
     return sitk.GetArrayFromImage(out_image)
+
+
+
+# =====================================================================
+# 11) find_small_holes
+# =====================================================================
+def find_small_holes(binary_image, max_hole_size):
+    """
+    ===========================================================================
+    11) find_small_holes(binary_image, max_hole_size)   -> small_holes_image
+    ============================================================================
+
+    Find small holes from a binary image with foreground=255 (uint8 format).
+    Holes are identified by inverting the image and running connected component
+    analysis, then filtering by rank (size order).
+
+    PARAMETERS
+    ----------
+    binary_image (SimpleITK Image or np.ndarray):
+        A binary image (foreground=255, background=0).
+    max_hole_size (int):
+        The rank of the largest hole to include. 0 is the foreground itself,
+        1 is the biggest hole, 2 the second biggest, etc. All holes at or
+        above this rank are returned.
+
+    RETURNS
+    -------
+    small_holes_image (np.ndarray):
+        Binary image containing only the small holes (foreground=255, background=0).
+    """
+    # Convert numpy array to sitk image if needed
+    if isinstance(binary_image, np.ndarray):
+        binary_image = sitk.GetImageFromArray(binary_image)
+    
+    # Rescale image to binary (foreground=1, background=0)
+    binary_image_rescaled = sitk.Cast(binary_image > 0, sitk.sitkUInt8)
+    
+    # Invert the binary image
+    inverted_image = sitk.InvertIntensity(binary_image_rescaled, maximum=1)
+    
+    # Connected component analysis on the inverted image
+    connected_components = sitk.ConnectedComponent(inverted_image)  #create a list of all islands
+    print(f"{sitk.GetArrayFromImage(connected_components).max()} holes found")
+          
+    if sitk.GetArrayFromImage(connected_components).max() < max_hole_size:
+        print(f"error: hole size too big. maximum should be {sitk.GetArrayFromImage(connected_components).max()} and you entered {max_hole_size}...")
+        return
+    
+    # Relabel components by size and filter based on size
+    relabeled_components = sitk.RelabelComponent(connected_components, sortByObjectSize=True)   #re-order the holes by size: the small the holes, the higher its rank
+
+    #extract only the small holes
+    small_holes = sitk.BinaryThreshold(                                                  #find all the holes above the thresshold. They have a value of 0 and outside a value of 1  
+        relabeled_components,
+        lowerThreshold=max_hole_size,           
+        upperThreshold=int(sitk.GetArrayFromImage(connected_components).max()),   # get all the other holes
+        insideValue=1,
+        outsideValue=0
+    )
+
+    # Rescale back to uint8 format (foreground=255)
+    final_image = sitk.Cast(small_holes, sitk.sitkUInt8) * 255
+    
+    return sitk.GetArrayFromImage(final_image)
+
+
+# =====================================================================
+# 12) find_islands
+# =====================================================================
+def find_islands(binary_image, max_island_size):
+    """
+    ===========================================================================
+    12) find_islands(binary_image, max_island_size)     -> small_islands_image
+    ============================================================================
+
+    Find small isolated islands (foreground blobs) in a binary image with
+    foreground=255 (uint8 format). This is the inverse of find_small_holes:
+    it operates on the foreground directly instead of the background.
+
+    PARAMETERS
+    ----------
+    binary_image (SimpleITK Image or np.ndarray):
+        A binary image (foreground=255, background=0).
+    max_island_size (int):
+        The rank of the largest island to include. 0 is the main foreground,
+        1 is the biggest island, 2 the second biggest, etc. All islands at or
+        above this rank are returned.
+
+    RETURNS
+    -------
+    small_islands_image (np.ndarray):
+        Binary image containing only the small islands (foreground=255, background=0).
+    """
+    # Convert numpy array to sitk image if needed
+    if isinstance(binary_image, np.ndarray):
+        binary_image = sitk.GetImageFromArray(binary_image)
+
+    # Rescale image to binary (foreground=1, background=0)
+    binary_image_rescaled = sitk.Cast(binary_image > 0, sitk.sitkUInt8)
+    
+    # Invert the binary image so that foreground becomes holes for find_small_holes
+    inverted_image = sitk.InvertIntensity(binary_image_rescaled, maximum=1)
+
+    # Find islands by treating inverted foreground as holes
+    islands = find_small_holes(inverted_image, max_island_size)
+    
+    return islands
+
+
+# =====================================================================
+# 13) watershed_algorithm
+# =====================================================================
+def watershed_algorithm(single_image, sure_fg, sure_bg):
+    """
+    ===========================================================================
+    13) watershed_algorithm(single_image, sure_fg, sure_bg) -> (single_image, connection_markers_display)
+    ============================================================================
+
+    Use a watershed algorithm to color edges of zones (touching or not) black.
+
+    PARAMETERS
+    ----------
+    single_image (np.ndarray or SimpleITK Image):
+        Used for the "topography" of your zones.
+    sure_fg (np.ndarray or SimpleITK Image):
+        The sure foreground mask; foreground pixels appear as 255.
+    sure_bg (np.ndarray or SimpleITK Image):
+        The sure background mask; pixels appear as 0. The unknown area is
+        obtained by subtracting sure_fg from this mask.
+
+    RETURNS
+    -------
+    single_image (np.ndarray):
+        The input image with watershed boundary pixels set to 255 (white).
+    connection_markers_display (np.ndarray):
+        The labeled marker image normalized to uint16 for display purposes.
+    """
+    #make sure all input images are np.arrays
+    if isinstance(single_image, sitk.Image):
+        single_image = sitk.GetArrayFromImage(single_image)
+    if isinstance(sure_fg, sitk.Image):
+        sure_fg = sitk.GetArrayFromImage(sure_fg)
+    if isinstance(sure_bg, sitk.Image):
+        sure_bg = sitk.GetArrayFromImage(sure_bg)
+
+    #small function to write input image to uint8
+    def _norm_uint8(arr):
+        """Min-max normalize a numpy array to uint8 [0, 255]."""
+        arr = arr.astype(np.float32)
+        mn, mx = arr.min(), arr.max()
+        if mx > mn:
+            arr = (arr - mn) / (mx - mn) * 255.0
+        return arr.astype(np.uint8)
+
+    # ----- Normalize inputs to uint8 using numpy -----
+    original_image = np.copy(single_image)  # Keep a copy of the original image for output
+    original_image_dtype = original_image.dtype
+    orginal_image_max_theoretical_value = 
+    single_image = _norm_uint8(single_image)
+    sure_fg = _norm_uint8(sure_fg)
+    sure_bg = _norm_uint8(sure_bg)
+
+    # -----Saturating subtraction: unknown regions appear as 255 -----
+    # you write to int16 since you want to avoid underflow when you subtract the sure foreground from the sure background. 
+    # You want to keep the negative values as 0, which is what the np.clip does. Then you convert back to uint8 for the watershed algorithm.
+    # remember that the sure foreground is 255 and the sure background is 0, so when you subtract the sure foreground from the sure background, 
+    # you get -255 for the sure foreground and 0 for the sure background. The unknown regions will be 255, which is what we want for the watershed algorithm.
+    unknown = np.clip(sure_bg.astype(np.int16) - sure_fg.astype(np.int16), 0, 255).astype(np.uint8) 
+
+    # ----- Marker labeling using SimpleITK connected components -----
+    sitk_sure_fg = sitk.GetImageFromArray((sure_fg > 0).astype(np.uint8))
+    labeled = sitk.ConnectedComponent(sitk_sure_fg)             #this will label each connected component in the sure foreground with a unique integer value (starting from 1). The background will be labeled as 0. The output is a sitk image where each pixel has the label of the connected component it belongs to.
+    connection_markers = sitk.GetArrayFromImage(labeled).astype(np.int32)
+
+    # Add one to ensure background is 1, not 0
+    connection_markers = connection_markers + 1
+    # Mark the unknown regions as 0
+    connection_markers[unknown == 255] = 0
+
+    # ----- Normalise markers to uint16 for display (range [65535/5, 65535]) -----
+    connection_markers_display = connection_markers.astype(np.float32)
+    mn, mx = connection_markers_display.min(), connection_markers_display.max()
+    if mx > mn:
+        lo = 65535.0 / 5.0
+        connection_markers_display = (
+            (connection_markers_display - mn) / (mx - mn) * (65535.0 - lo) + lo
+        )
+    connection_markers_display = connection_markers_display.astype(np.uint16)
+    connection_markers_display[connection_markers_display == connection_markers_display.min()] = 0
+
+    # ----- Apply watershed using SimpleITK -----
+    # markWatershedLine=True marks watershed boundary pixels as 0 in the output
+    sitk_image = sitk.Cast(sitk.GetImageFromArray(single_image), sitk.sitkFloat32)                  #the watershed algorithm in SimpleITK requires the input image to be in a floating point format,
+    connection_markers = sitk.Cast(sitk.GetImageFromArray(connection_markers), sitk.sitkUInt32)     #the watershed algorithm in SimpleITK requires the markers to be in an unsigned integer format (uint32) 
+    watershed_result = sitk.MorphologicalWatershedFromMarkers(sitk_image, connection_markers, markWatershedLine=True)
+    watershed_result = sitk.GetArrayFromImage(watershed_result).astype(np.int32)    #watershed_result is an image where each pixel has the label of the watershed region it belongs to. The watershed lines (boundaries) are marked as 0.
+
+    # Mark boundaries in the original imagee as the max of whatever it is able to show (white)
+    original_image[watershed_result == 0] = original_image.max()
+
+    return original_image, connection_markers_display
