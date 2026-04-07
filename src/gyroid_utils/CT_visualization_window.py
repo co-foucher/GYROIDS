@@ -6,7 +6,6 @@ from matplotlib import gridspec
 import time
 import numpy.ma as ma
 import logging
-%matplotlib qt
 
 """
 This script is intended to be used as you would a library. Import it as such:
