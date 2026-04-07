@@ -671,7 +671,7 @@ def watershed_algorithm(single_image, sure_fg, sure_bg):
     # ----- Normalize inputs to uint8 using numpy -----
     original_image = np.copy(single_image)  # Keep a copy of the original image for output
     original_image_dtype = original_image.dtype
-    orginal_image_max_theoretical_value = 
+    #orginal_image_max_theoretical_value = 
     single_image = _norm_uint8(single_image)
     sure_fg = _norm_uint8(sure_fg)
     sure_bg = _norm_uint8(sure_bg)
