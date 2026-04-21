@@ -29,7 +29,8 @@ dependencies = [
     "pydicom==3.0.2",
     "tifffile==2025.5.10",
     "matplotlib==3.10.8",
-    "PyQt5==5.15.11"
+    "PyQt5==5.15.11",
+    "open3d",
 ]
 
 # Optional metadata (recommended)
