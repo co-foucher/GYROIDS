@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gyroid_utils"
-version = "3.0.16"
+version = "3.0.17"
 description = "Gyroid and lattice design utilities: field generation, mesh processing, STL/INP I/O, and simulation helpers."
 authors = [
     { name = "Corentin Foucher", email = "corentin.foucher@empa.ch" }
@@ -30,7 +30,7 @@ dependencies = [
     "tifffile==2025.5.10",
     "matplotlib==3.10.8",
     "PyQt5==5.15.11",
-    "open3d",
+    "open3d==0.19.0",
 ]
 
 # Optional metadata (recommended)

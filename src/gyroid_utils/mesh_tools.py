@@ -165,8 +165,8 @@ def simplify_mesh(faces, verts, target=100000, mode="pyvista"):
         logger.info(f"Mesh simplification complete → {len(mesh_decimated.faces) // 4} faces remain.")
         return np.array(mesh_decimated.faces.reshape(-1, 4)[:, 1:]) , np.array(mesh_decimated.points)
 
-    # -------- trimesh mode (iterative halving via PyVista decimate_pro) ---------------
-    elif mode == "trimesh":
+    # -------- trimesh mode (iterative halving) ---------------
+    if mode == "trimesh":
         i = 0
         while current > n_faces_target:
             i += 1
@@ -175,13 +175,13 @@ def simplify_mesh(faces, verts, target=100000, mode="pyvista"):
             logger.debug(f"[Step {i}] Target face count: {current}")
 
             try:
-                faces_pv = np.hstack([[3] + list(f) for f in faces])
-                mesh_pv = pv.PolyData(verts, faces_pv)
-                reduction = (len(faces) - current) / max(len(faces), 1)
-                mesh_pv = mesh_pv.decimate_pro(reduction)
-                verts = np.asarray(mesh_pv.points)
-                faces = np.asarray(mesh_pv.faces.reshape(-1, 4)[:, 1:])
-                current = len(faces)
+                mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+                # estimate cell_size to reach roughly `current` faces
+                ratio = (current / max(len(mesh.faces), 1)) ** 0.5
+                cell_size = float(mesh.bounding_box.extents.max()) * ratio
+                mesh = mesh.simplify_vertex_clustering(cell_size=cell_size)
+                verts = np.asarray(mesh.vertices)
+                faces = np.asarray(mesh.faces)
 
             except Exception as e:
                 logger.error(f"Mesh simplification failed at step {i}: {e}", exc_info=True)
@@ -578,7 +578,7 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
     """
     ============================================================================
     8) smooth_mesh
-    Performs Taubin smoothing on the mesh using trimesh's filter_taubin.
+    Performs Taubin smoothing on the mesh using Open3D's filter_smooth_taubin.
     Taubin smoothing is volume-preserving (avoids the mesh shrinkage of plain
     Laplacian smoothing) by alternating a positive and negative Laplacian step.
     ============================================================================
@@ -590,7 +590,7 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
     faces : (M, 3) ndarray
         Triangle face connectivity.
     smoothing_factor : float, optional
-        Lambda parameter — positive Laplacian step size (default = 0.1).
+        Lambda (λ) parameter — positive Laplacian step size (default = 0.1).
         Higher values result in faster / stronger smoothing per iteration.
     iterations : int, optional
         Number of Taubin iterations (default = 10).
@@ -602,9 +602,13 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
     faces : (M, 3) ndarray
         Unchanged triangle face connectivity.
     """
-    mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
-    trimesh.smoothing.filter_taubin(mesh,
-                                    lamb=smoothing_factor,
-                                    iterations=iterations)
-    return mesh.vertices, mesh.faces
+    import open3d as o3d
+    o3d_mesh = o3d.geometry.TriangleMesh()
+    o3d_mesh.vertices = o3d.utility.Vector3dVector(verts)
+    o3d_mesh.triangles = o3d.utility.Vector3iVector(faces)
+    o3d_mesh = o3d_mesh.filter_smooth_taubin(
+        number_of_iterations=iterations,
+        lambda_filter=smoothing_factor
+    )
+    return np.asarray(o3d_mesh.vertices), np.asarray(o3d_mesh.triangles)
 
