@@ -547,7 +547,9 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
     """
     ============================================================================
     8) smooth_mesh
-    Performs Laplacian smoothing on the mesh using trimesh's filter_humphrey
+    Performs Taubin smoothing on the mesh using trimesh's filter_taubin.
+    Taubin smoothing is volume-preserving (avoids the mesh shrinkage of plain
+    Laplacian smoothing) by alternating a positive and negative Laplacian step.
     ============================================================================
     
     PARAMETERS
@@ -557,7 +559,10 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
     faces : (M, 3) ndarray
         Triangle face connectivity.
     smoothing_factor : float, optional
-        Smoothing strength (default = 0.1). Higher values result in more smoothing.
+        Lambda parameter — positive Laplacian step size (default = 0.1).
+        Higher values result in faster / stronger smoothing per iteration.
+    iterations : int, optional
+        Number of Taubin iterations (default = 10).
 
     RETURNS
     -------
@@ -567,10 +572,8 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
         Unchanged triangle face connectivity.
     """
     mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
-    trimesh.smoothing.filter_humphrey(mesh, 
-                                      alpha=0.1, # will be ignored since we set laplacian_operator=None, but required by the function signature
-                                      beta=smoothing_factor, #will 
-                                      iterations=iterations, 
-                                      laplacian_operator=None)
+    trimesh.smoothing.filter_taubin(mesh,
+                                    lamb=smoothing_factor,
+                                    iterations=iterations)
     return mesh.vertices, mesh.faces
 
