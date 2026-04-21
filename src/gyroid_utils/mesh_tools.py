@@ -174,7 +174,7 @@ def simplify_mesh(faces, verts, target=100000, mode="normal"):
 
             try:
                 mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
-                mesh = mesh.simplify_quadric_decimation(face_count=current)
+                mesh = mesh.simplify_quadric_decimation(current)
                 verts = mesh.vertices
                 faces = mesh.faces
 
@@ -565,8 +565,8 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
     """
     mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
     trimesh.smoothing.filter_humphrey(mesh, 
-                                      alpha=0.1, 
-                                      beta=smoothing_factor, 
+                                      alpha=0.1, # will be ignored since we set laplacian_operator=None, but required by the function signature
+                                      beta=smoothing_factor, #will 
                                       iterations=iterations, 
                                       laplacian_operator=None)
     return mesh.vertices, mesh.faces
