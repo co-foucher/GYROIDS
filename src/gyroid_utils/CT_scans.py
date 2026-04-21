@@ -157,7 +157,7 @@ def _loading_bar(current, total, bar_length=30):
 # 3) convert_tiff_to_mhd
 # =====================================================================
 
-def convert_tiff_to_mhd(input_path, output_path, memory_saver=True):
+def convert_tiff_to_mhd(input_path, output_path, spacing=(0.2, 0.2, 0.2), memory_saver=True):
     """ 
     ===========================================================================
     3) convert_tiff_to_mhd(input_path, output_path, memory_saver=True) -> None
@@ -197,8 +197,8 @@ def convert_tiff_to_mhd(input_path, output_path, memory_saver=True):
     logger.info(f"CT scan of dimension {Dimension} detected")
 
     Origin = (0.0, 0.0, 0.0)
-    Spacing = (0.2, 0.2, 0.2)
-    logger.info(f"Using default spacing: {Spacing} and origin: {Origin}")
+    Spacing = spacing
+    logger.info(f"Using spacing: {Spacing} and origin: {Origin}")
 
     # Preallocate array
     dtype = np.uint8 if memory_saver else first_image.dtype
