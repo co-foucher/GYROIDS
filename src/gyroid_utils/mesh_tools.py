@@ -99,11 +99,11 @@ def keep_largest_connected_component(verts, faces):
 # =====================================================================
 # 2) simplify_mesh
 # =====================================================================
-def simplify_mesh(faces, verts, target=100000, mode="open3d"):
+def simplify_mesh(faces, verts, target=100000, mode="pyvista"):
     """
     ============================================================================
     2) SIMPLIFY_MESH
-    Iteratively decimates a mesh using Open3D quadric decimation until a target
+    Iteratively decimates a mesh using trimesh vertex clustering until a target
     number of faces is reached.
     ============================================================================
 
@@ -117,7 +117,7 @@ def simplify_mesh(faces, verts, target=100000, mode="open3d"):
         can be either the Desired final number of faces (default = 100000).
         or the fraction of faces to keep (if between 0 and 1, e.g. 0.5 to keep 50% of faces).
     mode : str, optional
-        "pyvista" (uses PyVista for simplification) or "open3d" (uses Open3D for simplification).
+        "pyvista" (uses PyVista decimate_pro) or "trimesh" (uses trimesh vertex clustering, default).
 
     RETURNS
     -------
@@ -163,8 +163,8 @@ def simplify_mesh(faces, verts, target=100000, mode="open3d"):
         logger.info(f"Mesh simplification complete → {len(mesh_decimated.faces) // 4} faces remain.")
         return np.array(mesh_decimated.faces.reshape(-1, 4)[:, 1:]) , np.array(mesh_decimated.points)
 
-    # -------- open3d mode (iterative halving) ---------------
-    else:        
+    # -------- trimesh mode (iterative halving) ---------------
+    else:
         i = 0
         while current > n_faces_target:
             i += 1
@@ -173,13 +173,13 @@ def simplify_mesh(faces, verts, target=100000, mode="open3d"):
             logger.debug(f"[Step {i}] Target face count: {current}")
 
             try:
-                import open3d as o3d
-                o3d_mesh = o3d.geometry.TriangleMesh()
-                o3d_mesh.vertices = o3d.utility.Vector3dVector(verts)
-                o3d_mesh.triangles = o3d.utility.Vector3iVector(faces)
-                o3d_mesh = o3d_mesh.simplify_quadric_decimation(target_number_of_triangles=current)
-                verts = np.asarray(o3d_mesh.vertices)
-                faces = np.asarray(o3d_mesh.triangles)
+                mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+                # estimate cell_size to reach roughly `current` faces
+                ratio = (current / max(len(mesh.faces), 1)) ** 0.5
+                cell_size = float(mesh.bounding_box.extents.max()) * ratio
+                mesh = mesh.simplify_vertex_clustering(cell_size=cell_size)
+                verts = np.asarray(mesh.vertices)
+                faces = np.asarray(mesh.faces)
 
             except Exception as e:
                 logger.error(f"Mesh simplification failed at step {i}: {e}", exc_info=True)
