@@ -230,7 +230,7 @@ def convert_tiff_to_mhd(input_path, output_path, spacing=(0.2, 0.2, 0.2), memory
 # 4) read_mhd_file
 # =====================================================================
 
-def read_mhd_file(input_file_path):
+def read_mhd_file(input_file_path, lightweigth_visualization=False):
     """
     ===========================================================================
     4) read_mhd_file(input_file_path) -> (image_array, spacing, origin)
@@ -251,7 +251,11 @@ def read_mhd_file(input_file_path):
         tuple, the image origin in mm (x, y, z).
     """
     image = sitk.ReadImage(input_file_path)
-    CT_visualization_window.open_window(image)
+    if not lightweigth_visualization:
+        CT_visualization_window.open_window(image)
+    else:
+        logger.info("Lightweight visualization enabled")
+        CT_visualization_window.lightweigth_open(image)
 
     return sitk.GetArrayFromImage(image), image.GetSpacing(), image.GetOrigin()
 
