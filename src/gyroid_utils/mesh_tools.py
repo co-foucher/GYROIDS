@@ -610,5 +610,6 @@ def smooth_mesh(verts: np.ndarray, faces: np.ndarray, smoothing_factor:float=0.1
         number_of_iterations=iterations,
         lambda_filter=smoothing_factor
     )
+    #https://graphics.stanford.edu/courses/cs468-01-fall/Papers/taubin-smoothing.pdf
     return np.asarray(o3d_mesh.vertices), np.asarray(o3d_mesh.triangles)
 
