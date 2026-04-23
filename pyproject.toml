@@ -5,31 +5,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gyroid_utils"
-version = "3.0.10"
+version = "3.0.17"
 description = "Gyroid and lattice design utilities: field generation, mesh processing, STL/INP I/O, and simulation helpers."
 authors = [
     { name = "Corentin Foucher", email = "corentin.foucher@empa.ch" }
 ]
 readme = "README.md"
 license = { text = "EMPA" }
-requires-python = ">=3.10"
+requires-python = "==3.10.*"
 
 dependencies = [
-    "numpy",
-    "numpy-stl",
-    "scikit-image",
-    "trimesh",
-    "plotly",
-    "pymeshfix",
-    "pyvista",
-    "meshio",
-    "pathlib",
-    "pandas",
-    "SimpleITK",
-    "pydicom",
-    "tifffile",
-    "matplotlib",
-    "PyQt5"
+    "numpy==2.2.6",
+    "numpy-stl==3.2.0",
+    "scikit-image==0.25.2",
+    "trimesh==4.11.1",
+    "plotly==6.5.2",
+    "pymeshfix==0.18.0",
+    "pyvista==0.46.5",
+    "meshio==5.3.5",
+    "pathlib==1.0.1",
+    "pandas==2.3.3",
+    "SimpleITK==2.5.3",
+    "pydicom==3.0.2",
+    "tifffile==2025.5.10",
+    "matplotlib==3.10.8",
+    "PyQt5==5.15.11",
+    "open3d==0.19.0",
 ]
 
 # Optional metadata (recommended)

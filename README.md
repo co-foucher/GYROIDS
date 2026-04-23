@@ -15,6 +15,7 @@
 
 ```powershell
       conda create -n nameofenv python=3.10
+      conda install git
       pip install git+https://github.com/co-foucher/GYROIDS.git
 ```
   - For changes: update the toml file and then use pip install git+https://github.com/co-foucher/GYROIDS.git
