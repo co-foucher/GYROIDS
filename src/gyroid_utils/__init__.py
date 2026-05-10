@@ -22,7 +22,8 @@ from . import io_ops
 from . import gyroid
 from . import abaqus_tools
 from . import TET_mesh_tools
-from . import CT_scans
+from . import SchwartzP
+from . import CT_scans  
 from . import CT_visualization_window
 from .logger import logger, set_log_level
 
@@ -36,6 +37,7 @@ __all__ = [
     "TET_mesh_tools",
     "logger",
     "set_log_level",
+    "SchwartzP",
     "__version__",
 ]
 
