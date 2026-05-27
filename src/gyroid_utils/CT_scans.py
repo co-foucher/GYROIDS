@@ -24,6 +24,7 @@ from gyroid_utils import CT_visualization_window
 10 - connected_filter
 11 - find_small_holes
 12 - find_islands
+13 - watershed_algorithm
 #=====================================================================================================================
 """
 
@@ -57,10 +58,7 @@ def convert_dicomm_to_mhd(input_path, output_path, memory_saver=True):
     RETURNS
     -------
     NONE (writes output files to disk)
-
-
     """
-
     # Collect and sort DICOM files (Path-based)
     p = Path(input_path)
     #if the input path is a directory, we will read all the files in the directory, 
@@ -81,17 +79,16 @@ def convert_dicomm_to_mhd(input_path, output_path, memory_saver=True):
     try:
         Spacing = (float(Image.PixelSpacing[0]), float(Image.PixelSpacing[1]), float(Image.SliceThickness))
         logger.info(f"Pixel spacing: {Spacing}")
-    except AttributeError:
+    except (AttributeError, TypeError):
         Spacing = (1.0, 1.0, 1.0)
         logger.warning("Pixel spacing or slice thickness not found in DICOM metadata. Defaulting to (1.0, 1.0, 1.0).")
     try:
         Origin = Image.ImagePositionPatient
         logger.info(f"Image origin: {Origin}")
-    except AttributeError:
+    except (AttributeError, TypeError):
         Origin = (0.0, 0.0, 0.0)
         logger.warning("Image position not found in DICOM metadata. Defaulting to (0.0, 0.0, 0.0).")
     
-
     # Preallocate array
     dtype = np.uint8 if memory_saver else Image.pixel_array.dtype
     NpArrDc = np.zeros(Dimension, dtype=dtype)
@@ -103,11 +100,17 @@ def convert_dicomm_to_mhd(input_path, output_path, memory_saver=True):
         img = df.pixel_array
         if memory_saver:
             # Normalize to 0-255 before converting to uint8
-            img = (img - img.min()) / (img.max() - img.min()) * 255
+            img = img.astype(np.float32)
+            img_min = img.min()
+            img_max = img.max()
+            if img_max > img_min:
+                img = (img - img_min) / (img_max - img_min) * 255.0
+            else:
+                img = np.zeros_like(img, dtype=np.float32)
             img = img.astype(np.uint8)
         NpArrDc[:, :, i] = img
 
-    print("now saving as mhd")
+    logger.info("now saving as mhd")
     NpArrDc = np.transpose(NpArrDc, (2, 0, 1))  # axis transpose
     sitk_img = sitk.GetImageFromArray(NpArrDc, isVector=False)
     sitk_img.SetSpacing(Spacing)
@@ -116,7 +119,7 @@ def convert_dicomm_to_mhd(input_path, output_path, memory_saver=True):
     output_file = Path(output_path).with_suffix(".mhd")
     output_file.parent.mkdir(parents=True, exist_ok=True)
     sitk.WriteImage(sitk_img, str(output_file))
-    return
+    return 
 
 
 # =====================================================================
