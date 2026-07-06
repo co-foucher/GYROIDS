@@ -31,6 +31,8 @@ dependencies = [
     "matplotlib==3.10.8",
     "PyQt5==5.15.11",
     "open3d==0.19.0",
+    "pytest==9.1.1 ",
+    "scipy==1.15.3",
 ]
 
 # Optional metadata (recommended)
@@ -47,7 +49,7 @@ keywords = [
 
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Visualization",
     "Topic :: Scientific/Engineering :: Mathematics",
@@ -60,12 +62,16 @@ Documentation = "https://github.com/your-account/gyroids"
 Source = "https://github.com/your-account/gyroids"
 Issues = "https://github.com/your-account/gyroids/issues"
 
-
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["gyroid_utils*"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-ra"
 
 

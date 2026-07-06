@@ -27,7 +27,7 @@ it is structured as follow:
 - setups:
     - window: defined the figure, sliders..
     - buttons: defines the action buttons, and which function they activate
-- (small) actions: list of small functions; 
+- (small) actions: list of small functions;
     - rotate_view, next_slice, prev_slice, update_plot, reset_window, change_button_color, onscroll, greyvalue_at_coord, calculate_average, make_greyscale_inRGB
 - (big) actions:
     - rainbow colors
@@ -40,14 +40,63 @@ it is structured as follow:
 
 """
 
+"""
+#=====================================================================================================================
+0 - (reserved)
+1 - setup_window
+2 - setup_buttons
+3 - setup_slider
+4 - rotate_view
+5 - next_slice
+6 - prev_slice
+7 - update_plot
+8 - reset_window
+9 - change_button_color
+10 - onscroll
+11 - greyvalue_at_coord
+12 - calculate_average
+13 - make_greyscale_inRGB
+14 - rainbow_colors
+15 - calculate_rainbow_masks
+16 - update_rainbow
+17 - apply_rainbow_all
+18 - update_histogram
+19 - onclick
+20 - configure_logger
+21 - open_window
+22 - lightweigth_open
+23 - check_existence
+#=====================================================================================================================
+"""
+
 
 # =======================================================================================================
 # ================================================== setups =============================================
 # =======================================================================================================
 
+# =====================================================================
+# 1) setup_window
+# =====================================================================
 def setup_window():
-    """ 
-    opens the window an creates main global variables
+    """
+    ============================================================================
+    1) SETUP_WINDOW
+    Opens the main interactive window and creates the main global variables.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    None (reads the global `images` array)
+
+    RETURNS
+    -------
+    None
+
+    NOTES
+    -----
+    - Populates the globals: selected_pixels, images_rgb, fig, ax_image,
+      slice, n, img_display, fig_histo, ax_histo.
+    - Blocks execution (plt.show(block=True)) until the window is closed.
     """
     global selected_pixels, images_rgb, fig, ax_image, slice, n, img_display, fig_histo, ax_histo, images
     logger.info("starting window setup function")
@@ -96,10 +145,33 @@ def setup_window():
 
     logger.info("window setup function succesfull")
 
-# Buttons
+
+# =====================================================================
+# 2) setup_buttons
+# =====================================================================
 def setup_buttons():
+    """
+    ============================================================================
+    2) SETUP_BUTTONS
+    Creates and wires up all the action buttons of the main window.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    None
+
+    RETURNS
+    -------
+    None
+
+    NOTES
+    -----
+    - Populates the globals: button_prev, button_next, button_3D_brush,
+      button_histogram, button_reset, button_average, button_brush_ONOFF,
+      button_rotate_x, button_rotate_y, button_rotate_z, button_rainbow.
+    """
     logger.debug("adding buttons")
-    start_time_setup_buttons = time.time() 
+    start_time_setup_buttons = time.time()
     global button_prev, button_next, button_3D_brush, button_histogram, button_reset, button_average, button_brush_ONOFF, button_rotate_x, button_rotate_y, button_rotate_z, button_rainbow
     ax_button_prev = plt.axes([0.02, 0.05, 0.05, 0.04])  # left, bottom, width, height
     button_prev = Button(ax_button_prev, 'Previous')
@@ -156,10 +228,31 @@ def setup_buttons():
     button_rainbow.on_clicked(lambda event: rainbow_colors(event))
     logger.debug(f"buttons added in {time.time() - start_time_setup_buttons} seconds.")
 
-# Sliders
+
+# =====================================================================
+# 3) setup_slider
+# =====================================================================
 def setup_slider():
+    """
+    ============================================================================
+    3) SETUP_SLIDER
+    Creates the slice slider and the brush-radius slider of the main window.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    None
+
+    RETURNS
+    -------
+    None
+
+    NOTES
+    -----
+    - Populates the globals: slice, slice_slider, brush_radius_slider.
+    """
     logger.debug("adding sliders")
-    start_time_setup_slider = time.time() 
+    start_time_setup_slider = time.time()
     global slice, slice_slider, brush_radius_slider
     ax_slider = plt.axes([0.15, 0.05, 0.7, 0.03], facecolor='lightgrey')   # left, bottom, width, height
     slice_slider = Slider(ax_slider, 'Slice', 0, n-1, valinit=0, valstep=1)
@@ -173,7 +266,28 @@ def setup_slider():
 # =======================================================================================================
 # ========================================= (small) actions =============================================
 # =======================================================================================================
+
+# =====================================================================
+# 4) rotate_view
+# =====================================================================
 def rotate_view(event, axis):
+    """
+    ============================================================================
+    4) ROTATE_VIEW
+    Rotates the image stack along the given axis and reopens the window.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The button-click event (unused, required by the Button callback API).
+    axis : str
+        Axis to rotate along: 'x', 'y', or 'z'.
+
+    RETURNS
+    -------
+    None
+    """
     global images_rgb, images, fig
     if axis == "x":
         images = np.transpose(images, (1, 2, 0))
@@ -189,35 +303,112 @@ def rotate_view(event, axis):
     plt.close(fig)
     setup_window()
 
+
+# =====================================================================
+# 5) next_slice
+# =====================================================================
 def next_slice(event):
+    """
+    ============================================================================
+    5) NEXT_SLICE
+    Advances the slice slider by one step.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The button-click event (unused, required by the Button callback API).
+
+    RETURNS
+    -------
+    None
+    """
     global slice_slider, n
     current_slice = slice_slider.val
     if current_slice < n - 1:
         slice_slider.set_val(current_slice + 1)
 
+
+# =====================================================================
+# 6) prev_slice
+# =====================================================================
 def prev_slice(event):
+    """
+    ============================================================================
+    6) PREV_SLICE
+    Moves the slice slider back by one step.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The button-click event (unused, required by the Button callback API).
+
+    RETURNS
+    -------
+    None
+    """
     global slice_slider, n
     current_slice = slice_slider.val
     if current_slice > 0:
         slice_slider.set_val(current_slice - 1)
 
+
+# =====================================================================
+# 7) update_plot
+# =====================================================================
 def update_plot(event):
+    """
+    ============================================================================
+    7) UPDATE_PLOT
+    Redraws the main image display for the current slice.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The slider/button event (unused directly; the current slice is read
+        from slice_slider.val).
+
+    RETURNS
+    -------
+    None
+    """
     global slice, button_histogram, slice_slider, images_rgb, img_display
-    start_time_update_plot = time.time() 
+    start_time_update_plot = time.time()
     slice = slice_slider.val  # Get the current value of the slider
 
     if button_histogram.color == "blue":
         update_histogram(None)
-    
+
     img_display.set_data(images_rgb[slice])
     fig.canvas.draw_idle()
 
     logger.debug(f"plot update successful in {time.time() - start_time_update_plot} seconds.")
 
+
+# =====================================================================
+# 8) reset_window
+# =====================================================================
 def reset_window(event):
+    """
+    ============================================================================
+    8) RESET_WINDOW
+    Resets the RGB image stack back to greyscale and clears selected pixels.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The button-click event (unused, required by the Button callback API).
+
+    RETURNS
+    -------
+    None
+    """
     global images_rgb, selected_pixels, images
     logger.info("resetting window, please wait...")
-    start_time_reset_window = time.time() 
+    start_time_reset_window = time.time()
 
     temp_images = images / np.max(images) #for rbg, values go from 0 to 1
     images_rgb = np.stack([temp_images, temp_images, temp_images], axis=-1)
@@ -226,10 +417,51 @@ def reset_window(event):
 
     logger.debug(f"reset successful in {time.time() - start_time_reset_window} seconds.")
 
+
+# =====================================================================
+# 9) change_button_color
+# =====================================================================
 def change_button_color(event, button):
+        """
+        ============================================================================
+        9) CHANGE_BUTTON_COLOR
+        Toggles a button's color between red and blue (used as an ON/OFF
+        indicator).
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        event : matplotlib event
+            The button-click event (unused, required by the Button callback API).
+        button : matplotlib.widgets.Button
+            The button whose color should be toggled.
+
+        RETURNS
+        -------
+        None
+        """
         button.color = 'blue' if button.color == 'red' else 'red'
 
+
+# =====================================================================
+# 10) onscroll
+# =====================================================================
 def onscroll(event):
+    """
+    ============================================================================
+    10) ONSCROLL
+    Changes the current slice in response to mouse scroll events.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The scroll event; event.button is 'up' or 'down'.
+
+    RETURNS
+    -------
+    None
+    """
     global slice_slider, slice
     current_slice = slice_slider.val
     if event.button == 'up' and current_slice < n - 1:
@@ -240,7 +472,29 @@ def onscroll(event):
         slice = slice_slider.val
     update_plot(slice_slider.val)
 
+
+# =====================================================================
+# 11) greyvalue_at_coord
+# =====================================================================
 def greyvalue_at_coord(x, y):
+    """
+    ============================================================================
+    11) GREYVALUE_AT_COORD
+    Reads the grey value of the current slice at the given pixel coordinates.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    x : int or float
+        Column coordinate (rounded to nearest pixel).
+    y : int or float
+        Row coordinate (rounded to nearest pixel).
+
+    RETURNS
+    -------
+    grey : scalar or None
+        The pixel grey value if (x, y) is within bounds, otherwise None.
+    """
     global images, slice
     numrows, numcols = images.shape[1], images.shape[2]
     col,row = int(x + 0.5), int(y + 0.5)
@@ -249,8 +503,27 @@ def greyvalue_at_coord(x, y):
         return grey
     else:
         return None
-    
+
+
+# =====================================================================
+# 12) calculate_average
+# =====================================================================
 def calculate_average(event):
+    """
+    ============================================================================
+    12) CALCULATE_AVERAGE
+    Computes and logs the average grey value of the currently selected pixels.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The button-click event (unused, required by the Button callback API).
+
+    RETURNS
+    -------
+    None
+    """
     global images, selected_pixels
     pixels_coordinates = np.array(selected_pixels)
     if pixels_coordinates.size == 0:
@@ -262,10 +535,35 @@ def calculate_average(event):
     logger.info(f"average value of selected pixel = {dat_average}")
 
 
+# =====================================================================
+# 13) make_greyscale_inRGB
+# =====================================================================
 def make_greyscale_inRGB(images):
+    """
+    ============================================================================
+    13) MAKE_GREYSCALE_INRGB
+    Converts a greyscale image stack to an RGB (uint8) stack for display and
+    interactive pixel-color modification.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    images : np.ndarray
+        Greyscale image stack.
+
+    RETURNS
+    -------
+    None
+
+    NOTES
+    -----
+    - Populates the global `images_rgb`.
+    - Values are rescaled to fit uint8 for display purposes only; the true
+      value is still used elsewhere (e.g. on click).
+    """
     global images_rgb
     logger.debug("converting grey scale image to rgb")
-    start_time = time.time() 
+    start_time = time.time()
 
     if images.dtype != np.uint8:
         logger.warning(f"Your image uses {images.dtype} values, values have been rescaled in the plot to fit in UINT8, but still extracted true on click.")
@@ -273,7 +571,7 @@ def make_greyscale_inRGB(images):
     divider = 255/(images.max()-images.min())
     temp_images = np.multiply(np.subtract(images,images.min()), divider).astype(np.uint8)
     logger.debug(f"Plotted image has been reduced to UINT8.")
-    
+
     # Convert grayscale image to RGB for color modification
     images_rgb = np.stack([temp_images, temp_images, temp_images], axis=-1).astype(np.uint8)  #in rgb, equal values will give a shade of grey
     #                                                                                               rgb is added as the fourth axis !
@@ -281,14 +579,39 @@ def make_greyscale_inRGB(images):
     logger.debug(f"rgb image takes {images_rgb.nbytes/1000000000} gigabytes")
     logger.debug(f"conversion succesfull in {time.time() - start_time} seconds.")
 
+
 # =======================================================================================================
 # ========================================= rainbow colors =============================================
 # =======================================================================================================
 
+# =====================================================================
+# 14) rainbow_colors
+# =====================================================================
 def rainbow_colors(event):
+    """
+    ============================================================================
+    14) RAINBOW_COLORS
+    Toggles between greyscale and rainbow color mapping, opening the rainbow
+    control sliders window on first activation.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The button-click event (unused, required by the Button callback API).
+
+    RETURNS
+    -------
+    None
+
+    NOTES
+    -----
+    - Populates the globals: fig_rainbow, rgb_scale, rainbow_slider_min,
+      rainbow_slider_max, button_apply_rainbow_all.
+    """
     global images_rgb, images, slice
     global fig_rainbow,rgb_scale
-    start_time_rainbow_colors = time.time() 
+    start_time_rainbow_colors = time.time()
     # Ensure the condition checks the values properly
     if (images_rgb[:,:,:,0] == images_rgb[:,:,:,1]).all():
         logger.info("opening rainbow color set window")
@@ -315,21 +638,52 @@ def rainbow_colors(event):
             button_apply_rainbow_all = Button(ax_button_apply_rainbow_all, 'Apply all')
             button_apply_rainbow_all.color = "green"
             button_apply_rainbow_all.on_clicked(lambda event: apply_rainbow_all(event))
-            
+
             plt.show()
             rainbow_slider_min.on_changed(lambda event: update_rainbow(event,'min_slider'))
             rainbow_slider_max.on_changed(lambda event: update_rainbow(event,'max_slider'))
-        
-    else : 
+
+    else :
         del rgb_scale, rainbow_slider_min, rainbow_slider_max, button_apply_rainbow_all
         logger.info("changing colorset to grey-scale")
         plt.close(fig_rainbow)
         make_greyscale_inRGB(images)
         del fig_rainbow
-    
+
     #logger.debug(f"new color scale applied in {time.time() - start_time_rainbow_colors} seconds.")
 
+
+# =====================================================================
+# 15) calculate_rainbow_masks
+# =====================================================================
 def calculate_rainbow_masks(min_rainbow,max_rainbow,rgb_scale):
+    """
+    ============================================================================
+    15) CALCULATE_RAINBOW_MASKS
+    Splits a grey-value range into four quartile masks used to build the
+    rainbow color mapping.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    min_rainbow : float
+        Lower bound of the rainbow value range.
+    max_rainbow : float
+        Upper bound of the rainbow value range.
+    rgb_scale : np.ndarray
+        Grey-value array (single channel) to threshold into quartiles.
+
+    RETURNS
+    -------
+    mask_0_25 : np.ndarray (bool)
+        Mask for the first quartile.
+    mask_25_50 : np.ndarray (bool)
+        Mask for the second quartile.
+    mask_50_75 : np.ndarray (bool)
+        Mask for the third quartile.
+    mask_75_100 : np.ndarray (bool)
+        Mask for the fourth quartile.
+    """
     increment_rainbow = (max_rainbow-min_rainbow)/4
     mask_0_25 = np.array((rgb_scale >= min_rainbow) & (rgb_scale < min_rainbow + increment_rainbow), dtype=np.bool)
     mask_25_50 = np.array((rgb_scale >= min_rainbow + increment_rainbow) & (rgb_scale < min_rainbow + increment_rainbow*2), dtype=np.bool)
@@ -337,7 +691,30 @@ def calculate_rainbow_masks(min_rainbow,max_rainbow,rgb_scale):
     mask_75_100 = np.array((rgb_scale >= min_rainbow + increment_rainbow*3) & (rgb_scale <= min_rainbow + max_rainbow), dtype=np.bool)
     return mask_0_25, mask_25_50, mask_50_75, mask_75_100
 
+
+# =====================================================================
+# 16) update_rainbow
+# =====================================================================
 def update_rainbow(event,event_name):
+    """
+    ============================================================================
+    16) UPDATE_RAINBOW
+    Reapplies the rainbow color mapping to the current slice using the current
+    slider bounds.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The slider event (unused directly).
+    event_name : str
+        Name of the slider that triggered the update ('min_slider' or
+        'max_slider'), kept for readability/debugging.
+
+    RETURNS
+    -------
+    None
+    """
     global rgb_scale, images_rgb,r,g,b, slice
     min_val = rainbow_slider_min.val
     max_val = rainbow_slider_max.val
@@ -379,7 +756,26 @@ def update_rainbow(event,event_name):
 
     update_plot(slice)
 
+
+# =====================================================================
+# 17) apply_rainbow_all
+# =====================================================================
 def apply_rainbow_all(event):
+    """
+    ============================================================================
+    17) APPLY_RAINBOW_ALL
+    Applies the current rainbow color mapping to every slice in the stack.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The button-click event (unused, required by the Button callback API).
+
+    RETURNS
+    -------
+    None
+    """
     global rgb_scale, images_rgb, slice
     logger.info("Changing color set to rainbow for every images")
     start_time_apply_rainbow_all = time.time()
@@ -424,19 +820,38 @@ def apply_rainbow_all(event):
     update_plot(slice)
     logger.debug(f"new color scale applied to every images in {time.time() - start_time_apply_rainbow_all} seconds.")
 
+
 # =======================================================================================================
 # ========================================= histogram =============================================
 # =======================================================================================================
 
+# =====================================================================
+# 18) update_histogram
+# =====================================================================
 def update_histogram(event):
-    '''
-    Inputs: - mhd stack (SimpleITK image)
+    """
+    ============================================================================
+    18) UPDATE_HISTOGRAM
+    Opens or refreshes the histogram window for the current slice, or closes
+    it depending on the histogram button state.
+    ============================================================================
 
-    Outputs: - matplotlib plot
-    '''
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The button-click event (unused, required by the Button callback API).
+
+    RETURNS
+    -------
+    None
+
+    NOTES
+    -----
+    - Requires the mhd stack to be loaded in the global `images` array.
+    """
     global fig_histo, ax_histo, slice, images
 
-    start_time_update_histogram = time.time() 
+    start_time_update_histogram = time.time()
 
     if button_histogram.color == "blue" :
         array = images[slice,:,:]
@@ -475,23 +890,40 @@ def update_histogram(event):
 # ========================================= on click =============================================
 # =======================================================================================================
 
+# =====================================================================
+# 19) onclick
+# =====================================================================
 def onclick(event):
     """
-    function controlling what happens when the user clicks on a pixel
-    it's in here that:
-        - we check if the user click in an allowed area
-        - we check wether the brush is in 3D mode or not and elect the pixels accordingly
-        - after each click the color of selected pixels are turned to blue and the plot updated
+    ============================================================================
+    19) ONCLICK
+    Handles a click on the image: selects pixels (2D or 3D brush) and updates
+    the display.
+    ============================================================================
 
-    notes:
-        - selected pixels are appended in the variable selected_pixels
+    PARAMETERS
+    ----------
+    event : matplotlib event
+        The mouse button-press event.
 
+    RETURNS
+    -------
+    None
 
+    NOTES
+    -----
+    - Checks that the click is within the allowed image area and that no
+      toolbar tool is active.
+    - Checks whether the brush is in 3D mode or not and selects pixels
+      accordingly.
+    - After each click, the color of selected pixels is turned to blue and
+      the plot is updated.
+    - Selected pixels are appended to the global `selected_pixels`.
     """
     global slice, images, ax_image, selected_pixels, images_rgb, button_3D_brush
     if event.inaxes == ax_image and event.button == 1:          # Check if the click is within the image axes and not on the slider
         toolbar = plt.get_current_fig_manager().toolbar         # save the current zoom and position on the image
-        if toolbar.mode == '':                                  # do not register if using any toolbar tool 
+        if toolbar.mode == '':                                  # do not register if using any toolbar tool
             x, y = int(event.xdata + 0.5), int(event.ydata + 0.5)       # save click position
             slice = int(slice_slider.val)
             grey = greyvalue_at_coord(x, y)              # save  grey value at click position
@@ -501,15 +933,15 @@ def onclick(event):
                 if button_brush_ONOFF.color == "blue":
                     for t in range(-int(brush_radius_slider.val), int(brush_radius_slider.val) + 1):        #thickness of the brush (x-axis)
                         for g in range(-int(brush_radius_slider.val), int(brush_radius_slider.val) + 1):    #height of the brush (y-axis)
-                            
+
                             #============= 2D brush =============
-                            if button_3D_brush.color == "red":      
+                            if button_3D_brush.color == "red":
                                 if np.sqrt(t ** 2 + g ** 2) <= int(brush_radius_slider.val):            # make the brush round
                                     grey = greyvalue_at_coord(x + t, y + g)
                                     if grey is not None:
                                         selected_pixels.append((int(x + t), int(y + g), int(slice)))    # append list of slected pixels
                                         images_rgb[slice, int(y + g), int(x + t)] = [0, 0, 255]         # Set the clicked pixel to blue (0, 0, 255)
-                            
+
                             #============ 3D brush =============
                             elif button_3D_brush.color == "blue":  #on est en 3D
                                 for k in range(-int(brush_radius_slider.val), int(brush_radius_slider.val) + 1):    # deepness of the brush (z-axis)
@@ -521,16 +953,32 @@ def onclick(event):
 
             update_plot(slice)
 
+
 # =======================================================================================================
 # ========================================= logger =============================================
 # =======================================================================================================
 
+# =====================================================================
+# 20) configure_logger
+# =====================================================================
 def configure_logger(level):
     """
-    Configures a logger with the given logging level.
-    
-    Args:
-        level (int): Logging level. Defaults to logging.INFO.
+    ============================================================================
+    20) CONFIGURE_LOGGER
+    Configures a dedicated logger for this module with the given logging
+    level.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    level : int
+        Logging level (e.g. logging.INFO, logging.DEBUG).
+
+    RETURNS
+    -------
+    logger : logging.Logger
+        The configured "CT_window_logger" logger, with existing handlers
+        cleared and a fresh console handler attached.
     """
     # Create or get the logger
     logger = logging.getLogger("CT_window_logger")
@@ -539,18 +987,18 @@ def configure_logger(level):
     # Clear any existing handlers
     if logger.hasHandlers():
         logger.handlers.clear()
-    
+
     # Create a console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(level)  # Ensure the handler matches the logger's level
-    
+
     # Create and set a simple formatter
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     console_handler.setFormatter(formatter)
-    
+
     # Add the handler to the logger
     logger.addHandler(console_handler)
-    
+
     return logger
 
 
@@ -558,7 +1006,34 @@ def configure_logger(level):
 # ============================================= main =============================================
 # =======================================================================================================
 
+# =====================================================================
+# 21) open_window
+# =====================================================================
 def open_window(input_images,level=logging.INFO):
+    """
+    ============================================================================
+    21) OPEN_WINDOW
+    Main entry point: opens the full interactive CT viewer for a SimpleITK
+    image and returns the pixels selected by the user.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    input_images : SimpleITK.Image
+        The CT volume to visualize.
+    level : int, optional
+        Logging level for this module's logger (default = logging.INFO).
+
+    RETURNS
+    -------
+    selected_pixels : np.ndarray
+        Unique (x, y, slice) coordinates of the pixels selected by the user.
+
+    NOTES
+    -----
+    - Remember to run `%matplotlib qt` beforehand so Matplotlib opens plots
+      in a separate interactive Qt window instead of inline in the notebook.
+    """
     global images, logger
 
     logger = configure_logger(level)  # Default to INFO level
@@ -577,19 +1052,33 @@ def open_window(input_images,level=logging.INFO):
     return np.unique(np.array(selected_pixels),axis=0)      #delete all redondant pixel due to multi-click from the user
 
 
+# =====================================================================
+# 22) lightweigth_open
+# =====================================================================
 def lightweigth_open(images):
-    ''' 
-    Lets you browse through an mhd stack using an interactive slider within the figure. 
-    When clicking somewhere in the picture, it will print the value and position of the pixel you selected.
-    The image is opened in another window in order to be interactive.
-    
-    Inputs: -numpy array !!!
+    """
+    ============================================================================
+    22) LIGHTWEIGTH_OPEN
+    Lets you browse through an mhd stack using an interactive slider within
+    the figure, without the full brush/rainbow/histogram tooling.
+    ============================================================================
 
-    Outputs: -none
+    PARAMETERS
+    ----------
+    images : SimpleITK.Image
+        The CT volume to visualize (converted internally to a NumPy array).
 
-    Other: -creates an interactive plot
-           - !!!!! you need %matplotlib qt !!!! in your code
-    '''
+    RETURNS
+    -------
+    None
+
+    NOTES
+    -----
+    - Opens the image in a separate interactive window.
+    - Requires `%matplotlib qt` to be set beforehand.
+    - When clicking somewhere in the picture, prints the value and position
+      of the selected pixel.
+    """
     global ax_image, slice, slice_slider
 
 
@@ -609,6 +1098,28 @@ def lightweigth_open(images):
     v_max = np.max(images)
 
     def greyvalue_at_coord_light(images, slice, x, y):
+        """
+        ============================================================================
+        GREYVALUE_AT_COORD_LIGHT
+        Reads the grey value of a given slice at the given pixel coordinates.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        images : np.ndarray
+            Image stack to read from.
+        slice : int
+            Slice index.
+        x : int or float
+            Column coordinate (rounded to nearest pixel).
+        y : int or float
+            Row coordinate (rounded to nearest pixel).
+
+        RETURNS
+        -------
+        grey : scalar or None
+            The pixel grey value if (x, y) is within bounds, otherwise None.
+        """
         numrows, numcols = images.shape[1], images.shape[2]
         col = int(x + 0.5)
         row = int(y + 0.5)
@@ -619,6 +1130,21 @@ def lightweigth_open(images):
             return None
 
     def onclick_light(event):
+        """
+        ============================================================================
+        ONCLICK_LIGHT
+        Prints the coordinates, slice, and pixel value at the click location.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        event : matplotlib event
+            The mouse button-press event.
+
+        RETURNS
+        -------
+        None
+        """
         global ax_image, images, slice_slider
         if event.inaxes == ax_image:
             x, y = event.xdata, event.ydata
@@ -626,7 +1152,7 @@ def lightweigth_open(images):
             grey = greyvalue_at_coord_light(images, slice, x, y)
             if grey is not None:
                 print(f"Clicked at coordinates: x={x}, y={y}, in slice {slice}, Pixel value: {grey}")
-    
+
     # Create a figure with gridspec
     fig, ax_image = plt.subplots(figsize=(14, 7))
 
@@ -643,6 +1169,22 @@ def lightweigth_open(images):
 
     # Update function
     def update_plot_light(val):
+        """
+        ============================================================================
+        UPDATE_PLOT_LIGHT
+        Redraws the lightweight image display for the current slice.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        val : float
+            The current slider value (unused directly; read again from
+            slice_slider.val).
+
+        RETURNS
+        -------
+        None
+        """
         global slice, slice_slider
         slice = int(slice_slider.val)  # Get the current value of the slider
         temp = images[slice]
@@ -657,7 +1199,25 @@ def lightweigth_open(images):
     fig.canvas.mpl_connect('button_press_event', onclick_light)
 
     plt.show()
-    
 
+
+# =====================================================================
+# 23) check_existence
+# =====================================================================
 def check_existence():
+    """
+    ============================================================================
+    23) CHECK_EXISTENCE
+    Prints the module version tag, used as a quick smoke test that the module
+    was imported correctly.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    None
+
+    RETURNS
+    -------
+    None
+    """
     print("you loaded the CT visualizer window v20.11.24")

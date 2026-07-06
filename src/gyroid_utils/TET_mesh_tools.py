@@ -7,54 +7,60 @@ from .logger import logger
 """
 #=====================================================================================================================
 0 - (reserved)
-1 - mesh_a_gyroid
+1 - mesh_an_STL
 2 - get_mesh_info
 #=====================================================================================================================
 """
 
 
 # =====================================================================
-# 1) mesh_a_gyroid
+# 1) mesh_an_STL
 # =====================================================================
-def mesh_an_STL(input_path:str, 
-                output_path:str, 
-                file_name:str, 
-                FtetWild_path:str = "C:\\Program Files\\fTetWild\\build\\Release\\FloatTetwild_bin.exe", 
-                stop_energy:float = 20.0, 
+def mesh_an_STL(input_path:str,
+                output_path:str,
+                file_name:str,
+                FtetWild_path:str = "C:\\Program Files\\fTetWild\\build\\Release\\FloatTetwild_bin.exe",
+                stop_energy:float = 20.0,
                 epsilon:float = 0.001,
                 CPU_cores:int = 1,
                 print_outputs:bool = False):
     """
     ============================================================================
-    1) mesh_a_gyroid: 
-    Mesh a gyroid model using fTetWild and convert the mesh to Abaqus format.
+    1) MESH_AN_STL
+    Meshes an STL model using fTetWild and converts the mesh to Abaqus format.
     ============================================================================
-    
+
     PARAMETERS
     ----------
-    input_path (str): 
-        path (folder) to the input STL file (without the .stl extension)
-    output_path (str): 
-        path (folder) to the output INP file (without the .inp extension)
-    file_name (str): 
-        base name used to locate the STL file and name the output files
-    FtetWild_path (str): = "C:\\Program Files\\fTetWild\\build\\Release\\FloatTetwild_bin.exe"
-        path to the fTetWild executable on your system. Adjust this if your fTetWild is located elsewhere.
-    stop_energy (float): = 20.0
-        controls when fTetWild stops optimizing the tetrahedral mesh quality.
-    epsilon (float): = 0.001
-        relative envelope size parameter in fTetWild, aka a multiplier of your model's bounding box diagonal length from whcih all tolerances are calculated
-        Smaller values lead to finer meshes but longer runtimes.
-    CPU_cores (int): = 1
-        number of CPU cores to use for meshing.
-    print_outputs (bool): = False
-        whether to print the outputs of the fTetWild meshing process to the console.
+    input_path : str
+        Path (folder) to the input STL file (without the .stl extension).
+    output_path : str
+        Path (folder) to the output INP file (without the .inp extension).
+    file_name : str
+        Base name used to locate the STL file and name the output files.
+    FtetWild_path : str, optional
+        Path to the fTetWild executable on your system. Adjust this if your
+        fTetWild is located elsewhere.
+        Default = "C:\\Program Files\\fTetWild\\build\\Release\\FloatTetwild_bin.exe".
+    stop_energy : float, optional
+        Controls when fTetWild stops optimizing the tetrahedral mesh quality
+        (default = 20.0).
+    epsilon : float, optional
+        Relative envelope size parameter in fTetWild, i.e. a multiplier of
+        your model's bounding box diagonal length from which all tolerances
+        are calculated. Smaller values lead to finer meshes but longer
+        runtimes. Default = 0.001.
+    CPU_cores : int, optional
+        Number of CPU cores to use for meshing (default = 1).
+    print_outputs : bool, optional
+        Whether to print the outputs of the fTetWild meshing process to the
+        console (default = False).
 
     RETURNS
     -------
     None (writes output files to disk)
     """
-    
+
     # define the path to ftetwild
     #ftetwild_exe = Path(
     #    r"C:\Program Files\fTetWild\build\Release\FloatTetwild_bin.exe") #the r is to avoid issues with backslashes in the path on Windows. Adjust this path if your fTetWild executable is located elsewhere.
@@ -71,7 +77,7 @@ def mesh_an_STL(input_path:str,
     cmd = [str(ftetwild_exe),
         "--input", str(input_stl),
         "--output", str(output_msh),
-        "--epsr", str(epsilon), 
+        "--epsr", str(epsilon),
         "--stop-energy", str(stop_energy),
         "--max-threads", str(CPU_cores)]
     if not print_outputs:
@@ -100,14 +106,26 @@ def mesh_an_STL(input_path:str,
 # =====================================================================
 
 def get_mesh_info(path_to_mesh:str):
+    """
+    ============================================================================
+    2) GET_MESH_INFO
+    Reads a tetrahedral mesh file and logs/returns basic size information.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    path_to_mesh : str
+        Path to the mesh file (any format supported by meshio, e.g. .inp, .msh).
+
+    RETURNS
+    -------
+    num_nodes : int
+        Number of nodes (points) in the mesh.
+    num_elements : int
+        Number of tetrahedral elements in the mesh.
+    """
     mesh = meshio.read(path_to_mesh)
     num_nodes = len(mesh.points)
     num_elements = len(mesh.cells_dict.get("tetra", []))
     logger.info(f"Mesh info for {path_to_mesh}: {num_nodes} nodes, {num_elements} tetrahedral elements.")
     return num_nodes, num_elements
-
-
-
-
-
-

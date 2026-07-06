@@ -10,7 +10,7 @@ import numpy as np
 0 - (reserved)
 1 - create_simulation
 2 - run_simulation
-3 - _wait_for_simulation_start   
+3 - _is_simulation_started
 4 - wait_for_simulation_completed
 #=====================================================================================================================
 """
@@ -18,42 +18,50 @@ import numpy as np
 # =====================================================================
 # 1) create_simulation
 # =====================================================================
-def create_simulation(input_path:str, 
-                      output_path:str, 
-                      file_name:str, 
+def create_simulation(input_path:str,
+                      output_path:str,
+                      file_name:str,
                       script_name:str = "generate_frequency_sim.py",
                       max_wait_time:int = 600) -> bool:
-    """ 
-    ===========================================================================
-    1) create_simulation
-    util function to create an Abaqus simulation by invoking the appropriate mesh file, output folder, and abaqus script. 
+    """
+    ============================================================================
+    1) CREATE_SIMULATION
+    Utility function to create an Abaqus simulation by invoking the appropriate
+    mesh file, output folder, and Abaqus script.
     ============================================================================
 
     PARAMETERS
     ----------
-    input_path (str): 
-        path to the folder containing the input mesh file (should be an inp file)
-    output_path (str): 
-        path to the folder where the simulation input file will be written (againas an inp file)
-    file_name (str): 
-        base name used to locate the input INP file and name the output files
-    script_name (str): = "generate_frequency_sim.py"
-        name of the Abaqus script to run (without .py extension). This script should be located in output_path 
-        and should be designed to read the mesh file specified by file_name and create the appropriate simulation input files. 
-        Adjust this if you have different scripts for different simulation types.
+    input_path : str
+        Path to the folder containing the input mesh file (should be an inp file).
+    output_path : str
+        Path to the folder where the simulation input file will be written
+        (again as an inp file).
+    file_name : str
+        Base name used to locate the input INP file and name the output files.
+    script_name : str, optional
+        Name of the Abaqus script to run (without .py extension). This script
+        should be located in output_path and should be designed to read the
+        mesh file specified by file_name and create the appropriate simulation
+        input files. Adjust this if you have different scripts for different
+        simulation types. Default = "generate_frequency_sim.py".
+    max_wait_time : int, optional
+        Maximum time to wait for simulation creation, in seconds (default = 600).
 
     RETURNS
     -------
-    bool : True if the inp file was created successfully, False otherwise.
-    (and writes output files to disk)
+    success : bool
+        True if the inp file was created successfully, False otherwise
+        (also writes output files to disk).
 
-    NECESSARY !!!!
-        !!!!! the python script to create the simulation must be located in output_path !!!!!
-
-    Behavior:
-        - runs Abaqus in noGUI mode to execute the chosen script in that folder
-        - waits for the external script to write a log file 'generate_sim_logger.txt' and
-            polls that file until a 'Simulation created successfully' message is found in its last line
+    NOTES
+    -----
+    - The Python script used to create the simulation must be located in
+      output_path.
+    - Behavior: runs Abaqus in noGUI mode to execute the chosen script in that
+      folder, then waits for the external script to write a log file
+      'generate_sim_logger.txt' and polls that file until a
+      'Simulation created successfully' message is found in its last line.
     """
     # Compose path to the input .inp (kept for compatibility with other code)
     input_inp = Path(input_path + file_name + '.inp')
@@ -70,10 +78,10 @@ def create_simulation(input_path:str,
 
     # --- run abaqus headless from that folder ---
     # Running with `cwd=str(script_folder)` ensures Abaqus starts in the folder containing temp_file.txt
-    cmd = ["abaqus", "cae", 
+    cmd = ["abaqus", "cae",
            "noGUI=" + script_name,
            "--", "input=" + file_name]  # pass the file name as an argument to the script
-    
+
     subprocess.run(cmd, check=True, cwd=str(script_folder), shell=True)
 
     # --- wait for external script to signal completion ---
@@ -105,9 +113,9 @@ def create_simulation(input_path:str,
             time.sleep(10)
     # --- delete temporary file (best-effort) ---
     # Use missing_ok=True so we don't raise if the file was removed elsewhere
-    #temp_path.unlink(missing_ok=True)  
+    #temp_path.unlink(missing_ok=True)
     temp_path = script_folder / "abaqus.rpy"
-    temp_path.unlink(missing_ok=True)  
+    temp_path.unlink(missing_ok=True)
     return True
 
 
@@ -115,29 +123,36 @@ def create_simulation(input_path:str,
 # 2) run_simulation
 # =====================================================================
 
-def run_simulation(input_path, 
-                   output_path, 
+def run_simulation(input_path,
+                   output_path,
                    file_name,
                    max_wait_time=600) -> bool:
     """
-    ===========================================================================
-    2) run_simulation
-    util function to run an Abaqus simulation by invoking the appropriate input file, and output folder. 
-    It waits for the simulation to start by polling for the ODB file, then returns.
+    ============================================================================
+    2) RUN_SIMULATION
+    Utility function to run an Abaqus simulation by invoking the appropriate
+    input file and output folder. It waits for the simulation to start by
+    polling for the ODB file, then returns.
     ============================================================================
 
     PARAMETERS
     ----------
-    input_path (str): 
-        path to the folder containing the input INP file (kept for interface compatibility)
-    output_path (str): 
-        path to the folder where the simulation will be run and where output files will be written
-    file_name (str): 
-        base name used to locate the input INP file and name the output files
+    input_path : str
+        Path to the folder containing the input INP file (kept for interface
+        compatibility).
+    output_path : str
+        Path to the folder where the simulation will be run and where output
+        files will be written.
+    file_name : str
+        Base name used to locate the input INP file and name the output files.
+    max_wait_time : int, optional
+        Maximum time to wait for the simulation to start, in seconds
+        (default = 600).
 
     RETURNS
     -------
-    True if no error, False otherwise.
+    success : bool
+        True if no error, False otherwise.
     """
     src = Path(input_path) / ("Job-" + file_name + ".inp")
     dst = Path(output_path) / ("Job-" + file_name + ".inp")
@@ -160,16 +175,37 @@ def run_simulation(input_path,
     if not is_started:
         logger.warning(f"Simulation did not start properly for {file_name}")
         return False
-    dst.unlink(missing_ok=True)  
+    dst.unlink(missing_ok=True)
     return True
 
 # =====================================================================
-# 3) _wait_for_simulation_start
+# 3) _is_simulation_started
 # =====================================================================
 def _is_simulation_started(ODB_path, file_name, max_wait_time=300)->bool:
-    """Wait for the simulation to start by polling the ODB folder for the .odb file."""
+    """
+    ============================================================================
+    3) _IS_SIMULATION_STARTED
+    Waits for the simulation to start by polling the ODB folder for the .odb
+    file.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    ODB_path : str
+        Path to the folder where the ODB file is expected to appear.
+    file_name : str
+        Base name used to build the expected ODB file name.
+    max_wait_time : int, optional
+        Maximum time to wait for the ODB file to appear, in seconds
+        (default = 300).
+
+    RETURNS
+    -------
+    started : bool
+        True if the ODB file was found within max_wait_time, False otherwise.
+    """
     odb_file = Path(ODB_path) / ("Job-" + file_name + ".odb")
-    start_time = time.time()    
+    start_time = time.time()
     while not odb_file.exists():
         logger.info("Simulation not started yet, waiting...")
         time.sleep(30)  # wait before checking again
@@ -183,28 +219,30 @@ def _is_simulation_started(ODB_path, file_name, max_wait_time=300)->bool:
 # =====================================================================
 # 4) wait_for_simulation_completed
 # =====================================================================
-def wait_for_simulation_completed(ODB_path:str, 
-                                  file_name:str, 
+def wait_for_simulation_completed(ODB_path:str,
+                                  file_name:str,
                                   max_wait_time:int=300) -> bool:
     """
-    ===========================================================================
-    4) wait_for_simulation_completed
-    util function to wait for an Abaqus simulation to complete by polling the log file 
-    for specific key words indicating completion or abortion.
+    ============================================================================
+    4) WAIT_FOR_SIMULATION_COMPLETED
+    Utility function to wait for an Abaqus simulation to complete by polling
+    the log file for specific key words indicating completion or abortion.
     ============================================================================
 
     PARAMETERS
     ----------
-    ODB_path (str): 
-        path to the folder containing the ODB file (output of Abaqus simulation)
-    file_name (str): 
-        base name used to locate the log file
-    max_wait_time (int):
-        maximum time to wait for simulation completion in seconds (default: 300 seconds = 5 minutes)
+    ODB_path : str
+        Path to the folder containing the ODB file (output of Abaqus simulation).
+    file_name : str
+        Base name used to locate the log file.
+    max_wait_time : int, optional
+        Maximum time to wait for simulation completion, in seconds
+        (default = 300, i.e. 5 minutes).
 
     RETURNS
     -------
-    True if no error, False otherwise.
+    success : bool
+        True if no error, False otherwise.
     """
     log_file = Path(ODB_path) / ("Job-" + file_name + ".log")
     simulation_finished = False

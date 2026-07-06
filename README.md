@@ -33,6 +33,7 @@ note that it was originaly designed for creating gyroid, but not limited to them
 
 Scripts related to this use case:
 - **gyroid.py**: Main GyroidModel class and convenience functions
+- **SchwartzP.py**: Main SchwartzPModel class and convenience functions (same API as GyroidModel, for Schwartz P surfaces)
 - **mesh_tools.py**: Mesh processing functions (simplification, smoothing, fixing, validation, export)
 - **io_ops.py**: Input/output operations (STL loading/saving, .npz archives)
 - **viz.py**: Visualization tools (HTML previews, histograms, 2D matrix views)
@@ -68,6 +69,8 @@ Example notebooks for this use case:
 ## library tools and configuration
 Other scripts exist for configuring this library and some usefull functions
 - **logger.py**: Logging configuration
+- **config.py**: Shared constants and default tolerances used across the library
+- **utils.py**: Low-level helpers (e.g. `reload_all()` for interactive development)
 
 
 # FEATURES
@@ -131,7 +134,7 @@ x, y, z = np.meshgrid(np.linspace(0,1,64),
 model = GyroidModel(x, y, z, px=1.0, py=1.0, pz=1.0, thickness=0.2)
 
 # Build scalar field (choose 'abs', 'signed', or 'distance')
-model.compute_field(mode='distance', spacing=(1.0, 1.0, 1.0))
+model.compute_field(mode='distance')
 
 # Generate mesh from isosurface
 verts, faces = model.generate_mesh()
@@ -179,5 +182,8 @@ Control logging verbosity:
 import gyroid_utils
 gyroid_utils.set_log_level("DEBUG")  # or "INFO", "WARNING", "ERROR", "CRITICAL"
 ```
+
+# License
+This project is licensed under EMPA. See the `license` field in `pyproject.toml`.
 
 

@@ -6,33 +6,72 @@ from . import io_ops, mesh_tools, viz
 from .logger import logger
 
 
+"""
+#=====================================================================================================================
+0 - (reserved)
+1 - SchwartzPModel (class)
+2 - SchwartzPModel.__init__
+3 - SchwartzPModel._validate_inputs
+4 - SchwartzPModel.compute_field
+5 - SchwartzPModel.save
+6 - SchwartzPModel.load
+7 - SchwartzPModel.generate_mesh
+8 - SchwartzPModel.simplify_mesh
+9 - SchwartzPModel.export_stl
+10 - SchwartzPModel.save_mesh_preview
+11 - SchwartzPModel.check_mesh_quality
+12 - SchwartzPModel.keep_largest_connected_component
+13 - SchwartzPModel.add_baseplates
+14 - SchwartzPModel.fix_mesh
+15 - SchwartzPModel.smooth_mesh
+16 - create_a_schwartz_p
+#=====================================================================================================================
+"""
+
+
+# =====================================================================
+# 1) SchwartzPModel
+# =====================================================================
 class SchwartzPModel:
     """
+    ============================================================================
+    1) SCHWARTZPMODEL
     Represents a Schwartz P (Primitive) TPMS scalar field defined on a 3D grid.
+    ============================================================================
 
-    The Schwartz P surface is one of the simplest triply-periodic minimal surfaces.
-    Its implicit equation is:
+    PARAMETERS
+    ----------
+    x, y, z : np.ndarray
+        Numpy arrays of identical shape describing coordinates for the field.
+    px, py, pz : float or np.ndarray
+        Periods (mm). Each may be a scalar (most common) or an array with the
+        same shape as x/y/z (for per-voxel period variations).
+    thickness : float or np.ndarray
+        Scalar or array (shape identical to x/y/z) controlling the isosurface
+        threshold.
 
-        F(x, y, z) = cos(2π/px · x) + cos(2π/py · y) + cos(2π/pz · z) = 0
+    NOTES
+    -----
+    - The Schwartz P surface is one of the simplest triply-periodic minimal
+      surfaces. Its implicit equation is:
 
-    The field amplitude range is [-3, +3] (each cosine term spans [-1, 1]).
-    Because of its cubic symmetry and mirror symmetry (unlike the gyroid), it
-    is easy to tile and has well-characterised mechanical properties.
+          F(x, y, z) = cos(2π/px · x) + cos(2π/py · y) + cos(2π/pz · z) = 0
 
-    Expected inputs:
-    - x, y, z: numpy arrays of identical shape describing coordinates for the field.
-    - px, py, pz: periods (mm). Each may be a scalar (most common) or an array with the
-      same shape as x/y/z (for per-voxel period variations).
-    - thickness: scalar or array (shape identical to x/y/z) controlling the isosurface threshold.
+      The field amplitude range is [-3, +3] (each cosine term spans [-1, 1]).
+      Because of its cubic symmetry and mirror symmetry (unlike the gyroid),
+      it is easy to tile and has well-characterised mechanical properties.
+    - `load` is a classmethod that loads saved parameters and field from disk.
 
-    Usage:
-        model = SchwartzPModel(x, y, z, px, py, pz, thickness)
-        field = model.compute_field()
-
-    Classmethods:
-    - load: load saved parameters and field from disk. Usage: SchwartzPModel.load(infile)
+    EXAMPLE
+    -------
+    >>> model = SchwartzPModel(x, y, z, px, py, pz, thickness)
+    >>> field = model.compute_field()
+    >>> model = SchwartzPModel.load("gyroid_data.npz")
     """
 
+    # =====================================================================
+    # 2) __init__
+    # =====================================================================
     def __init__(
         self,
         x: np.ndarray,                              # x,y,z coordinates of the grid. 3D arrays of identical shape.
@@ -43,6 +82,25 @@ class SchwartzPModel:
         pz: Union[float, np.ndarray],
         thickness: Union[float, np.ndarray],        # thickness parameter. Scalar or array matching x/y/z shape.
         ):
+        """
+        ============================================================================
+        2) __INIT__
+        Initializes a SchwartzPModel from coordinate grids and surface parameters.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        x, y, z : np.ndarray
+            3D coordinate arrays of identical shape.
+        px, py, pz : float or np.ndarray
+            Periods in x, y, z directions. Scalars or arrays matching x/y/z shape.
+        thickness : float or np.ndarray
+            Thickness parameter. Scalar or array matching x/y/z shape.
+
+        RETURNS
+        -------
+        None
+        """
 
         # --- needed data to create the object ---
         # Coordinate grids and parameters
@@ -64,9 +122,27 @@ class SchwartzPModel:
 
         self._validate_inputs()
 
+    # =====================================================================
+    # 3) _validate_inputs
+    # =====================================================================
     def _validate_inputs(self):
         """
-        Validate shapes/types of inputs.
+        ============================================================================
+        3) _VALIDATE_INPUTS
+        Validates shapes/types of inputs.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        None (operates on self.x, self.y, self.z, self.px, self.py, self.pz,
+        self.thickness)
+
+        RETURNS
+        -------
+        None
+
+        NOTES
+        -----
         - x, y, z must be numpy arrays of identical shape.
         - px/py/pz and thickness may be scalars or arrays that match x.shape.
         """
@@ -90,24 +166,46 @@ class SchwartzPModel:
         _check_param("pz", self.pz)
         _check_param("thickness", self.thickness)
 
+    # =====================================================================
+    # 4) compute_field
+    # =====================================================================
     def compute_field(self,
                       mode: str = "abs") -> np.ndarray:
         """
-        Compute the gyroid scalar field.
+        ============================================================================
+        4) COMPUTE_FIELD
+        Computes the Schwartz P scalar field.
+        ============================================================================
 
-        mode:
-          - "abs" (default): original behavior -> v = thickness - |term|
-            (useful for value-space wall thresholding; thickness here is in term units)
-          - "signed": standard level-set -> v = term - level  (signed field)
-          - "distance": produce a signed-distance-derived thickness field:
+        PARAMETERS
+        ----------
+        mode : str, optional
+            - "abs" (default): original behavior -> v = thickness - |term|
+              (useful for value-space wall thresholding; thickness here is in
+              term units).
+            - "signed": standard level-set -> v = term - level (signed field).
+            - "distance": produce a signed-distance-derived thickness field:
                 1) binary = term > level
                 2) compute signed distance (uses spacing)
-                3) if physical_thickness provided (scalar or array matching grid), v = physical_thickness/2 - |signed_dist|
-                   (positive inside the desired wall band)
+                3) if physical_thickness provided (scalar or array matching
+                   grid), v = physical_thickness/2 - |signed_dist| (positive
+                   inside the desired wall band)
 
-        spacing: voxel spacing used when computing distance transform (only for mode="distance").
-        physical_thickness: desired wall thickness in spatial units (only used for "distance" mode).
-                            May be a scalar or an ndarray with the same shape as x/y/z.
+        RETURNS
+        -------
+        v : np.ndarray
+            The computed scalar field (also stored in self.v).
+
+        NOTES
+        -----
+        - term: F = cos(2π/px·x) + cos(2π/py·y) + cos(2π/pz·z), with amplitude
+          range [-3, +3] (three cosine terms each in [-1, 1]). The
+          zero-isosurface of F is the true Schwartz P minimal surface.
+        - spacing: voxel spacing used when computing distance transform (only
+          for mode="distance").
+        - physical_thickness: desired wall thickness in spatial units (only
+          used for "distance" mode). May be a scalar or an ndarray with the
+          same shape as x/y/z.
         """
         # Schwartz P field: F = cos(2π/px·x) + cos(2π/py·y) + cos(2π/pz·z)
         # Amplitude range: [-3, +3]  (three cosine terms each in [-1, 1]).
@@ -126,7 +224,7 @@ class SchwartzPModel:
 
         if mode == "signed":
             # signed level-set relative to provided level (C)
-            logger.info(f"Computing signed field")    
+            logger.info(f"Computing signed field")
             self.v = term - self.thickness
             return self.v
 
@@ -177,9 +275,25 @@ class SchwartzPModel:
         raise ValueError("mode must be one of: 'abs', 'signed', 'distance', 'distance_fast'.\n"
                          "Note: for Schwartz P the field range is [-3, +3]; adjust thickness accordingly.")
 
+    # =====================================================================
+    # 5) save
+    # =====================================================================
     def save(self, outfile: str) -> None:
         """
-        Persist gyroid parameters and the computed field to disk using the package I/O helper.
+        ============================================================================
+        5) SAVE
+        Persists gyroid parameters and the computed field to disk using the
+        package I/O helper.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        outfile : str
+            Path to the output .npz file.
+
+        RETURNS
+        -------
+        None
         """
         if self.v is None:
             raise RuntimeError("Gyroid field has not been computed yet (call compute_field).")
@@ -196,10 +310,32 @@ class SchwartzPModel:
             gyroid_field=self.v,
         )
 
+    # =====================================================================
+    # 6) load
+    # =====================================================================
     @classmethod
     def load(cls, infile: str) -> "SchwartzPModel":
         """
-        Load saved gyroid matrices and return a GyroidModel instance.
+        ============================================================================
+        6) LOAD
+        Loads saved gyroid matrices and returns a SchwartzPModel instance.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        infile : str
+            Path to the input .npz file.
+
+        RETURNS
+        -------
+        model : SchwartzPModel
+            A SchwartzPModel populated with the saved coordinates, parameters,
+            and field. Mesh data (verts/faces) is not stored on disk and is
+            reset to None.
+
+        EXAMPLE
+        -------
+        >>> model = SchwartzPModel.load("gyroid_data.npz")
         """
         x, y, z, px, py, pz, t, v = io_ops.load_gyroid_matrices(infile)
         obj = cls.__new__(cls)
@@ -214,6 +350,9 @@ class SchwartzPModel:
         obj.faces = None
         return obj
 
+    # =====================================================================
+    # 7) generate_mesh
+    # =====================================================================
     def generate_mesh(
         self,
         iso_level: float = 0.0,
@@ -221,8 +360,27 @@ class SchwartzPModel:
         pad_width: int = 5,
         pad_val: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Generate a triangular surface mesh from the scalar field using the mesh_tools helper.
-        Returns (verts, faces).
+        ============================================================================
+        7) GENERATE_MESH
+        Generates a triangular surface mesh from the scalar field using the
+        mesh_tools helper.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        iso_level : float, optional
+            Isosurface level (default = 0.0).
+        algo_step_size : int, optional
+            Marching cubes step size (default = 3).
+        pad_width : int, optional
+            Number of voxels to pad on each face of the volume (default = 5).
+        pad_val : float, optional
+            Constant padding value (default = 0.0).
+
+        RETURNS
+        -------
+        verts, faces : (np.ndarray, np.ndarray)
+            The generated vertices and faces (also stored on self).
         """
         if self.v is None:
             logger.error("Gyroid field has not been computed yet. Call compute_field() before generate_mesh().")
@@ -242,10 +400,29 @@ class SchwartzPModel:
         logger.info(f"Generated mesh with {len(self.faces)} faces")
         return self.verts, self.faces
 
+    # =====================================================================
+    # 8) simplify_mesh
+    # =====================================================================
     def simplify_mesh(self, target_faces: int = 10000, mode: str = "normal"):
         """
-        Simplify and clean the current mesh, returning (verts, faces).
-        This uses the mesh_tools simplification and connected-component filtering helpers.
+        ============================================================================
+        8) SIMPLIFY_MESH
+        Simplifies and cleans the current mesh, returning (verts, faces).
+        Uses the mesh_tools simplification and connected-component filtering
+        helpers.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        target_faces : int, optional
+            Target number of faces to keep (default = 10000).
+        mode : str, optional
+            "normal" (default) or "fast".
+
+        RETURNS
+        -------
+        verts, faces : (np.ndarray, np.ndarray)
+            The simplified vertices and faces (also stored on self).
         """
         if self.verts is None or self.faces is None:
             logger.error("Mesh has not been generated yet.")
@@ -262,9 +439,24 @@ class SchwartzPModel:
         logger.info(f"Mesh simplified to {len(self.faces)} faces")
         return
 
+    # =====================================================================
+    # 9) export_stl
+    # =====================================================================
     def export_stl(self, filepath: str) -> None:
         """
-        Export the current mesh as an STL file.
+        ============================================================================
+        9) EXPORT_STL
+        Exports the current mesh as an STL file.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        filepath : str
+            Output path (without extension); ".stl" is appended.
+
+        RETURNS
+        -------
+        None
         """
         if self.verts is None or self.faces is None:
             logger.error("Mesh has not been generated yet.")
@@ -273,9 +465,26 @@ class SchwartzPModel:
         mesh_tools.export_as_STL(self.verts, self.faces, filepath+'.stl')
         logger.info(f"STL exported to: {filepath}.stl")
 
+    # =====================================================================
+    # 10) save_mesh_preview
+    # =====================================================================
     def save_mesh_preview(self, html_path: str, show_normal_colorscale: bool = True) -> None:
         """
-        Save an interactive HTML preview of the mesh (via viz helper).
+        ============================================================================
+        10) SAVE_MESH_PREVIEW
+        Saves an interactive HTML preview of the mesh (via viz helper).
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        html_path : str
+            Output HTML file path (without extension).
+        show_normal_colorscale : bool, optional
+            If True (default), colors faces based on normal vectors.
+
+        RETURNS
+        -------
+        None
         """
         if self.verts is None or self.faces is None:
             logger.error("Mesh has not been generated yet.")
@@ -284,9 +493,26 @@ class SchwartzPModel:
         viz.save_mesh_as_html(self.faces, self.verts, html_path, show_normal_colorscale=show_normal_colorscale)
 
 
+    # =====================================================================
+    # 11) check_mesh_quality
+    # =====================================================================
     def check_mesh_quality(self) -> bool:
         """
-        Check mesh validity and return a boolean indicating if the mesh is valid.   
+        ============================================================================
+        11) CHECK_MESH_QUALITY
+        Checks mesh validity and returns a boolean indicating if the mesh is
+        valid.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        None
+
+        RETURNS
+        -------
+        is_valid : bool
+            True if the mesh is watertight, winding-consistent, and not
+            self-intersecting.
         """
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
@@ -296,26 +522,55 @@ class SchwartzPModel:
         info = mesh_tools.check_mesh_validity(self.verts, self.faces)
         if info["watertight"] and info["winding_consistent"] and not info["self_intersecting"]:
             validty = True
-        else:            
+        else:
             validty = False
         return validty
-    
 
+
+    # =====================================================================
+    # 12) keep_largest_connected_component
+    # =====================================================================
     def keep_largest_connected_component(self) :
         """
+        ============================================================================
+        12) KEEP_LARGEST_CONNECTED_COMPONENT
         Convenience wrapper to the mesh_tools function.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        None
+
+        RETURNS
+        -------
+        None
         """
         self.verts, self.faces = mesh_tools.keep_largest_connected_component(self.verts, self.faces)
-    
 
+
+    # =====================================================================
+    # 13) add_baseplates
+    # =====================================================================
     def add_baseplates(
             self,
             thickness: float = 5.0,
         ) -> None:
         """
-        Add solid baseplates on the two ends of the z-axis with given physical
+        ============================================================================
+        13) ADD_BASEPLATES
+        Adds solid baseplates on the two ends of the z-axis with given physical
         thickness (same units as self.z). The method preserves the 3D shape of
         self.v and sets voxels inside the baseplate regions to 1.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        thickness : float, optional
+            Baseplate thickness in the same units as self.z (default = 5.0).
+
+        RETURNS
+        -------
+        None
         """
         if self.v is None:
             raise RuntimeError("Field not computed: call compute_field() before add_baseplates().")
@@ -346,18 +601,47 @@ class SchwartzPModel:
 
         logger.info(f"Added baseplates of thickness {thickness} units ({N} z-slices).")
 
+    # =====================================================================
+    # 14) fix_mesh
+    # =====================================================================
     def fix_mesh(self):
         """
+        ============================================================================
+        14) FIX_MESH
         Convenience wrapper to the mesh_tools fix_mesh function.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        None
+
+        RETURNS
+        -------
+        None
         """
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
 
         self.verts, self.faces = mesh_tools.fix_mesh(self.verts, self.faces)
-    
+
+    # =====================================================================
+    # 15) smooth_mesh
+    # =====================================================================
     def smooth_mesh(self, smoothing_factor: float = 0.5):
         """
+        ============================================================================
+        15) SMOOTH_MESH
         Convenience wrapper to the mesh_tools.smooth_mesh function.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        smoothing_factor : float, optional
+            Taubin smoothing lambda parameter (default = 0.5).
+
+        RETURNS
+        -------
+        None
         """
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
@@ -365,11 +649,9 @@ class SchwartzPModel:
         self.verts, self.faces = mesh_tools.smooth_mesh(self.verts, self.faces, smoothing_factor=smoothing_factor)
 
 
-
-
-
-
-
+# =====================================================================
+# 16) create_a_schwartz_p
+# =====================================================================
 def create_a_schwartz_p(x:np.ndarray,
                         y:np.ndarray,
                         z:np.ndarray,
@@ -383,21 +665,40 @@ def create_a_schwartz_p(x:np.ndarray,
                         simplification_factor=0.9,
                         field_mode:str = "distance"):
     """
+    ============================================================================
+    16) CREATE_A_SCHWARTZ_P
     Convenience function to create a Schwartz P model, compute the field,
     generate and simplify the mesh, and save results.
+    ============================================================================
 
-    Parameters:
-        x, y, z: coordinate grids (3D arrays of identical shape)
-        px, py, pz: periods in mm (scalars or arrays matching x/y/z shape)
-        t: thickness parameter (scalar or array matching x/y/z shape).
-           In 'distance' mode this is a physical wall thickness in mm.
-           In 'abs' mode this is a dimensionless threshold on |F| (range 0–3).
-        baseplate_thickness: thickness of the baseplates to add at ±Z (same units as z). 0 = none.
-        save_path: base path for saving the .stl mesh and HTML preview (without extension)
-        step_size: marching cubes step size (higher = faster but less detailed mesh)
-        simplification_factor: target fraction of faces to keep during simplification
-                (0.5 = keep 50% of faces) or target number of faces if >1 (e.g. 10000)
-        field_mode: one of 'distance' (recommended), 'abs', or 'signed'
+    PARAMETERS
+    ----------
+    x, y, z : np.ndarray
+        Coordinate grids (3D arrays of identical shape).
+    px, py, pz : np.ndarray
+        Periods in mm (scalars or arrays matching x/y/z shape).
+    t : np.ndarray
+        Thickness parameter (scalar or array matching x/y/z shape). In
+        'distance' mode this is a physical wall thickness in mm. In 'abs'
+        mode this is a dimensionless threshold on |F| (range 0-3).
+    save_path : str
+        Base path for saving the .stl mesh and HTML preview (without extension).
+    baseplate_thickness : float, optional
+        Thickness of the baseplates to add at ±Z (same units as z). 0 = none
+        (default).
+    step_size : int, optional
+        Marching cubes step size (higher = faster but less detailed mesh,
+        default = 2).
+    simplification_factor : float, optional
+        Target fraction of faces to keep during simplification (0.5 = keep
+        50% of faces), or target number of faces if >1 (e.g. 10000). Default = 0.9.
+    field_mode : str, optional
+        One of 'distance' (recommended, default), 'abs', or 'signed'.
+
+    RETURNS
+    -------
+    success : bool
+        True if a valid mesh was generated and exported, False otherwise.
     """
     # Instantiate the Schwartz P model and compute the scalar field
     model_dist = SchwartzPModel(x, y, z, px, py, pz, t)

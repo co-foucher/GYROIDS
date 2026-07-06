@@ -6,26 +6,67 @@ from . import io_ops, mesh_tools, viz
 from .logger import logger
 
 
+"""
+#=====================================================================================================================
+0 - (reserved)
+1 - GyroidModel (class)
+2 - GyroidModel.__init__
+3 - GyroidModel._validate_inputs
+4 - GyroidModel.compute_field
+5 - GyroidModel.save
+6 - GyroidModel.load
+7 - GyroidModel.generate_mesh
+8 - GyroidModel.simplify_mesh
+9 - GyroidModel.export_stl
+10 - GyroidModel.save_mesh_preview
+11 - GyroidModel.check_mesh_quality
+12 - GyroidModel.keep_largest_connected_component
+13 - GyroidModel.add_baseplates
+14 - GyroidModel.fix_mesh
+15 - GyroidModel.smooth_mesh
+16 - create_a_gyroid
+#=====================================================================================================================
+"""
+
+
+# =====================================================================
+# 1) GyroidModel
+# =====================================================================
 class GyroidModel:
     """
+    ============================================================================
+    1) GYROIDMODEL
     Represents a gyroid scalar field defined on a 3D grid and provides helpers
     to compute the field, generate/simplify a mesh, export results and run
     simple checks/visualizations.
+    ============================================================================
 
-    Expected inputs:
-    - x, y, z: numpy arrays of identical shape describing coordinates for the field.
-    - px, py, pz: periods. Each may be a scalar (most common) or an array with the
-      same shape as x/y/z (for per-voxel period variations).
-    - thickness: scalar or array (shape identical to x/y/z) controlling the isosurface threshold.
+    PARAMETERS
+    ----------
+    x, y, z : np.ndarray
+        Numpy arrays of identical shape describing coordinates for the field.
+    px, py, pz : float or np.ndarray
+        Periods. Each may be a scalar (most common) or an array with the
+        same shape as x/y/z (for per-voxel period variations).
+    thickness : float or np.ndarray
+        Scalar or array (shape identical to x/y/z) controlling the isosurface
+        threshold.
 
-    usage:
-        model = GyroidModel(x, y, z, px, py, pz, thickness)
-        field = model.compute_field() 
+    NOTES
+    -----
+    - `load` is a classmethod that loads saved gyroid parameters and field
+      from disk.
 
-    classmethods:
-    - load: load saved gyroid parameters and field from disk. usgae: GyroidModel.load(infile)
+    EXAMPLE
+    -------
+    >>> model = GyroidModel(x, y, z, px, py, pz, thickness)
+    >>> field = model.compute_field()
+    >>> model = GyroidModel.load("gyroid_data.npz")
     """
 
+    # =====================================================================
+    # 2) __init__
+    # =====================================================================
     def __init__(
         self,
         x: np.ndarray,                              # x,y,z coordinates of the grid. 3D arrays of identical shape.
@@ -36,6 +77,25 @@ class GyroidModel:
         pz: Union[float, np.ndarray],
         thickness: Union[float, np.ndarray],        # thickness parameter. Scalar or array matching x/y/z shape.
         ):
+        """
+        ============================================================================
+        2) __INIT__
+        Initializes a GyroidModel from coordinate grids and gyroid parameters.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        x, y, z : np.ndarray
+            3D coordinate arrays of identical shape.
+        px, py, pz : float or np.ndarray
+            Periods in x, y, z directions. Scalars or arrays matching x/y/z shape.
+        thickness : float or np.ndarray
+            Thickness parameter. Scalar or array matching x/y/z shape.
+
+        RETURNS
+        -------
+        None
+        """
 
         # --- needed data to create the object ---
         # Coordinate grids and parameters
@@ -57,9 +117,27 @@ class GyroidModel:
 
         self._validate_inputs()
 
+    # =====================================================================
+    # 3) _validate_inputs
+    # =====================================================================
     def _validate_inputs(self):
         """
-        Validate shapes/types of inputs.
+        ============================================================================
+        3) _VALIDATE_INPUTS
+        Validates shapes/types of inputs.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        None (operates on self.x, self.y, self.z, self.px, self.py, self.pz,
+        self.thickness)
+
+        RETURNS
+        -------
+        None
+
+        NOTES
+        -----
         - x, y, z must be numpy arrays of identical shape.
         - px/py/pz and thickness may be scalars or arrays that match x.shape.
         """
@@ -83,24 +161,43 @@ class GyroidModel:
         _check_param("pz", self.pz)
         _check_param("thickness", self.thickness)
 
+    # =====================================================================
+    # 4) compute_field
+    # =====================================================================
     def compute_field(self,
                       mode: str = "abs") -> np.ndarray:
         """
-        Compute the gyroid scalar field.
+        ============================================================================
+        4) COMPUTE_FIELD
+        Computes the gyroid scalar field.
+        ============================================================================
 
-        mode:
-          - "abs" (default): original behavior -> v = thickness - |term|
-            (useful for value-space wall thresholding; thickness here is in term units)
-          - "signed": standard level-set -> v = term - level  (signed field)
-          - "distance": produce a signed-distance-derived thickness field:
+        PARAMETERS
+        ----------
+        mode : str, optional
+            - "abs" (default): original behavior -> v = thickness - |term|
+              (useful for value-space wall thresholding; thickness here is in
+              term units).
+            - "signed": standard level-set -> v = term - level (signed field).
+            - "distance": produce a signed-distance-derived thickness field:
                 1) binary = term > level
                 2) compute signed distance (uses spacing)
-                3) if physical_thickness provided (scalar or array matching grid), v = physical_thickness/2 - |signed_dist|
-                   (positive inside the desired wall band)
+                3) if physical_thickness provided (scalar or array matching
+                   grid), v = physical_thickness/2 - |signed_dist| (positive
+                   inside the desired wall band)
 
-        spacing: voxel spacing used when computing distance transform (only for mode="distance").
-        physical_thickness: desired wall thickness in spatial units (only used for "distance" mode).
-                            May be a scalar or an ndarray with the same shape as x/y/z.
+        RETURNS
+        -------
+        v : np.ndarray
+            The computed scalar field (also stored in self.v).
+
+        NOTES
+        -----
+        - spacing: voxel spacing used when computing distance transform (only
+          for mode="distance").
+        - physical_thickness: desired wall thickness in spatial units (only
+          used for "distance" mode). May be a scalar or an ndarray with the
+          same shape as x/y/z.
         """
         term = (
             np.sin((2 * np.pi / self.px) * self.x) * np.cos((2 * np.pi / self.py) * self.y)
@@ -116,7 +213,7 @@ class GyroidModel:
 
         if mode == "signed":
             # signed level-set relative to provided level (C)
-            logger.info(f"Computing signed field")    
+            logger.info(f"Computing signed field")
             self.v = term - self.thickness
             return self.v
 
@@ -166,9 +263,25 @@ class GyroidModel:
 
         raise ValueError("mode must be one of: 'abs', 'signed', 'distance', 'distance_fast'")
 
+    # =====================================================================
+    # 5) save
+    # =====================================================================
     def save(self, outfile: str) -> None:
         """
-        Persist gyroid parameters and the computed field to disk using the package I/O helper.
+        ============================================================================
+        5) SAVE
+        Persists gyroid parameters and the computed field to disk using the
+        package I/O helper.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        outfile : str
+            Path to the output .npz file.
+
+        RETURNS
+        -------
+        None
         """
         if self.v is None:
             raise RuntimeError("Gyroid field has not been computed yet (call compute_field).")
@@ -185,10 +298,32 @@ class GyroidModel:
             gyroid_field=self.v,
         )
 
+    # =====================================================================
+    # 6) load
+    # =====================================================================
     @classmethod
     def load(cls, infile: str) -> "GyroidModel":
         """
-        Load saved gyroid matrices and return a GyroidModel instance.
+        ============================================================================
+        6) LOAD
+        Loads saved gyroid matrices and returns a GyroidModel instance.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        infile : str
+            Path to the input .npz file.
+
+        RETURNS
+        -------
+        model : GyroidModel
+            A GyroidModel populated with the saved coordinates, parameters,
+            and field. Mesh data (verts/faces) is not stored on disk and is
+            reset to None.
+
+        EXAMPLE
+        -------
+        >>> model = GyroidModel.load("gyroid_data.npz")
         """
         x, y, z, px, py, pz, t, v = io_ops.load_gyroid_matrices(infile)
         obj = cls.__new__(cls)
@@ -203,6 +338,9 @@ class GyroidModel:
         obj.faces = None
         return obj
 
+    # =====================================================================
+    # 7) generate_mesh
+    # =====================================================================
     def generate_mesh(
         self,
         iso_level: float = 0.0,
@@ -210,8 +348,27 @@ class GyroidModel:
         pad_width: int = 5,
         pad_val: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Generate a triangular surface mesh from the scalar field using the mesh_tools helper.
-        Returns (verts, faces).
+        ============================================================================
+        7) GENERATE_MESH
+        Generates a triangular surface mesh from the scalar field using the
+        mesh_tools helper.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        iso_level : float, optional
+            Isosurface level (default = 0.0).
+        algo_step_size : int, optional
+            Marching cubes step size (default = 3).
+        pad_width : int, optional
+            Number of voxels to pad on each face of the volume (default = 5).
+        pad_val : float, optional
+            Constant padding value (default = 0.0).
+
+        RETURNS
+        -------
+        verts, faces : (np.ndarray, np.ndarray)
+            The generated vertices and faces (also stored on self).
         """
         if self.v is None:
             logger.error("Gyroid field has not been computed yet. Call compute_field() before generate_mesh().")
@@ -231,10 +388,29 @@ class GyroidModel:
         logger.info(f"Generated mesh with {len(self.faces)} faces")
         return self.verts, self.faces
 
+    # =====================================================================
+    # 8) simplify_mesh
+    # =====================================================================
     def simplify_mesh(self, target_faces: int = 10000, mode: str = "normal"):
         """
-        Simplify and clean the current mesh, returning (verts, faces).
-        This uses the mesh_tools simplification and connected-component filtering helpers.
+        ============================================================================
+        8) SIMPLIFY_MESH
+        Simplifies and cleans the current mesh, returning (verts, faces).
+        Uses the mesh_tools simplification and connected-component filtering
+        helpers.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        target_faces : int, optional
+            Target number of faces to keep (default = 10000).
+        mode : str, optional
+            "normal" (default) or "fast".
+
+        RETURNS
+        -------
+        verts, faces : (np.ndarray, np.ndarray)
+            The simplified vertices and faces (also stored on self).
         """
         if self.verts is None or self.faces is None:
             logger.error("Mesh has not been generated yet.")
@@ -251,9 +427,24 @@ class GyroidModel:
         logger.info(f"Mesh simplified to {len(self.faces)} faces")
         return
 
+    # =====================================================================
+    # 9) export_stl
+    # =====================================================================
     def export_stl(self, filepath: str) -> None:
         """
-        Export the current mesh as an STL file.
+        ============================================================================
+        9) EXPORT_STL
+        Exports the current mesh as an STL file.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        filepath : str
+            Output path (without extension); ".stl" is appended.
+
+        RETURNS
+        -------
+        None
         """
         if self.verts is None or self.faces is None:
             logger.error("Mesh has not been generated yet.")
@@ -262,9 +453,26 @@ class GyroidModel:
         mesh_tools.export_as_STL(self.verts, self.faces, filepath+'.stl')
         logger.info(f"STL exported to: {filepath}.stl")
 
+    # =====================================================================
+    # 10) save_mesh_preview
+    # =====================================================================
     def save_mesh_preview(self, html_path: str, show_normal_colorscale: bool = True) -> None:
         """
-        Save an interactive HTML preview of the mesh (via viz helper).
+        ============================================================================
+        10) SAVE_MESH_PREVIEW
+        Saves an interactive HTML preview of the mesh (via viz helper).
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        html_path : str
+            Output HTML file path (without extension).
+        show_normal_colorscale : bool, optional
+            If True (default), colors faces based on normal vectors.
+
+        RETURNS
+        -------
+        None
         """
         if self.verts is None or self.faces is None:
             logger.error("Mesh has not been generated yet.")
@@ -272,10 +480,26 @@ class GyroidModel:
 
         viz.save_mesh_as_html(self.faces, self.verts, html_path, show_normal_colorscale=show_normal_colorscale)
 
-
+    # =====================================================================
+    # 11) check_mesh_quality
+    # =====================================================================
     def check_mesh_quality(self) -> bool:
         """
-        Check mesh validity and return a boolean indicating if the mesh is valid.   
+        ============================================================================
+        11) CHECK_MESH_QUALITY
+        Checks mesh validity and returns a boolean indicating if the mesh is
+        valid.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        None
+
+        RETURNS
+        -------
+        is_valid : bool
+            True if the mesh is watertight, winding-consistent, and not
+            self-intersecting.
         """
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
@@ -285,26 +509,55 @@ class GyroidModel:
         info = mesh_tools.check_mesh_validity(self.verts, self.faces)
         if info["watertight"] and info["winding_consistent"] and not info["self_intersecting"]:
             validty = True
-        else:            
+        else:
             validty = False
         return validty
-    
 
+
+    # =====================================================================
+    # 12) keep_largest_connected_component
+    # =====================================================================
     def keep_largest_connected_component(self) :
         """
+        ============================================================================
+        12) KEEP_LARGEST_CONNECTED_COMPONENT
         Convenience wrapper to the mesh_tools function.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        None
+
+        RETURNS
+        -------
+        None
         """
         self.verts, self.faces = mesh_tools.keep_largest_connected_component(self.verts, self.faces)
-    
 
+
+    # =====================================================================
+    # 13) add_baseplates
+    # =====================================================================
     def add_baseplates(
             self,
             thickness: float = 5.0,
         ) -> None:
         """
-        Add solid baseplates on the two ends of the z-axis with given physical
+        ============================================================================
+        13) ADD_BASEPLATES
+        Adds solid baseplates on the two ends of the z-axis with given physical
         thickness (same units as self.z). The method preserves the 3D shape of
         self.v and sets voxels inside the baseplate regions to 1.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        thickness : float, optional
+            Baseplate thickness in the same units as self.z (default = 5.0).
+
+        RETURNS
+        -------
+        None
         """
         if self.v is None:
             raise RuntimeError("Field not computed: call compute_field() before add_baseplates().")
@@ -335,18 +588,47 @@ class GyroidModel:
 
         logger.info(f"Added baseplates of thickness {thickness} units ({N} z-slices).")
 
+    # =====================================================================
+    # 14) fix_mesh
+    # =====================================================================
     def fix_mesh(self):
         """
+        ============================================================================
+        14) FIX_MESH
         Convenience wrapper to the mesh_tools fix_mesh function.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        None
+
+        RETURNS
+        -------
+        None
         """
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
 
         self.verts, self.faces = mesh_tools.fix_mesh(self.verts, self.faces)
-    
+
+    # =====================================================================
+    # 15) smooth_mesh
+    # =====================================================================
     def smooth_mesh(self, smoothing_factor: float = 0.5):
         """
+        ============================================================================
+        15) SMOOTH_MESH
         Convenience wrapper to the mesh_tools.smooth_mesh function.
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        smoothing_factor : float, optional
+            Taubin smoothing lambda parameter (default = 0.5).
+
+        RETURNS
+        -------
+        None
         """
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
@@ -354,35 +636,53 @@ class GyroidModel:
         self.verts, self.faces = mesh_tools.smooth_mesh(self.verts, self.faces, smoothing_factor=smoothing_factor)
 
 
-
-
-
-
-
-def create_a_gyroid(x:np.ndarray, 
-                    y:np.ndarray, 
-                    z:np.ndarray, 
-                    px:np.ndarray, 
-                    py:np.ndarray, 
-                    pz:np.ndarray, 
-                    t:np.ndarray, 
-                    save_path: str, 
-                    baseplate_thickness: float = 0.0, 
-                    step_size:int=2, 
+# =====================================================================
+# 16) create_a_gyroid
+# =====================================================================
+def create_a_gyroid(x:np.ndarray,
+                    y:np.ndarray,
+                    z:np.ndarray,
+                    px:np.ndarray,
+                    py:np.ndarray,
+                    pz:np.ndarray,
+                    t:np.ndarray,
+                    save_path: str,
+                    baseplate_thickness: float = 0.0,
+                    step_size:int=2,
                     simplification_factor=0.9,
                     field_mode:str = "distance"):
     """
-     Convenience function to create a gyroid model, compute the field, generate and simplify the mesh, and save results.
-     Parameters:
-        x, y, z: coordinate grids (3D arrays of identical shape)
-        px, py, pz: periods (scalars or arrays matching x/y/z shape)
-        t: thickness parameter (scalar or array matching x/y/z shape)
-        baseplate_thickness: thickness of the baseplates to add (same units as z)
-        save_path: base path for saving the .npz field and .stl mesh (without extension)
-        step_size: marching cubes step size (higher = faster but less detailed mesh)
-        simplification_factor: target fraction of faces to keep during simplification 
-                (0.5 = keep 50% of faces) 
-                or target number of faces if >1 (e.g. 10000)
+    ============================================================================
+    16) CREATE_A_GYROID
+    Convenience function to create a gyroid model, compute the field,
+    generate and simplify the mesh, and save results.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    x, y, z : np.ndarray
+        Coordinate grids (3D arrays of identical shape).
+    px, py, pz : np.ndarray
+        Periods (scalars or arrays matching x/y/z shape).
+    t : np.ndarray
+        Thickness parameter (scalar or array matching x/y/z shape).
+    save_path : str
+        Base path for saving the .stl mesh and HTML preview (without extension).
+    baseplate_thickness : float, optional
+        Thickness of the baseplates to add (same units as z). 0 = none (default).
+    step_size : int, optional
+        Marching cubes step size (higher = faster but less detailed mesh, default = 2).
+    simplification_factor : float, optional
+        Target fraction of faces to keep during simplification (0.5 = keep
+        50% of faces), or target number of faces if >1 (e.g. 10000). Default = 0.9.
+    field_mode : str, optional
+        Field computation mode passed to GyroidModel.compute_field
+        (default = "distance").
+
+    RETURNS
+    -------
+    success : bool
+        True if a valid mesh was generated and exported, False otherwise.
     """
     #make the gyroid model with distance field
     model_dist = GyroidModel(x, y, z, px, py, pz, t)

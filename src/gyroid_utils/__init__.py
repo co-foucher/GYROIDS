@@ -1,6 +1,9 @@
 """
-__init__.py file lets python recognize that this directory is a package
-when the package is import, this code is directly run. Thus it can be used to import every other codes
+============================================================================
+__INIT__
+Package entry point for gyroid_utils. Importing this package runs this file,
+which exposes the public submodules and the shared logger.
+============================================================================
 """
 
 # --- Version metadata ---------------------------------------------------------

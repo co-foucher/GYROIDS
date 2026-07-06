@@ -20,15 +20,15 @@ import pyvista as pv # type: ignore
 5 - mesh_from_matrix
 6 - check_mesh_validity
 7 - fix_mesh
-8 - smooth mesh
-9 - 
+8 - smooth_mesh
+9 - (reserved)
 #=====================================================================================================================
 """
 
 # =====================================================================
 # 1) keep_largest_connected_component
 # =====================================================================
-def keep_largest_connected_component(verts, faces):
+def keep_largest_connected_component(verts: np.ndarray, faces: np.ndarray):
     """
     ============================================================================
     1) KEEP_LARGEST_CONNECTED_COMPONENT
@@ -61,11 +61,12 @@ def keep_largest_connected_component(verts, faces):
     # ------------------------------------------------------------------
     if verts is None or faces is None:
         logger.error("Input verts or faces is None.")
-        return np.zeros((0, 3)), np.zeros((0, 3), dtype=int)
+        raise TypeError("verts and faces must not be None.")
 
     if len(faces) == 0:
         logger.warning("Mesh has zero faces — nothing to extract.")
-        return np.zeros((0, 3)), np.zeros((0, 3), dtype=int)
+        raise ValueError("Mesh has zero faces.")
+
 
     logger.debug(f"Input mesh: {len(verts)} vertices, {len(faces)} faces")
 
@@ -77,11 +78,11 @@ def keep_largest_connected_component(verts, faces):
         components = mesh.split(only_watertight=False)
     except Exception as e:
         logger.error(f"Failed to split mesh into components: {e}", exc_info=True)
-        return verts, faces
+        raise RuntimeError("Failed to split mesh into components.") from e   #from e preserves the original tracebackfrom trimesh
 
     if len(components) == 0:
         logger.warning("No connected components found in mesh.")
-        return np.zeros((0, 3)), np.zeros((0, 3), dtype=int)
+        raise RuntimeError("No connected components found in mesh.")
 
     # ------------------------------------------------------------------
     # result
@@ -99,7 +100,7 @@ def keep_largest_connected_component(verts, faces):
 # =====================================================================
 # 2) simplify_mesh
 # =====================================================================
-def simplify_mesh(faces, verts, target=100000, mode="pyvista"):
+def simplify_mesh(faces: np.ndarray, verts: np.ndarray, target: float = 100000, mode: str = "pyvista"):
     """
     ============================================================================
     2) SIMPLIFY_MESH
@@ -135,7 +136,7 @@ def simplify_mesh(faces, verts, target=100000, mode="pyvista"):
     """
     if faces is None or verts is None:
         logger.error("simplify_mesh(): faces or verts is None.")
-        return faces, verts
+        raise TypeError("faces and verts must not be None.")
 
     original = len(faces)
     current = original
@@ -149,7 +150,7 @@ def simplify_mesh(faces, verts, target=100000, mode="pyvista"):
 
     if original == 0:
         logger.warning("Mesh has zero faces — skipping simplification.")
-        return faces, verts
+        raise TypeError("Mesh has zero faces.")
     
     # -------- pyvista mode ---------------
     if mode == "pyvista":
@@ -210,15 +211,14 @@ def simplify_mesh(faces, verts, target=100000, mode="pyvista"):
 
             except Exception as e:
                 logger.error(f"Mesh simplification failed at step {i}: {e}", exc_info=True)
-                break
+                raise RuntimeError("Failed to simplify mesh.") from e
 
         logger.info(f"Mesh simplification complete → {len(faces)} faces remain.")
         return faces, verts
 
     else:
         logger.error(f"Invalid simplification mode: {mode}. Returning original mesh.")
-        return faces, verts
-
+        raise ValueError("Invalid simplification mode.")
 
 #=====================================================================
 #3) TRIANGLE_AREAS
@@ -251,12 +251,12 @@ def calculate_triangle_areas(verts: np.ndarray, faces: np.ndarray) -> np.ndarray
 
     if verts is None or faces is None:
         logger.error("calculate_triangle_areas(): verts or faces is None.")
-        return np.zeros(0)
+        raise TypeError("verts and faces must not be None.")
 
     if len(faces) == 0:
         logger.warning("calculate_triangle_areas(): no faces provided.")
-        return np.zeros(0)
-
+        raise ValueError("Mesh has zero faces.")
+    
     logger.debug(f"Computing areas for {len(faces)} faces.")
 
     try:
@@ -275,7 +275,7 @@ def calculate_triangle_areas(verts: np.ndarray, faces: np.ndarray) -> np.ndarray
 
     except Exception as e:
         logger.error(f"Error computing triangle areas: {e}", exc_info=True)
-        return np.zeros(0)
+        raise RuntimeError("Failed to compute triangle areas.") from e
 
 
 
@@ -313,11 +313,11 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
     # ------------------------------------------------------------------
     if verts is None or faces is None:
         logger.error("export_as_STL(): verts or faces is None.")
-        return
+        raise TypeError("verts and faces must not be None.")
 
     if len(faces) == 0:
         logger.warning("export_as_STL(): No faces to export; STL will be empty.")
-        return
+        raise ValueError("Mesh has zero faces.")
 
     # -------------------------
     # Build STL mesh (vectorized)
@@ -329,7 +329,7 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
         stl_obj.vectors[:, 2, :] = v2
     except Exception as e:
         logger.error(f"STL mesh construction failed: {e}", exc_info=True)
-        return
+        raise RuntimeError("Failed to construct STL mesh.") from e
 
     # ------------------------------------------------------------------
     # Save file
@@ -339,6 +339,7 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
         logger.info(f"STL successfully saved: {path}")
     except Exception as e:
         logger.error(f"Failed to save STL file '{path}': {e}", exc_info=True)
+        raise RuntimeError(f"Failed to save STL file '{path}'.") from e
 
 
 
@@ -401,7 +402,7 @@ def mesh_from_matrix(
         v_padded = np.pad(matrix, pad_width=pad_width, mode="constant", constant_values=pad_val)
     except Exception as e:
         logger.error(f"np.pad failed: {e}", exc_info=True)
-        return None, None
+        raise RuntimeError("Failed to pad matrix.") from e
 
     # ------------------------------------------------------------------
     # Extract isosurface
@@ -421,7 +422,7 @@ def mesh_from_matrix(
         )
     except Exception as e:
         logger.error(f"marching_cubes failed: {e}", exc_info=True)
-        return None, None
+        raise RuntimeError("Failed to extract isosurface mesh.") from e
 
     # ------------------------------------------------------------------
     # Translate vertices to the physical coordinate system of the unpadded grid
@@ -438,7 +439,7 @@ def mesh_from_matrix(
         verts[:, 2] = verts[:,2] + origin[2]
     except Exception as e:
         logger.error(f"vertex translation failed: {e}", exc_info=True)
-        return None, None
+        raise RuntimeError("Failed to translate mesh vertices.") from e
 
     logger.info(f"Extracted mesh with {len(verts)} verts and {len(faces)} faces.")
 
@@ -484,7 +485,7 @@ def check_mesh_validity(verts: np.ndarray, faces: np.ndarray) -> dict:
         m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
     except Exception as e:
         logger.error(f"check_mesh_validity(): Mesh construction failed: {e}", exc_info=True)
-        return None
+        raise RuntimeError("Failed to construct mesh.") from e
 
     edge_counts = np.bincount(m.edges_unique_inverse)
 
@@ -560,8 +561,24 @@ def fix_mesh(verts: np.ndarray, faces: np.ndarray):
 
 def _is_mesh_fixed(verts: np.ndarray, faces: np.ndarray) -> bool:
     """
-    Helper function to check if a mesh is valid (watertight, manifold, etc.)
+    ============================================================================
+    _IS_MESH_FIXED
+    Helper function to check if a mesh is valid (watertight, manifold, etc.).
     Used for internal testing purposes.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    verts : (N, 3) ndarray
+        Vertex coordinates.
+    faces : (M, 3) ndarray
+        Triangle face connectivity.
+
+    RETURNS
+    -------
+    is_fixed : bool
+        True if the mesh is watertight, winding-consistent, free of
+        non-manifold edges, and not self-intersecting.
     """
     info = check_mesh_validity(verts, faces)
     if info is None:

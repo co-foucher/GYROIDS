@@ -17,10 +17,10 @@ from plotly.colors import sample_colorscale
 # =====================================================================
 # 1) save_mesh_as_html
 # =====================================================================
-def save_mesh_as_html(faces: np.ndarray, 
-                      verts: np.ndarray, 
-                      file_name: str, 
-                      show_normal_colorscale: bool = False, 
+def save_mesh_as_html(faces: np.ndarray,
+                      verts: np.ndarray,
+                      file_name: str,
+                      show_normal_colorscale: bool = False,
                       show_flat_colorscale: bool = False,
                       show_random_colorscale: bool = False,
                       show_curvature_colorscale: bool = False,
@@ -33,7 +33,7 @@ def save_mesh_as_html(faces: np.ndarray,
     ============================================================================
 
     PARAMETERS
-    ----------    
+    ----------
     faces : (M, 3) ndarray
         Triangle indices.
     verts : (N, 3) ndarray
@@ -51,8 +51,25 @@ def save_mesh_as_html(faces: np.ndarray,
     save : bool
         If True, saves the HTML file. If False, displays the figure without saving.
 
-    NOTE: Only one colorscale option should be True. If multiple or none are True, normal colorscale takes precedence.
-    IT is a shitty system but legacy code is legacy code.
+    RETURNS
+    -------
+    None
+
+    RAISES
+    ------
+    TypeError
+        If faces or verts is None.
+    ValueError
+        If faces is empty.
+    RuntimeError
+        If the Plotly figure fails to build, the random colorscale fails to
+        generate, or the HTML file fails to write.
+
+    NOTES
+    -----
+    - Only one colorscale option should be True. If multiple or none are True,
+      normal colorscale takes precedence. This is legacy behavior kept for
+      backward compatibility with existing call sites.
 
     OUTPUT
     ------
@@ -70,11 +87,11 @@ def save_mesh_as_html(faces: np.ndarray,
     # ----------------------------------------------
     if faces is None or verts is None:
         logger.error("save_mesh_as_html(): faces or verts is None.")
-        return
+        raise TypeError("save_mesh_as_html(): faces and verts must not be None.")
 
     if len(faces) == 0:
-        logger.warning("save_mesh_as_html(): No faces provided. Export aborted.")
-        return
+        logger.error("save_mesh_as_html(): No faces provided.")
+        raise ValueError("save_mesh_as_html(): faces is empty, nothing to visualize.")
 
     if show_curvature_colorscale ==False and show_flat_colorscale == False and show_random_colorscale == False and show_normal_colorscale == False:
         logger.warning("No colorscale option selected. Defaulting to normal colorscale.")
@@ -136,12 +153,13 @@ def save_mesh_as_html(faces: np.ndarray,
                 rng = np.random.default_rng()
                 cols = rng.integers(0, 255, size=(faces.shape[0], 3), dtype=np.uint8)
                 facecolor = [f"rgb({r},{g},{b})" for r, g, b in cols]
-            except Exception:
-                facecolor = None
+            except Exception as e:
+                logger.error(f"Random colorscale generation failed: {e}", exc_info=True)
+                raise RuntimeError("save_mesh_as_html(): failed to generate random colorscale") from e
 
         elif show_flat_colorscale:
             facecolor = 'lightblue'
-        
+
         elif show_curvature_colorscale:
             # ---------------------------------------------------------
             # Vertex curvature from topological neighbors (mesh propagation)
@@ -167,14 +185,31 @@ def save_mesh_as_html(faces: np.ndarray,
 
             # BFS to find k topological neighbors for each vertex
             def _find_topological_neighbors(start_vi, k):
-                """Returns k nearest neighbors along mesh topology via BFS"""
+                """
+                ========================================================================
+                _FIND_TOPOLOGICAL_NEIGHBORS
+                Returns k nearest neighbors along mesh topology via BFS.
+                ========================================================================
+
+                PARAMETERS
+                ----------
+                start_vi : int
+                    Index of the starting vertex.
+                k : int
+                    Number of neighbors to find.
+
+                RETURNS
+                -------
+                neighbors : list[int]
+                    Up to k vertex indices found via breadth-first search.
+                """
                 visited = {start_vi}
                 queue = [start_vi]
                 neighbors = []
-                
+
                 while queue and len(neighbors) < k:
                     vi = queue.pop(0) #create a queue for breadth first search
-                    
+
                     # Add unvisited neighbors to queue
                     for next_vi in adj[vi]:
                         if next_vi not in visited:
@@ -188,24 +223,24 @@ def save_mesh_as_html(faces: np.ndarray,
             # Calculate curvature for each vertex based on topological neighbors
             for vi in range(n_verts):
                 nbrs = _find_topological_neighbors(vi, k=curvature_min_neighbors)
-                
+
                 if len(nbrs) < max(3, curvature_min_neighbors):
                     # If too few neighbors, skip curvature calculation (will be zero)
                     continue
-                    
+
                 # Calculate relative positions of neighbors
-                P = verts[nbrs] - verts[vi]  
-                
+                P = verts[nbrs] - verts[vi]
+
                 # Calculate covariance-like matrix
                 C = (P.T @ P) / max(P.shape[0], 1)
                 # Calculate eigenvalues of covariance matrix
-                evals = np.linalg.eigvalsh(C)  
+                evals = np.linalg.eigvalsh(C)
                 # Surface variation = smallest eigenvalue / sum of eigenvalues
                 denom = float(evals.sum())
                 if denom > 0:
                     # small when planar, larger in curved/rough regions
                     vertex_curv[vi] = float(evals[0] / denom)
-                # Print progress every 10k verts                
+                # Print progress every 10k verts
                 if vi % 10000 == 0:
                     logger.info(f"Curvature: processed vertex {vi}/{n_verts}")
 
@@ -244,7 +279,7 @@ def save_mesh_as_html(faces: np.ndarray,
         )
     except Exception as e:
         logger.error(f"Failed to build Plotly figure: {e}", exc_info=True)
-        return
+        raise RuntimeError("save_mesh_as_html(): failed to build Plotly figure") from e
 
     # =========================================================
     # SAVE HTML FILE
@@ -256,6 +291,7 @@ def save_mesh_as_html(faces: np.ndarray,
             logger.info(f"HTML visualization saved → {out_path}")
         except Exception as e:
             logger.error(f"Failed to save HTML visualization: {e}", exc_info=True)
+            raise RuntimeError(f"save_mesh_as_html(): failed to write '{out_path}'") from e
     else:
         fig.show()
         logger.info("HTML visualization displayed (not saved).")
@@ -275,10 +311,22 @@ def plot_histogram(face_areas, BINS=1000):
     ----------
     face_areas : array-like
         List/array of triangle areas.
+    BINS : int, optional
+        Number of histogram bins (default = 1000).
+
+    RETURNS
+    -------
+    None
+
+    RAISES
+    ------
+    ValueError
+        If face_areas is None or empty.
+    RuntimeError
+        If the histogram fails to compute or display.
 
     NOTES
     -----
-    - Uses 1000 bins.
     - Displays a line-plot representation of the PDF.
 
     EXAMPLE
@@ -286,8 +334,8 @@ def plot_histogram(face_areas, BINS=1000):
     >>> plot_histogram(areas)
     """
     if face_areas is None or len(face_areas) == 0:
-        logger.warning("plot_histogram(): empty area array — nothing to plot.")
-        return
+        logger.error("plot_histogram(): empty area array — nothing to plot.")
+        raise ValueError("plot_histogram(): face_areas is empty.")
 
     logger.info(f"Plotting histogram for {len(face_areas)} triangle areas")
 
@@ -297,7 +345,7 @@ def plot_histogram(face_areas, BINS=1000):
         bin_centers = 0.5 * (bins[:-1] + bins[1:])
     except Exception as e:
         logger.error(f"Failed to compute histogram: {e}", exc_info=True)
-        return
+        raise RuntimeError("plot_histogram(): failed to compute histogram") from e
 
     logger.debug(
         f"Histogram stats — min area: {face_areas.min()}, max area: {face_areas.max()}"
@@ -324,11 +372,8 @@ def plot_histogram(face_areas, BINS=1000):
         logger.error(f"Failed to display histogram: {e}", exc_info=True)
 
 
-
-
-
 #=====================================================================
-#2) twod_view_of_matrix
+#3) twod_view_of_matrix
 #=====================================================================
 
 def twod_view_of_matrix(v: np.ndarray,
@@ -339,26 +384,35 @@ def twod_view_of_matrix(v: np.ndarray,
                         zmax=None):
     """
     ============================================================================
-    2) TWOD_VIEW_OF_MATRIX
+    3) TWOD_VIEW_OF_MATRIX
     Creates a scrollable 2D heatmap visualization of a 3D scalar field v(x,y,z).
     ============================================================================
-    
+
     PARAMETERS
     ----------
     v : (Nx, Ny, Nz) ndarray
         Scalar field (e.g., gyroid field values).
-    x : (Nx, 1, 1) ndarray
-        X-coordinate grid.
-    y : (1, Ny, 1) ndarray
-        Y-coordinate grid.
-    z : (1, 1, Nz) ndarray
-        Z-coordinate grid.
-    zmin, zmax : float or None
+    x : (Nx, 1, 1) ndarray, optional
+        X-coordinate grid. If None, uses np.arange(Nx).
+    y : (1, Ny, 1) ndarray, optional
+        Y-coordinate grid. If None, uses np.arange(Ny).
+    z : (1, 1, Nz) ndarray, optional
+        Z-coordinate grid. If None, uses np.arange(Nz).
+    zmin, zmax : float or None, optional
         Color limits for the heatmap. If None, uses min/max from v.
-    
+
     RETURNS
     -------
     None (shows Plotly interactive viewer)
+
+    RAISES
+    ------
+    ValueError
+        If v is not 3D, or if the (x, y, z) grid shapes do not match v.
+
+    EXAMPLE
+    -------
+    >>> twod_view_of_matrix(v, x, y, z)
     """
 
     logger.info("Starting 2D visualization of 3D matrix.")
@@ -368,7 +422,7 @@ def twod_view_of_matrix(v: np.ndarray,
     # ------------------------------------------------------------------
     if v.ndim != 3:
         logger.error("twod_view_of_matrix(): v must be 3D (Nx, Ny, Nz).")
-        return
+        raise ValueError(f"twod_view_of_matrix(): v must be 3D, got ndim={v.ndim}.")
 
     Nx, Ny, Nz = v.shape
 
@@ -383,7 +437,7 @@ def twod_view_of_matrix(v: np.ndarray,
 
     if x.shape[0] != Nx or y.shape[1] != Ny or z.shape[2] != Nz:
         logger.error("Grid dimensions of (x,y,z) do not match v.shape.")
-        return
+        raise ValueError("twod_view_of_matrix(): grid dimensions of (x,y,z) do not match v.shape.")
 
     logger.debug(f"Field resolution: {Nx} × {Ny} × {Nz}")
 
@@ -492,41 +546,32 @@ def twod_view_of_matrix(v: np.ndarray,
     fig.show()
 
 
-
 # =====================================================================
 # 4) view_mesh
 # =====================================================================
 def view_mesh(faces, verts, show_normal_colorscale: bool = True,):
     """
     ============================================================================
-    4) view_mesh
-    Converts a mesh into a lightweight Plotly 3D HTML visualization.
-    Handles face/edge reduction for performance.
+    4) VIEW_MESH
+    Converts a mesh into a lightweight Plotly 3D HTML visualization and
+    displays it without saving to disk.
     ============================================================================
+
+    PARAMETERS
+    ----------
+    faces : (M, 3) ndarray
+        Triangle indices.
+    verts : (N, 3) ndarray
+        Vertex coordinates.
+    show_normal_colorscale : bool, optional
+        If True (default), colors faces based on normal vectors.
+
+    RETURNS
+    -------
+    None
+
+    EXAMPLE
+    -------
+    >>> view_mesh(faces, verts)
     """
     save_mesh_as_html(faces, verts, "nop", show_normal_colorscale=show_normal_colorscale, save = False)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

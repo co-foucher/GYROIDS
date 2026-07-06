@@ -21,14 +21,32 @@ if not logger.handlers:
     logger.addHandler(handler)
 
 
+"""
+#=====================================================================================================================
+0 - (reserved)
+1 - set_log_level
+#=====================================================================================================================
+"""
+
+
+# =====================================================================
+# 1) set_log_level
+# =====================================================================
 def set_log_level(level: str):
     """
-    Set the global logging level for the gyroid_utils package.
+    ============================================================================
+    1) SET_LOG_LEVEL
+    Sets the global logging level for the gyroid_utils package.
+    ============================================================================
 
     PARAMETERS
     ----------
     level : str
-        One of: 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
+        One of: 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'.
+
+    RETURNS
+    -------
+    None
 
     EXAMPLE
     -------
