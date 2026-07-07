@@ -1,14 +1,14 @@
 """
-Tests for gyroid_utils.gyroid.GyroidModel.
+Tests for gyroid_utils.tpms_gyroid.GyroidModel.
 """
 import numpy as np
 import pytest
 
-#this is just like the import in gyroid_utils.gyroid, but we do it here so that pytest can skip all tests in this module if gyroid_utils isn't importable
-gyroid_mod = pytest.importorskip("gyroid_utils.gyroid") 
+#this is just like the import in gyroid_utils.tpms_gyroid, but we do it here so that pytest can skip all tests in this module if gyroid_utils isn't importable
+gyroid_mod = pytest.importorskip("gyroid_utils.tpms_gyroid")
 
 #pull one attribute (the class) out of the module object gyroid_mod that importorskip just returned, and bind it to the name GyroidModel
-GyroidModel = gyroid_mod.GyroidModel   
+GyroidModel = gyroid_mod.GyroidModel
 
 """
 ============================================================================

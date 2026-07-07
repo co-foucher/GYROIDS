@@ -1,12 +1,10 @@
 """
-Tests for gyroid_utils.SchwartzP.SchwartzPModel.
-
-WORK IN PROGRESS:
+Tests for gyroid_utils.tpms_schwartzp.SchwartzPModel.
 """
 import numpy as np
 import pytest
 
-schwartzp_mod = pytest.importorskip("gyroid_utils.SchwartzP")
+schwartzp_mod = pytest.importorskip("gyroid_utils.tpms_schwartzp")
 SchwartzPModel = schwartzp_mod.SchwartzPModel
 
 

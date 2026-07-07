@@ -133,7 +133,7 @@ class TestGyroidModelSaveLoadRoundtrip:
         data (verts/faces) isn't part of the saved format, so it should come
         back None on the loaded copy, per GyroidModel.load()'s docstring.
         """
-        gyroid_mod = pytest.importorskip("gyroid_utils.gyroid")
+        gyroid_mod = pytest.importorskip("gyroid_utils.tpms_gyroid")
         lin = np.linspace(0, 2, 6)
         x, y, z = np.meshgrid(lin, lin, lin, indexing="ij")
         model = gyroid_mod.GyroidModel(x, y, z, 1.0, 1.0, 1.0, 0.2)

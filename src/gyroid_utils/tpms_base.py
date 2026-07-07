@@ -9,36 +9,51 @@ from .logger import logger
 """
 #=====================================================================================================================
 0 - (reserved)
-1 - GyroidModel (class)
-2 - GyroidModel.__init__
-3 - GyroidModel._validate_inputs
-4 - GyroidModel.compute_field
-5 - GyroidModel.save
-6 - GyroidModel.load
-7 - GyroidModel.generate_mesh
-8 - GyroidModel.simplify_mesh
-9 - GyroidModel.export_stl
-10 - GyroidModel.save_mesh_preview
-11 - GyroidModel.check_mesh_quality
-12 - GyroidModel.keep_largest_connected_component
-13 - GyroidModel.add_baseplates
-14 - GyroidModel.fix_mesh
-15 - GyroidModel.smooth_mesh
-16 - create_a_gyroid
+1 - TPMSModel (class)
+2 - TPMSModel.__init__
+3 - TPMSModel._validate_inputs
+4 - TPMSModel._surface_term
+5 - TPMSModel.compute_field
+6 - TPMSModel.save
+7 - TPMSModel.load
+8 - TPMSModel.generate_mesh
+9 - TPMSModel.simplify_mesh
+10 - TPMSModel.export_stl
+11 - TPMSModel.save_mesh_preview
+12 - TPMSModel.check_mesh_quality
+13 - TPMSModel.keep_largest_connected_component
+14 - TPMSModel.add_baseplates
+15 - TPMSModel.fix_mesh
+16 - TPMSModel.smooth_mesh
+17 - create_a_tpms
 #=====================================================================================================================
+
+NOTE ON THIS MODULE
+--------------------
+This holds everything that is common to every Triply Periodic Minimal
+Surface (TPMS) model (gyroid, Schwartz P, diamond, IWP, Neovius, ...):
+grid/parameter validation, the abs/signed/distance field pipeline, mesh
+generation/simplification/export, previews, and baseplates.
+
+A concrete TPMS type (see tpms_gyroid.py, tpms_schwartzp.py) is expected to
+be a small subclass that only:
+  1) overrides `_surface_term()` with its implicit surface equation F(x,y,z),
+  2) optionally sets the `DEFAULT_FIELD_MODE` class attribute.
+Everything else is inherited unchanged.
 """
 
 
 # =====================================================================
-# 1) GyroidModel
+# 1) TPMSModel
 # =====================================================================
-class GyroidModel:
+class TPMSModel:
     """
     ============================================================================
-    1) GYROIDMODEL
-    Represents a gyroid scalar field defined on a 3D grid and provides helpers
-    to compute the field, generate/simplify a mesh, export results and run
-    simple checks/visualizations.
+    1) TPMSMODEL
+    Base class for TPMS scalar field models defined on a 3D grid. Provides
+    the shared pipeline: field computation, mesh generation/simplification,
+    export, previews, quality checks and baseplates. Subclasses supply only
+    the implicit surface equation.
     ============================================================================
 
     PARAMETERS
@@ -52,10 +67,19 @@ class GyroidModel:
         Scalar or array (shape identical to x/y/z) controlling the isosurface
         threshold.
 
+    SUBCLASSING
+    -----------
+    - `_surface_term(self) -> np.ndarray` : REQUIRED. Return the implicit
+      surface function F(x, y, z) evaluated on self.x/self.y/self.z using
+      self.px/self.py/self.pz. The zero-isosurface of F is the TPMS surface.
+    - `DEFAULT_FIELD_MODE` : class attribute used by compute_field() when no
+      `mode` is given (default "distance").
+
     NOTES
     -----
-    - `load` is a classmethod that loads saved gyroid parameters and field
-      from disk.
+    - `load` is a classmethod that loads saved parameters and field from disk.
+      It returns an instance of whichever class it was called on (so
+      `GyroidModel.load(...)` returns a `GyroidModel`, etc.).
 
     EXAMPLE
     -------
@@ -63,6 +87,11 @@ class GyroidModel:
     >>> field = model.compute_field()
     >>> model = GyroidModel.load("gyroid_data.npz")
     """
+
+    #: Default `mode` used by compute_field() when none is given. Subclasses
+    #: may override this (e.g. a type whose natural default is "abs" rather
+    #: than "distance").
+    DEFAULT_FIELD_MODE: str = "distance"
 
     # =====================================================================
     # 2) __init__
@@ -80,7 +109,7 @@ class GyroidModel:
         """
         ============================================================================
         2) __INIT__
-        Initializes a GyroidModel from coordinate grids and gyroid parameters.
+        Initializes a TPMS model from coordinate grids and surface parameters.
         ============================================================================
 
         PARAMETERS
@@ -162,26 +191,59 @@ class GyroidModel:
         _check_param("thickness", self.thickness)
 
     # =====================================================================
-    # 4) compute_field
+    # 4) _surface_term
     # =====================================================================
-    def compute_field(self,
-                      mode: str = "distance") -> np.ndarray:
+    def _surface_term(self) -> np.ndarray:
         """
         ============================================================================
-        4) COMPUTE_FIELD
-        Computes the gyroid scalar field.
+        4) _SURFACE_TERM
+        Must be overridden by every concrete TPMS subclass. Returns the
+        implicit surface function F(x, y, z) evaluated on self.x/self.y/self.z
+        using the periods self.px/self.py/self.pz. The zero-isosurface of F
+        is this TPMS type's minimal surface; compute_field() turns F into a
+        thresholded scalar field ("abs"/"signed"/"distance" modes).
+        ============================================================================
+
+        PARAMETERS
+        ----------
+        None (operates on self.x, self.y, self.z, self.px, self.py, self.pz)
+
+        RETURNS
+        -------
+        term : np.ndarray
+            F(x, y, z), same shape as self.x.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement _surface_term()."
+        )
+
+    # =====================================================================
+    # 5) compute_field
+    # =====================================================================
+    def compute_field(self,
+                      mode: Optional[str] = None) -> np.ndarray:
+        """
+        ============================================================================
+        5) COMPUTE_FIELD
+        Computes the TPMS scalar field from this subclass's implicit surface
+        (see _surface_term).
         ============================================================================
 
         PARAMETERS
         ----------
         mode : str, optional
-            - "abs" (default): original behavior -> v = thickness - |term|
+            - None (default): uses this class's `DEFAULT_FIELD_MODE`.
+            - "abs": original behavior -> v = thickness - |term|
               (useful for value-space wall thresholding; thickness here is in
               term units).
             - "signed": standard level-set -> v = term - level (signed field).
-            - "distance": produce a signed-distance-derived thickness field:
+            - "distance" / "distance_fast": produce a signed-distance-derived
+              thickness field:
                 1) binary = term > level
-                2) compute signed distance (uses spacing)
+                2) compute signed distance (uses spacing); "distance" uses
+                   the exact Euclidean transform, "distance_fast" uses a
+                   cheaper taxicab approximation (inaccurate for anisotropic
+                   voxel spacing).
                 3) if physical_thickness provided (scalar or array matching
                    grid), v = physical_thickness/2 - |signed_dist| (positive
                    inside the desired wall band)
@@ -194,16 +256,15 @@ class GyroidModel:
         NOTES
         -----
         - spacing: voxel spacing used when computing distance transform (only
-          for mode="distance").
+          for mode="distance"/"distance_fast").
         - physical_thickness: desired wall thickness in spatial units (only
-          used for "distance" mode). May be a scalar or an ndarray with the
+          used for "distance" modes). May be a scalar or an ndarray with the
           same shape as x/y/z.
         """
-        term = (
-            np.sin((2 * np.pi / self.px) * self.x) * np.cos((2 * np.pi / self.py) * self.y)
-            + np.sin((2 * np.pi / self.py) * self.y) * np.cos((2 * np.pi / self.pz) * self.z)
-            + np.sin((2 * np.pi / self.pz) * self.z) * np.cos((2 * np.pi / self.px) * self.x)
-        )
+        if mode is None:
+            mode = self.DEFAULT_FIELD_MODE
+
+        term = self._surface_term()
 
         if mode == "abs":
             # original behaviour: thickness interpreted in term-value units (supports scalar or per-voxel thickness)
@@ -217,7 +278,7 @@ class GyroidModel:
             self.v = term - self.thickness
             return self.v
 
-        if mode == "distance":
+        if mode in ("distance", "distance_fast"):
             # requires scipy
             logger.info(f"Computing distance field")
             # Auto-compute actual voxel spacing from the coordinate grids
@@ -230,7 +291,7 @@ class GyroidModel:
             except Exception as e:
                 raise RuntimeError("distance mode requires scipy.ndimage.distance_transform_edt") from e
 
-            # binary solid from level-set (classical gyroid surface at 'level')
+            # binary solid from level-set (classical TPMS surface at 'level')
             # first create binary mask of solid region, the surface of interest is at the intersection of the two regions
             binary = (term > 0)
 
@@ -261,16 +322,16 @@ class GyroidModel:
             self.v[mask] = dist[mask]
             return self.v
 
-        raise ValueError("mode must be one of: 'abs', 'signed', 'distance'")
+        raise ValueError("mode must be one of: 'abs', 'signed', 'distance', 'distance_fast'.")
 
     # =====================================================================
-    # 5) save
+    # 6) save
     # =====================================================================
     def save(self, outfile: str) -> None:
         """
         ============================================================================
-        5) SAVE
-        Persists gyroid parameters and the computed field to disk using the
+        6) SAVE
+        Persists TPMS parameters and the computed field to disk using the
         package I/O helper.
         ============================================================================
 
@@ -284,7 +345,7 @@ class GyroidModel:
         None
         """
         if self.v is None:
-            raise RuntimeError("Gyroid field has not been computed yet (call compute_field).")
+            raise RuntimeError("Field has not been computed yet (call compute_field).")
 
         io_ops.save_gyroid_matrices(
             outfile,
@@ -299,14 +360,15 @@ class GyroidModel:
         )
 
     # =====================================================================
-    # 6) load
+    # 7) load
     # =====================================================================
     @classmethod
-    def load(cls, infile: str) -> "GyroidModel":
+    def load(cls, infile: str) -> "TPMSModel":
         """
         ============================================================================
-        6) LOAD
-        Loads saved gyroid matrices and returns a GyroidModel instance.
+        7) LOAD
+        Loads saved matrices and returns an instance of the class this was
+        called on (e.g. GyroidModel.load(...) returns a GyroidModel).
         ============================================================================
 
         PARAMETERS
@@ -316,8 +378,8 @@ class GyroidModel:
 
         RETURNS
         -------
-        model : GyroidModel
-            A GyroidModel populated with the saved coordinates, parameters,
+        model : TPMSModel
+            An instance populated with the saved coordinates, parameters,
             and field. Mesh data (verts/faces) is not stored on disk and is
             reset to None.
 
@@ -339,7 +401,7 @@ class GyroidModel:
         return obj
 
     # =====================================================================
-    # 7) generate_mesh
+    # 8) generate_mesh
     # =====================================================================
     def generate_mesh(
         self,
@@ -349,7 +411,7 @@ class GyroidModel:
         pad_val: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
         """
         ============================================================================
-        7) GENERATE_MESH
+        8) GENERATE_MESH
         Generates a triangular surface mesh from the scalar field using the
         mesh_tools helper.
         ============================================================================
@@ -371,7 +433,7 @@ class GyroidModel:
             The generated vertices and faces (also stored on self).
         """
         if self.v is None:
-            logger.error("Gyroid field has not been computed yet. Call compute_field() before generate_mesh().")
+            logger.error("Field has not been computed yet. Call compute_field() before generate_mesh().")
             return None, None
 
         self.verts, self.faces = mesh_tools.mesh_from_matrix(
@@ -389,12 +451,12 @@ class GyroidModel:
         return self.verts, self.faces
 
     # =====================================================================
-    # 8) simplify_mesh
+    # 9) simplify_mesh
     # =====================================================================
     def simplify_mesh(self, target_faces: int = 10000, mode: str = "trimesh"):
         """
         ============================================================================
-        8) SIMPLIFY_MESH
+        9) SIMPLIFY_MESH
         Simplifies and cleans the current mesh, returning (verts, faces).
         Uses the mesh_tools simplification and connected-component filtering
         helpers.
@@ -405,7 +467,7 @@ class GyroidModel:
         target_faces : int, optional
             Target number of faces to keep (default = 10000).
         mode : str, optional
-            "pyvista" (uses PyVista decimate_pro), 
+            "pyvista" (uses PyVista decimate_pro),
             or "trimesh" (uses trimesh vertex clustering, default),
             or "open3d" (uses Open3D quadric decimation).
 
@@ -417,7 +479,7 @@ class GyroidModel:
         if self.verts is None or self.faces is None:
             logger.error("Mesh has not been generated yet.")
             return
-        
+
         self.faces, self.verts = mesh_tools.simplify_mesh(self.faces, self.verts, target=target_faces, mode=mode)
 
         # keep the largest connected component and discard stray pieces
@@ -427,12 +489,12 @@ class GyroidModel:
         return self.verts, self.faces
 
     # =====================================================================
-    # 9) export_stl
+    # 10) export_stl
     # =====================================================================
     def export_stl(self, filepath: str) -> None:
         """
         ============================================================================
-        9) EXPORT_STL
+        10) EXPORT_STL
         Exports the current mesh as an STL file.
         ============================================================================
 
@@ -453,12 +515,12 @@ class GyroidModel:
         logger.info(f"STL exported to: {filepath}.stl")
 
     # =====================================================================
-    # 10) save_mesh_preview
+    # 11) save_mesh_preview
     # =====================================================================
     def save_mesh_preview(self, html_path: str, show_normal_colorscale: bool = True) -> None:
         """
         ============================================================================
-        10) SAVE_MESH_PREVIEW
+        11) SAVE_MESH_PREVIEW
         Saves an interactive HTML preview of the mesh (via viz helper).
         ============================================================================
 
@@ -480,12 +542,12 @@ class GyroidModel:
         viz.save_mesh_as_html(self.faces, self.verts, html_path, show_normal_colorscale=show_normal_colorscale)
 
     # =====================================================================
-    # 11) check_mesh_quality
+    # 12) check_mesh_quality
     # =====================================================================
     def check_mesh_quality(self) -> bool:
         """
         ============================================================================
-        11) CHECK_MESH_QUALITY
+        12) CHECK_MESH_QUALITY
         Checks mesh validity and returns a boolean indicating if the mesh is
         valid.
         ============================================================================
@@ -503,8 +565,6 @@ class GyroidModel:
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
 
-        #areas = mesh_tools.calculate_triangle_areas(self.verts, self.faces)
-        #viz.plot_histogram(areas)
         info = mesh_tools.check_mesh_validity(self.verts, self.faces)
         if info["watertight"] and info["winding_consistent"] and not info["self_intersecting"]:
             validty = True
@@ -512,14 +572,13 @@ class GyroidModel:
             validty = False
         return validty
 
-
     # =====================================================================
-    # 12) keep_largest_connected_component
+    # 13) keep_largest_connected_component
     # =====================================================================
-    def keep_largest_connected_component(self) :
+    def keep_largest_connected_component(self):
         """
         ============================================================================
-        12) KEEP_LARGEST_CONNECTED_COMPONENT
+        13) KEEP_LARGEST_CONNECTED_COMPONENT
         Convenience wrapper to the mesh_tools function.
         ============================================================================
 
@@ -533,9 +592,8 @@ class GyroidModel:
         """
         self.verts, self.faces = mesh_tools.keep_largest_connected_component(self.verts, self.faces)
 
-
     # =====================================================================
-    # 13) add_baseplates
+    # 14) add_baseplates
     # =====================================================================
     def add_baseplates(
             self,
@@ -543,7 +601,7 @@ class GyroidModel:
         ) -> None:
         """
         ============================================================================
-        13) ADD_BASEPLATES
+        14) ADD_BASEPLATES
         Adds solid baseplates on the two ends of the z-axis with given physical
         thickness (same units as self.z). The method preserves the 3D shape of
         self.v and sets voxels inside the baseplate regions to 1.
@@ -588,12 +646,12 @@ class GyroidModel:
         logger.info(f"Added baseplates of thickness {thickness} units ({N} z-slices).")
 
     # =====================================================================
-    # 14) fix_mesh
+    # 15) fix_mesh
     # =====================================================================
     def fix_mesh(self):
         """
         ============================================================================
-        14) FIX_MESH
+        15) FIX_MESH
         Convenience wrapper to the mesh_tools fix_mesh function.
         ============================================================================
 
@@ -611,12 +669,12 @@ class GyroidModel:
         self.verts, self.faces = mesh_tools.fix_mesh(self.verts, self.faces)
 
     # =====================================================================
-    # 15) smooth_mesh
+    # 16) smooth_mesh
     # =====================================================================
     def smooth_mesh(self, smoothing_factor: float = 0.5):
         """
         ============================================================================
-        15) SMOOTH_MESH
+        16) SMOOTH_MESH
         Convenience wrapper to the mesh_tools.smooth_mesh function.
         ============================================================================
 
@@ -636,29 +694,35 @@ class GyroidModel:
 
 
 # =====================================================================
-# 16) create_a_gyroid
+# 17) create_a_tpms
 # =====================================================================
-def create_a_gyroid(x:np.ndarray,
-                    y:np.ndarray,
-                    z:np.ndarray,
-                    px:np.ndarray,
-                    py:np.ndarray,
-                    pz:np.ndarray,
-                    t:np.ndarray,
-                    save_path: str,
-                    baseplate_thickness: float = 0.0,
-                    step_size:int=2,
-                    simplification_factor=0.9,
-                    field_mode:str = "distance"):
+def create_a_tpms(model_cls,
+                  x: np.ndarray,
+                  y: np.ndarray,
+                  z: np.ndarray,
+                  px: np.ndarray,
+                  py: np.ndarray,
+                  pz: np.ndarray,
+                  t: np.ndarray,
+                  save_path: str,
+                  baseplate_thickness: float = 0.0,
+                  step_size: int = 2,
+                  simplification_factor=0.9,
+                  field_mode: Optional[str] = None):
     """
     ============================================================================
-    16) CREATE_A_GYROID
-    Convenience function to create a gyroid model, compute the field,
-    generate and simplify the mesh, and save results.
+    17) CREATE_A_TPMS
+    Generic convenience pipeline shared by every TPMS type: build the model,
+    compute the field, generate/simplify the mesh, and save results. Each
+    TPMS submodule (tpms_gyroid.py, tpms_schwartzp.py, ...) exposes a thin,
+    identically-named wrapper (e.g. `create_a_gyroid`) around this function
+    so existing call sites don't need to know about model_cls.
     ============================================================================
 
     PARAMETERS
     ----------
+    model_cls : type
+        A TPMSModel subclass to instantiate (e.g. GyroidModel, SchwartzPModel).
     x, y, z : np.ndarray
         Coordinate grids (3D arrays of identical shape).
     px, py, pz : np.ndarray
@@ -668,24 +732,23 @@ def create_a_gyroid(x:np.ndarray,
     save_path : str
         Base path for saving the .stl mesh and HTML preview (without extension).
     baseplate_thickness : float, optional
-        Thickness of the baseplates to add (same units as z). 0 = none (default).
+        Thickness of the baseplates to add. 0 = none (default).
     step_size : int, optional
         Marching cubes step size (higher = faster but less detailed mesh, default = 2).
     simplification_factor : float, optional
         Target fraction of faces to keep during simplification (0.5 = keep
         50% of faces), or target number of faces if >1 (e.g. 10000). Default = 0.9.
     field_mode : str, optional
-        Field computation mode passed to GyroidModel.compute_field
-        (default = "distance").
+        Field computation mode passed to compute_field(). Defaults to the
+        model class's own DEFAULT_FIELD_MODE when not given.
 
     RETURNS
     -------
     success : bool
         True if a valid mesh was generated and exported, False otherwise.
     """
-    #make the gyroid model with distance field
-    model_dist = GyroidModel(x, y, z, px, py, pz, t)
-    model_dist.compute_field(mode = field_mode)
+    model_dist = model_cls(x, y, z, px, py, pz, t)
+    model_dist.compute_field(mode=field_mode)
     if baseplate_thickness > 0.0:
         model_dist.add_baseplates(thickness=baseplate_thickness)
     #model_dist.save(save_path + ".npz")
@@ -694,7 +757,7 @@ def create_a_gyroid(x:np.ndarray,
     model_dist.generate_mesh(algo_step_size=step_size)
     model_dist.smooth_mesh(smoothing_factor= 0.9)
 
-    model_dist.simplify_mesh(target_faces = simplification_factor, mode="fast")
+    model_dist.simplify_mesh(target_faces = simplification_factor, mode="trimesh")
     model_dist.smooth_mesh(smoothing_factor= 0.6)
     model_dist.fix_mesh()
     is_valid = model_dist.check_mesh_quality()

@@ -22,12 +22,13 @@ print(f"[gyroid_utils] version {__version__} loaded")
 from . import mesh_tools
 from . import viz
 from . import io_ops
-from . import gyroid
 from . import abaqus_tools
 from . import TET_mesh_tools
-from . import SchwartzP
-from . import CT_scans  
+from . import CT_scans
 from . import CT_visualization_window
+from . import tpms_base
+from . import tpms_gyroid
+from . import tpms_schwartzp
 from .logger import logger, set_log_level
 
 #__all__ is a list that defines what gets exported when someone does from package import *.
@@ -35,12 +36,13 @@ __all__ = [
     "mesh_tools",
     "viz",
     "io_ops",
-    "gyroid",
     "abaqus_tools",
     "TET_mesh_tools",
+    "tpms_base",
+    "tpms_gyroid",
+    "tpms_schwartzp",
     "logger",
     "set_log_level",
-    "SchwartzP",
     "__version__",
 ]
 
