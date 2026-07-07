@@ -2,8 +2,8 @@ import numpy as np
 from typing import Optional, Tuple, Union
 
 # Use relative imports so this module works when used as a package
-from . import io_ops, mesh_tools, viz
-from .logger import logger
+from .. import io_ops, mesh_tools, viz
+from ..logger import logger
 
 
 """

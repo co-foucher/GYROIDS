@@ -6,7 +6,7 @@ import sys
 import SimpleITK as sitk
 import tifffile as tiff
 from .CT_visualization_window import open_window
-from gyroid_utils import CT_visualization_window
+#from gyroid_utils import CT_visualization_window
 
 
 """

@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 #this is just like the import in gyroid_utils.tpms_base, but we do it here so that pytest can skip all tests in this module if gyroid_utils isn't importable
-tpms_base = pytest.importorskip("gyroid_utils.tpms_base")
+tpms_base = pytest.importorskip("gyroid_utils.TPMS_classes.tpms_base")
 TPMSModel = tpms_base.TPMSModel
 
 """

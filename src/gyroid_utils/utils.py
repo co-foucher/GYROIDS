@@ -48,14 +48,12 @@ def reload_all():
     modules = [
         gyroid_utils,
         gyroid_utils.mesh_tools,
-        gyroid_utils.gyroid,
         gyroid_utils.viz,
         gyroid_utils.utils,
         gyroid_utils.io_ops,
         gyroid_utils.config,
         gyroid_utils.abaqus_tools,
         gyroid_utils.TET_mesh_tools,
-        gyroid_utils.SchwartzP,
     ]
 
     for m in modules:

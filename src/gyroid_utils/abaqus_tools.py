@@ -2,7 +2,7 @@ from pathlib import Path
 import time
 import subprocess
 import shutil
-from .logger import logger
+#from .logger import logger
 import numpy as np
 
 """

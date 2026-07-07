@@ -14,15 +14,15 @@ import numpy as np
 import pytest
 
 #one importorskip per module, same convention as the other test files: if gyroid_utils isn't importable, the first of these skips the whole file
-gyroid_mod = pytest.importorskip("gyroid_utils.tpms_gyroid")
-schwartzp_mod = pytest.importorskip("gyroid_utils.tpms_schwartzp")
-diamond_mod = pytest.importorskip("gyroid_utils.tpms_diamond")
-iwp_mod = pytest.importorskip("gyroid_utils.tpms_iwp")
-neovius_mod = pytest.importorskip("gyroid_utils.tpms_neovius")
-fischerkochs_mod = pytest.importorskip("gyroid_utils.tpms_fischerkochs")
-frd_mod = pytest.importorskip("gyroid_utils.tpms_frd")
-lidinoid_mod = pytest.importorskip("gyroid_utils.tpms_lidinoid")
-splitp_mod = pytest.importorskip("gyroid_utils.tpms_splitp")
+gyroid_mod = pytest.importorskip("gyroid_utils.TPMS_classes.tpms_gyroid")
+schwartzp_mod = pytest.importorskip("gyroid_utils.TPMS_classes.tpms_schwartzp")
+diamond_mod = pytest.importorskip("gyroid_utils.TPMS_classes.tpms_diamond")
+iwp_mod = pytest.importorskip("gyroid_utils.TPMS_classes.tpms_iwp")
+neovius_mod = pytest.importorskip("gyroid_utils.TPMS_classes.tpms_neovius")
+fischerkochs_mod = pytest.importorskip("gyroid_utils.TPMS_classes.tpms_fischerkochs")
+frd_mod = pytest.importorskip("gyroid_utils.TPMS_classes.tpms_frd")
+lidinoid_mod = pytest.importorskip("gyroid_utils.TPMS_classes.tpms_lidinoid")
+splitp_mod = pytest.importorskip("gyroid_utils.TPMS_classes.tpms_splitp")
 
 """
 ============================================================================

@@ -26,16 +26,16 @@ from . import abaqus_tools
 from . import TET_mesh_tools
 from . import CT_scans
 from . import CT_visualization_window
-from . import tpms_base
-from . import tpms_gyroid
-from . import tpms_schwartzp
-from . import tpms_diamond
-from . import tpms_iwp
-from . import tpms_neovius
-from . import tpms_fischerkochs
-from . import tpms_frd
-from . import tpms_lidinoid
-from . import tpms_splitp
+from .TPMS_classes import tpms_base
+from .TPMS_classes import tpms_gyroid
+from .TPMS_classes import tpms_schwartzp
+from .TPMS_classes import tpms_diamond
+from .TPMS_classes import tpms_iwp
+from .TPMS_classes import tpms_neovius
+from .TPMS_classes import tpms_fischerkochs
+from .TPMS_classes import tpms_frd
+from .TPMS_classes import tpms_lidinoid
+from .TPMS_classes import tpms_splitp
 from .logger import logger, set_log_level
 
 #__all__ is a list that defines what gets exported when someone does from package import *.
