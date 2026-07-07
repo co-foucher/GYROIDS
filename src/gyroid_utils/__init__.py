@@ -29,6 +29,13 @@ from . import CT_visualization_window
 from . import tpms_base
 from . import tpms_gyroid
 from . import tpms_schwartzp
+from . import tpms_diamond
+from . import tpms_iwp
+from . import tpms_neovius
+from . import tpms_fischerkochs
+from . import tpms_frd
+from . import tpms_lidinoid
+from . import tpms_splitp
 from .logger import logger, set_log_level
 
 #__all__ is a list that defines what gets exported when someone does from package import *.
@@ -41,6 +48,13 @@ __all__ = [
     "tpms_base",
     "tpms_gyroid",
     "tpms_schwartzp",
+    "tpms_diamond",
+    "tpms_iwp",
+    "tpms_neovius",
+    "tpms_fischerkochs",
+    "tpms_frd",
+    "tpms_lidinoid",
+    "tpms_splitp",
     "logger",
     "set_log_level",
     "__version__",
