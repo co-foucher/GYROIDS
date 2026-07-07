@@ -32,11 +32,21 @@ This is used to generate TPMS structures (especially gyroids) using the general 
 note that it was originaly designed for creating gyroid, but not limited to them.
 
 Scripts related to this use case:
-- **gyroid.py**: Main GyroidModel class and convenience functions
-- **SchwartzP.py**: Main SchwartzPModel class and convenience functions (same API as GyroidModel, for Schwartz P surfaces)
+- **tpms_base.py**: Shared `TPMSModel` base class — field computation, meshing, export, previews, quality checks, and baseplates. Every TPMS type is a thin subclass that only supplies its implicit surface equation.
+- **tpms_gyroid.py**: `GyroidModel` + `create_a_gyroid()`
+- **tpms_schwartzp.py**: `SchwartzPModel` + `create_a_schwartz_p()`
+- **tpms_diamond.py**: `DiamondModel` + `create_a_diamond()`
+- **tpms_iwp.py**: `IWPModel` + `create_a_iwp()`
+- **tpms_neovius.py**: `NeoviusModel` + `create_a_neovius()`
+- **tpms_fischerkochs.py**: `FischerKochSModel` + `create_a_fischer_koch_s()`
+- **tpms_frd.py**: `FRDModel` + `create_a_frd()`
+- **tpms_lidinoid.py**: `LidinoidModel` + `create_a_lidinoid()`
+- **tpms_splitp.py**: `SplitPModel` + `create_a_split_p()`
 - **mesh_tools.py**: Mesh processing functions (simplification, smoothing, fixing, validation, export)
 - **io_ops.py**: Input/output operations (STL loading/saving, .npz archives)
 - **viz.py**: Visualization tools (HTML previews, histograms, 2D matrix views)
+
+All nine TPMS types (gyroid, Schwartz P, Diamond, I-WP, Neovius, Fischer-Koch S, F-RD, Lidinoid, Split-P) share the exact same API since they all subclass `TPMSModel` — swap the import/class name and everything else in the Quick Start example below works unchanged.
 
 Example notebooks for this use case:
 - **Gyroids_STL.ipynb**
@@ -76,13 +86,14 @@ Other scripts exist for configuring this library and some usefull functions
 # FEATURES
 
 ## TPMS Structure Generation
-- Three field computation modes: `'abs'`, `'signed'`, and `'distance'` for flexible wall definition
-- Support for variable periods and thickness (scalar or per-voxel arrays) of gyroids
+- Nine TPMS surface types out of the box: Gyroid, Schwartz P, Diamond, I-WP, Neovius, Fischer-Koch S, F-RD, Lidinoid, and Split-P, all sharing one `TPMSModel` base class/API
+- Three field computation modes: `'abs'`, `'signed'`, and `'distance'`/`'distance_fast'` for flexible wall definition
+- Support for variable periods and thickness (scalar or per-voxel arrays)
 - Optional baseplates for structural support
 
 ## Surface Mesh Processing
 - Marching cubes algorithm for isosurface extraction
-- Multiple mesh simplification strategies: fast (PyVista) or high-quality (Open3D)
+- Three mesh simplification backends: `'pyvista'` (decimate_pro), `'trimesh'` (vertex clustering, default), or `'open3d'` (quadric decimation)
 - Mesh smoothing with Humphrey filter
 - Automatic mesh repair (non-manifold edges, hole filling)
 - Comprehensive mesh validation (watertight, manifold, self-intersections)
@@ -123,7 +134,7 @@ The `GyroidModel` class is the main entry point for gyroid generation. The typic
 
 ```python
 import numpy as np
-from gyroid_utils.gyroid import GyroidModel
+from gyroid_utils.tpms_gyroid import GyroidModel
 
 # Create a 64×64×64 grid
 x, y, z = np.meshgrid(np.linspace(0,1,64),
@@ -140,7 +151,7 @@ model.compute_field(mode='distance')
 verts, faces = model.generate_mesh()
 
 # Simplify, smooth, and repair
-model.simplify_mesh(target_faces=10000, mode='fast')
+model.simplify_mesh(target_faces=10000, mode='trimesh')
 model.smooth_mesh(smoothing_factor=0.5)
 model.fix_mesh()
 
@@ -149,13 +160,15 @@ model.export_stl("my_gyroid.stl")
 model.save("gyroid_data.npz")  # Save field for later
 ```
 
+Any other TPMS type works the same way — just import a different class, e.g. `from gyroid_utils.tpms_diamond import DiamondModel`.
+
 ### All-in-One Function
 
 For a quicker workflow, use `create_a_gyroid()`:
 
 ```python
 import numpy as np
-from gyroid_utils.gyroid import create_a_gyroid
+from gyroid_utils.tpms_gyroid import create_a_gyroid
 
 x, y, z = np.meshgrid(np.linspace(0,10,128),
                       np.linspace(0,10,128),
@@ -172,7 +185,7 @@ create_a_gyroid(
 )
 ```
 
-For more detailed API documentation and parameters, see [gyroid.py](src/gyroid_utils/gyroid.py) or check out the example notebooks.
+For more detailed API documentation and parameters, see [tpms_base.py](src/gyroid_utils/tpms_base.py) (shared pipeline) and [tpms_gyroid.py](src/gyroid_utils/tpms_gyroid.py) (gyroid-specific equation), or check out the example notebooks.
 
 
 # Logging
