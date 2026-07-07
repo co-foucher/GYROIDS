@@ -171,12 +171,12 @@ class TestComputeField:
         expected = _expected_distance_field(x, y, z, px, py, pz, thickness)
         np.testing.assert_allclose(v, expected)
 
-    def test_default_mode_is_abs(self, small_grid):
+    def test_default_mode_is_distance(self, small_grid):
         """Calling compute_field() with no mode argument should behave exactly like mode="abs"."""
         x, y, z = small_grid
         model = GyroidModel(x, y, z, 1.3, 1.1, 0.9, 0.25)
         v_default = model.compute_field()
-        v_abs = model.compute_field(mode="abs")
+        v_abs = model.compute_field(mode="distance")
         np.testing.assert_allclose(v_default, v_abs)
 
     def test_invalid_mode_raises(self, small_grid):

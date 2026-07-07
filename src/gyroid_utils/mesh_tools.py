@@ -120,7 +120,7 @@ def simplify_mesh(faces: np.ndarray, verts: np.ndarray, target: float = 100000, 
     mode : str, optional
         "pyvista" (uses PyVista decimate_pro), 
         or "trimesh" (uses trimesh vertex clustering, default),
-        or "open3d" (uses Open3D quadric decimation — requires open3d installed).
+        or "open3d" (uses Open3D quadric decimation).
 
     RETURNS
     -------

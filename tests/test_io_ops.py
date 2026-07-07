@@ -66,6 +66,31 @@ class TestGyroidMatricesRoundtrip:
         for name, loaded_arr in zip(names, loaded):
             np.testing.assert_allclose(loaded_arr, arrays[name])
 
+    def test_extension_is_optional_and_never_doubled(self, tmp_path):
+        """
+        The archive is always .npz, so save_gyroid_matrices()/
+        load_gyroid_matrices() should both accept a path with or without the
+        extension: appending it automatically when missing, and not
+        doubling it up (e.g. "foo.npz.npz") when the caller already
+        included it. Both forms should be usable interchangeably.
+        """
+        arrays = _make_arrays()
+
+        bare_path = tmp_path / "no_extension"
+        io_ops.save_gyroid_matrices(str(bare_path), **arrays)
+        assert bare_path.with_suffix(".npz").exists()
+
+        explicit_path = tmp_path / "with_extension.npz"
+        io_ops.save_gyroid_matrices(str(explicit_path), **arrays)
+        assert explicit_path.exists()
+        assert not (tmp_path / "with_extension.npz.npz").exists()
+
+        # both should be loadable using either the bare or the .npz-suffixed form
+        loaded_from_bare = io_ops.load_gyroid_matrices(str(bare_path))
+        loaded_from_explicit = io_ops.load_gyroid_matrices(str(explicit_path))
+        np.testing.assert_allclose(loaded_from_bare[0], arrays["Xres"])
+        np.testing.assert_allclose(loaded_from_explicit[0], arrays["Xres"])
+
     def test_save_rejects_mismatched_shapes(self, tmp_path):
         """If any array's shape doesn't match the others (or can't be broadcast to match), save_gyroid_matrices() should raise ValueError and not write a file."""
         arrays = _make_arrays()
@@ -114,7 +139,7 @@ class TestGyroidModelSaveLoadRoundtrip:
         model = gyroid_mod.GyroidModel(x, y, z, 1.0, 1.0, 1.0, 0.2)
         model.compute_field(mode="abs")
 
-        outfile = tmp_path / "model.npz"
+        outfile = tmp_path / "model"
         model.save(str(outfile))
 
         loaded = gyroid_mod.GyroidModel.load(str(outfile))

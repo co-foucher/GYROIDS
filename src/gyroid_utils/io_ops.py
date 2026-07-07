@@ -117,7 +117,10 @@ def save_gyroid_matrices(
     PARAMETERS
     ----------
     outfile : str
-        Path to the output .npz file.
+        Path to the output file. The archive is always a .npz file, so the
+        ".npz" extension is appended automatically if not already present
+        - callers don't need to include it (and it won't be doubled up if
+        they do).
     Xres : np.ndarray
         X-coordinate grid.
     Yres : np.ndarray
@@ -149,10 +152,18 @@ def save_gyroid_matrices(
     EXAMPLE
     -------
     >>> save_gyroid_matrices(
-    ...     "gyroid_data.npz",
+    ...     "gyroid_data",
     ...     Xres, Yres, Zres, Xperiod, Yperiod, Zperiod, thickness, gyroid_field
     ... )
     """
+
+    # The archive is always .npz; append the extension if the caller didn't
+    # include it, rather than requiring them to type it (and without
+    # doubling it up if they did include it). load_gyroid_matrices() below
+    # does the same normalization, so save/load accept the same bare path.
+    outfile = str(outfile)
+    if not outfile.endswith(".npz"):
+        outfile += ".npz"
 
     # Xperiod/Yperiod/Zperiod/thickness may be given as a single scalar
     # (GyroidModel/_validate_inputs allow this) or as a per-voxel array. Since
@@ -214,7 +225,10 @@ def load_gyroid_matrices(infile: str):
     PARAMETERS
     ----------
     infile : str
-        Path to the input .npz file.
+        Path to the input file. The archive is always a .npz file, so the
+        ".npz" extension is appended automatically if not already present
+        - callers can pass the same bare path used with
+        save_gyroid_matrices().
 
     RETURNS
     -------
@@ -232,8 +246,14 @@ def load_gyroid_matrices(infile: str):
 
     EXAMPLE
     -------
-    >>> Xres, Yres, Zres, Xp, Yp, Zp, t, field = load_gyroid_matrices("gyroid_data.npz")
+    >>> Xres, Yres, Zres, Xp, Yp, Zp, t, field = load_gyroid_matrices("gyroid_data")
     """
+
+    # Same extension normalization as save_gyroid_matrices(), so callers can
+    # pass the identical bare path to both functions.
+    infile = str(infile)
+    if not infile.endswith(".npz"):
+        infile += ".npz"
 
     try:
         with np.load(infile) as loaded_file:

@@ -165,7 +165,7 @@ class GyroidModel:
     # 4) compute_field
     # =====================================================================
     def compute_field(self,
-                      mode: str = "abs") -> np.ndarray:
+                      mode: str = "distance") -> np.ndarray:
         """
         ============================================================================
         4) COMPUTE_FIELD
@@ -217,7 +217,7 @@ class GyroidModel:
             self.v = term - self.thickness
             return self.v
 
-        if mode == "distance" or mode == "distance_fast":
+        if mode == "distance":
             # requires scipy
             logger.info(f"Computing distance field")
             # Auto-compute actual voxel spacing from the coordinate grids
@@ -261,7 +261,7 @@ class GyroidModel:
             self.v[mask] = dist[mask]
             return self.v
 
-        raise ValueError("mode must be one of: 'abs', 'signed', 'distance', 'distance_fast'")
+        raise ValueError("mode must be one of: 'abs', 'signed', 'distance'")
 
     # =====================================================================
     # 5) save
@@ -391,7 +391,7 @@ class GyroidModel:
     # =====================================================================
     # 8) simplify_mesh
     # =====================================================================
-    def simplify_mesh(self, target_faces: int = 10000, mode: str = "normal"):
+    def simplify_mesh(self, target_faces: int = 10000, mode: str = "trimesh"):
         """
         ============================================================================
         8) SIMPLIFY_MESH
@@ -405,7 +405,9 @@ class GyroidModel:
         target_faces : int, optional
             Target number of faces to keep (default = 10000).
         mode : str, optional
-            "normal" (default) or "fast".
+            "pyvista" (uses PyVista decimate_pro), 
+            or "trimesh" (uses trimesh vertex clustering, default),
+            or "open3d" (uses Open3D quadric decimation).
 
         RETURNS
         -------
@@ -415,17 +417,14 @@ class GyroidModel:
         if self.verts is None or self.faces is None:
             logger.error("Mesh has not been generated yet.")
             return
-
-        if mode == "fast":
-            self.faces, self.verts = mesh_tools.simplify_mesh(self.faces, self.verts, target=target_faces, mode="fast")
-        else:
-            self.faces, self.verts = mesh_tools.simplify_mesh(self.faces, self.verts, target=target_faces, mode="normal")
+        
+        self.faces, self.verts = mesh_tools.simplify_mesh(self.faces, self.verts, target=target_faces, mode=mode)
 
         # keep the largest connected component and discard stray pieces
         self.verts, self.faces = mesh_tools.keep_largest_connected_component(self.verts, self.faces)
 
         logger.info(f"Mesh simplified to {len(self.faces)} faces")
-        return
+        return self.verts, self.faces
 
     # =====================================================================
     # 9) export_stl
