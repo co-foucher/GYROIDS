@@ -31,26 +31,30 @@ This is used to generate TPMS structures (especially gyroids) using the general 
 <img width="1894" height="921" alt="image" src="https://github.com/user-attachments/assets/c65cae60-cd07-47e0-a794-d1a3a486b6e0" />
 note that it was originaly designed for creating gyroid, but not limited to them.
 
+All TPMS model code now lives under the **`TPMS_classes/`** subpackage (`src/gyroid_utils/TPMS_classes/`), which re-exports everything so `from gyroid_utils.TPMS_classes import GyroidModel` (etc.) works without reaching into individual files.
+
 Scripts related to this use case:
-- **tpms_base.py**: Shared `TPMSModel` base class — field computation, meshing, export, previews, quality checks, and baseplates. Every TPMS type is a thin subclass that only supplies its implicit surface equation.
-- **tpms_gyroid.py**: `GyroidModel` + `create_a_gyroid()`
-- **tpms_schwartzp.py**: `SchwartzPModel` + `create_a_schwartz_p()`
-- **tpms_diamond.py**: `DiamondModel` + `create_a_diamond()`
-- **tpms_iwp.py**: `IWPModel` + `create_a_iwp()`
-- **tpms_neovius.py**: `NeoviusModel` + `create_a_neovius()`
-- **tpms_fischerkochs.py**: `FischerKochSModel` + `create_a_fischer_koch_s()`
-- **tpms_frd.py**: `FRDModel` + `create_a_frd()`
-- **tpms_lidinoid.py**: `LidinoidModel` + `create_a_lidinoid()`
-- **tpms_splitp.py**: `SplitPModel` + `create_a_split_p()`
+- **TPMS_classes/tpms_base.py**: Shared `TPMSModel` base class — field computation, meshing, export, previews, quality checks, and baseplates. Every TPMS type is a thin subclass that only supplies its implicit surface equation.
+- **TPMS_classes/tpms_gyroid.py**: `GyroidModel` + `create_a_gyroid()`
+- **TPMS_classes/tpms_schwartzp.py**: `SchwartzPModel` + `create_a_schwartz_p()`
+- **TPMS_classes/tpms_diamond.py**: `DiamondModel` + `create_a_diamond()`
+- **TPMS_classes/tpms_iwp.py**: `IWPModel` + `create_a_iwp()`
+- **TPMS_classes/tpms_neovius.py**: `NeoviusModel` + `create_a_neovius()`
+- **TPMS_classes/tpms_fischerkochs.py**: `FischerKochSModel` + `create_a_fischer_koch_s()`
+- **TPMS_classes/tpms_frd.py**: `FRDModel` + `create_a_frd()`
+- **TPMS_classes/tpms_lidinoid.py**: `LidinoidModel` + `create_a_lidinoid()`
+- **TPMS_classes/tpms_splitp.py**: `SplitPModel` + `create_a_split_p()`
 - **mesh_tools.py**: Mesh processing functions (simplification, smoothing, fixing, validation, export)
 - **io_ops.py**: Input/output operations (STL loading/saving, .npz archives)
 - **viz.py**: Visualization tools (HTML previews, histograms, 2D matrix views)
+- **voxel_overhang_tools.py**: `detect_overhangs()` — flags voxels in a solid/empty voxel grid whose overhang angle (relative to the build plate, along z) exceeds a threshold (default 45°). Useful for a quick 3D-printability check on a generated TPMS lattice before slicing.
 
 All nine TPMS types (gyroid, Schwartz P, Diamond, I-WP, Neovius, Fischer-Koch S, F-RD, Lidinoid, Split-P) share the exact same API since they all subclass `TPMSModel` — swap the import/class name and everything else in the Quick Start example below works unchanged.
 
 Example notebooks for this use case:
 - **Gyroids_STL.ipynb**
 - **Gyroids_STL_class.ipynb**
+- **overhang_test.ipynb**: work in progress, will demo `detect_overhangs()`
 
 ## Simulation of STL file
 This is used to be able to create simulations of the generated structures. More specifically, to create a tetrahedral mesh adapted to finite element modeling using FtetWild, manipulate them, create ABAQUS input files, and run them in batches. Example use case in the image below is for simulating the first 10 natural frequencies of a simple gyroid.
@@ -90,6 +94,7 @@ Other scripts exist for configuring this library and some usefull functions
 - Three field computation modes: `'abs'`, `'signed'`, and `'distance'`/`'distance_fast'` for flexible wall definition
 - Support for variable periods and thickness (scalar or per-voxel arrays)
 - Optional baseplates for structural support
+- Overhang/print-readiness check on the voxel grid (`voxel_overhang_tools.detect_overhangs()`), flagging voxels beyond a configurable overhang angle (default 45°)
 
 ## Surface Mesh Processing
 - Marching cubes algorithm for isosurface extraction
@@ -134,7 +139,7 @@ The `GyroidModel` class is the main entry point for gyroid generation. The typic
 
 ```python
 import numpy as np
-from gyroid_utils.tpms_gyroid import GyroidModel
+from gyroid_utils.TPMS_classes import GyroidModel
 
 # Create a 64×64×64 grid
 x, y, z = np.meshgrid(np.linspace(0,1,64),
@@ -160,7 +165,7 @@ model.export_stl("my_gyroid.stl")
 model.save("gyroid_data.npz")  # Save field for later
 ```
 
-Any other TPMS type works the same way — just import a different class, e.g. `from gyroid_utils.tpms_diamond import DiamondModel`.
+Any other TPMS type works the same way — just import a different class, e.g. `from gyroid_utils.TPMS_classes import DiamondModel`.
 
 ### All-in-One Function
 
@@ -168,7 +173,7 @@ For a quicker workflow, use `create_a_gyroid()`:
 
 ```python
 import numpy as np
-from gyroid_utils.tpms_gyroid import create_a_gyroid
+from gyroid_utils.TPMS_classes import create_a_gyroid
 
 x, y, z = np.meshgrid(np.linspace(0,10,128),
                       np.linspace(0,10,128),
@@ -185,7 +190,7 @@ create_a_gyroid(
 )
 ```
 
-For more detailed API documentation and parameters, see [tpms_base.py](src/gyroid_utils/tpms_base.py) (shared pipeline) and [tpms_gyroid.py](src/gyroid_utils/tpms_gyroid.py) (gyroid-specific equation), or check out the example notebooks.
+For more detailed API documentation and parameters, see [tpms_base.py](src/gyroid_utils/TPMS_classes/tpms_base.py) (shared pipeline) and [tpms_gyroid.py](src/gyroid_utils/TPMS_classes/tpms_gyroid.py) (gyroid-specific equation), or check out the example notebooks.
 
 
 # Logging

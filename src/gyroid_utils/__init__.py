@@ -26,6 +26,9 @@ from . import abaqus_tools
 from . import TET_mesh_tools
 from . import CT_scans
 from . import CT_visualization_window
+from . import voxel_overhang_tools
+#takes each of those submodules and rebinds it as an attribute of gyroid_utils itself (one level up), 
+# so that gyroid_utils.tpms_base (no .TPMS_classes. in the middle) also works.
 from .TPMS_classes import tpms_base
 from .TPMS_classes import tpms_gyroid
 from .TPMS_classes import tpms_schwartzp
@@ -55,6 +58,7 @@ __all__ = [
     "tpms_frd",
     "tpms_lidinoid",
     "tpms_splitp",
+    "voxel_overhang_tools",
     "logger",
     "set_log_level",
     "__version__",
