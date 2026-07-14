@@ -12,6 +12,7 @@ mesh_tools = pytest.importorskip("gyroid_utils.mesh_tools")
 0 - TestCalculateTriangleAreas
 1 - TestKeepLargestConnectedComponent
 2 - TestMeshFromMatrix
+3 - TestSimplifyMesh
 ============================================================================
 """
 
@@ -121,6 +122,66 @@ class TestKeepLargestConnectedComponent:
         v2, f2 = mesh_tools.keep_largest_connected_component(verts, faces)
         assert len(f2) == 8
         assert np.all(v2 >= 90)  # only the translated/large octahedron remains
+
+
+# ============================================================================
+# 3 - TestSimplifyMesh
+# ============================================================================
+class TestSimplifyMesh:
+    """
+    Tests for mesh_tools.simplify_mesh().
+
+    simplify_mesh() takes and returns (verts, faces), matching the
+    (verts, faces) convention used everywhere else in mesh_tools.py (e.g.
+    mesh_from_matrix, keep_largest_connected_component). It used to return
+    (faces, verts) instead - the opposite order - which was an easy trap for
+    any caller that (reasonably) assumed the same order as the rest of the
+    module: verts silently ended up holding face indices and faces silently
+    ended up holding vertex coordinates, and the mistake wouldn't surface
+    until something far downstream (e.g. viz.save_mesh_as_html) tried to use
+    the vertex-coordinate array as an index and crashed with a confusing
+    IndexError. test_returns_verts_then_faces_in_that_order locks in the
+    correct order so that bug can't silently come back.
+    """
+
+    def test_none_input_raises_type_error(self):
+        """verts=None/faces=None should raise TypeError, per the explicit guard, rather than fail later with a confusing AttributeError."""
+        with pytest.raises(TypeError):
+            mesh_tools.simplify_mesh(None, None, target=100)
+
+    def test_zero_faces_raises_type_error(self):
+        """A mesh with zero faces has nothing to simplify, so it should raise TypeError rather than silently return an empty mesh."""
+        verts = np.zeros((0, 3))
+        faces = np.zeros((0, 3), dtype=int)
+        with pytest.raises(TypeError):
+            mesh_tools.simplify_mesh(verts, faces, target=100)
+
+    def test_invalid_mode_raises_value_error(self):
+        """An unrecognized mode string should raise ValueError, not silently fall back to some default simplification method."""
+        verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
+        faces = np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]])
+        with pytest.raises(ValueError):
+            mesh_tools.simplify_mesh(verts, faces, target=100, mode="bogus")
+
+    def test_returns_verts_then_faces_in_that_order(self):
+        """
+        Regression test for the swapped-return-order bug: with a target face
+        count above the mesh's actual face count, "trimesh" mode's decimation
+        loop never runs, so the input mesh should come back unchanged. This
+        pins down not just that the values are unchanged, but that they come
+        back in (verts, faces) order - verts as (N, 3) float coordinates,
+        faces as (M, 3) integer indices - rather than swapped.
+        """
+        verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
+        faces = np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]])
+
+        verts_out, faces_out = mesh_tools.simplify_mesh(verts, faces, target=100, mode="trimesh")
+
+        np.testing.assert_array_equal(verts_out, verts)
+        np.testing.assert_array_equal(faces_out, faces)
+        assert verts_out.shape[1] == 3
+        assert faces_out.shape[1] == 3
+        assert np.issubdtype(faces_out.dtype, np.integer)
 
 
 # ============================================================================

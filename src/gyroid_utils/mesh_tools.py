@@ -100,7 +100,7 @@ def keep_largest_connected_component(verts: np.ndarray, faces: np.ndarray):
 # =====================================================================
 # 2) simplify_mesh
 # =====================================================================
-def simplify_mesh(faces: np.ndarray, verts: np.ndarray, target: float = 100000, mode: str = "pyvista"):
+def simplify_mesh(verts: np.ndarray, faces: np.ndarray, target: float = 100000, mode: str = "pyvista"):
     """
     ============================================================================
     2) SIMPLIFY_MESH
@@ -110,33 +110,39 @@ def simplify_mesh(faces: np.ndarray, verts: np.ndarray, target: float = 100000, 
 
     PARAMETERS
     ----------
-    faces : (M, 3) ndarray
-        Triangular faces.
     verts : (N, 3) ndarray
         Vertex coordinates.
+    faces : (M, 3) ndarray
+        Triangular faces.
     target : float, optional
         can be either the Desired final number of faces (default = 100000).
         or the fraction of faces to keep (if between 0 and 1, e.g. 0.5 to keep 50% of faces).
     mode : str, optional
-        "pyvista" (uses PyVista decimate_pro), 
+        "pyvista" (uses PyVista decimate_pro),
         or "trimesh" (uses trimesh vertex clustering, default),
         or "open3d" (uses Open3D quadric decimation).
 
     RETURNS
     -------
-    faces_simplified : (T, 3) ndarray
-        Simplified faces.
     verts_simplified : (S, 3) ndarray
         Simplified vertices.
-    
+    faces_simplified : (T, 3) ndarray
+        Simplified faces.
+
+    NOTES
+    -----
+    - Parameter and return order both follow the (verts, faces) convention
+      used throughout mesh_tools.py (e.g. mesh_from_matrix,
+      keep_largest_connected_component).
+
     EXAMPLE
     -------
-    >>> f2, v2 = simplify_mesh(faces, verts, target=50000)
+    >>> v2, f2 = simplify_mesh(verts, faces, target=50000)
     >>> print(len(f2))
     """
-    if faces is None or verts is None:
-        logger.error("simplify_mesh(): faces or verts is None.")
-        raise TypeError("faces and verts must not be None.")
+    if verts is None or faces is None:
+        logger.error("simplify_mesh(): verts or faces is None.")
+        raise TypeError("verts and faces must not be None.")
 
     original = len(faces)
     current = original
@@ -164,7 +170,7 @@ def simplify_mesh(faces: np.ndarray, verts: np.ndarray, target: float = 100000, 
         mesh_decimated = mesh.decimate_pro((original-n_faces_target)/original)
 
         logger.info(f"Mesh simplification complete → {len(mesh_decimated.faces) // 4} faces remain.")
-        return np.array(mesh_decimated.faces.reshape(-1, 4)[:, 1:]) , np.array(mesh_decimated.points)
+        return np.array(mesh_decimated.points), np.array(mesh_decimated.faces.reshape(-1, 4)[:, 1:])
 
     # -------- trimesh mode (iterative halving) ---------------
     if mode == "trimesh":
@@ -189,7 +195,7 @@ def simplify_mesh(faces: np.ndarray, verts: np.ndarray, target: float = 100000, 
                 break
 
         logger.info(f"Mesh simplification complete → {len(faces)} faces remain.")
-        return faces, verts
+        return verts, faces
 
     # -------- open3d mode (iterative halving) ---------------
     elif mode == "open3d":
@@ -214,7 +220,7 @@ def simplify_mesh(faces: np.ndarray, verts: np.ndarray, target: float = 100000, 
                 raise RuntimeError("Failed to simplify mesh.") from e
 
         logger.info(f"Mesh simplification complete → {len(faces)} faces remain.")
-        return faces, verts
+        return verts, faces
 
     else:
         logger.error(f"Invalid simplification mode: {mode}. Returning original mesh.")
@@ -394,6 +400,22 @@ def mesh_from_matrix(
         Triangle connectivity (indices into verts).
     """
     logger.info("Extracting isosurface mesh from matrix.")
+
+    #------------------------------------------------------------------
+    # Validate inputs
+    #------------------------------------------------------------------
+    # officialy this function only accepts 3D matrices for x,y,z, 
+    # but I always forget, I this hidden feature allows to pass 1D arrays for x,y,z,
+    # and it will convert them to 3D meshgrid automatically.
+    if x.ndim != 3 or y.ndim != 3 or z.ndim != 3:
+        if x.ndim == 1 and y.ndim == 1 and z.ndim == 1:
+            if x.shape[0] == matrix.shape[0] and y.shape[0] == matrix.shape[1] and z.shape[0] == matrix.shape[2]:
+                logger.warning("x, y, z are 1D arrays, but matching matrix dimensions. Converting to 3D meshgrid.")
+                x, y, z = np.meshgrid(x, y, z, indexing='ij')
+            else:
+                logger.error("x, y, z must match the shape of matrix or be 1D arrays matching each dimension.")
+                logger.debug(f"x.shape: {x.shape}, y.shape: {y.shape}, z.shape: {z.shape}, matrix.shape: {matrix.shape}")
+                raise ValueError("x, y, z must match the shape of matrix or be 1D arrays matching each dimension.")
 
     # ------------------------------------------------------------------
     # Pad volume to help close boundary openings ("caps")

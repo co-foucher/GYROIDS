@@ -55,6 +55,8 @@ def reload_all():
         gyroid_utils.abaqus_tools,
         gyroid_utils.TET_mesh_tools,
         gyroid_utils.voxel_overhang_tools,
+        gyroid_utils.CT_scans,
+        gyroid_utils.CT_visualization_window,
     ]
 
     for m in modules:

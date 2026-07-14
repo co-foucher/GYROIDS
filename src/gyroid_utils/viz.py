@@ -289,6 +289,7 @@ def save_mesh_as_html(faces: np.ndarray,
             out_path = f"{file_name}.html"
             fig.write_html(out_path, auto_open=False)
             logger.info(f"HTML visualization saved → {out_path}")
+            
         except Exception as e:
             logger.error(f"Failed to save HTML visualization: {e}", exc_info=True)
             raise RuntimeError(f"save_mesh_as_html(): failed to write '{out_path}'") from e
@@ -467,7 +468,7 @@ def twod_view_of_matrix(v: np.ndarray,
                 x=x_axis,
                 y=y_axis,
                 z=v[:, :, k].T,
-                colorscale="Viridis",
+                colorscale="Portland",
                 zmin=zmin,
                 zmax=zmax
             )],
@@ -486,7 +487,7 @@ def twod_view_of_matrix(v: np.ndarray,
             x=x_axis,
             y=y_axis,
             z=v[:, :, k0].T,
-            colorscale="Viridis",
+            colorscale="Portland",
             zmin=zmin,
             zmax=zmax
         )],
@@ -494,6 +495,7 @@ def twod_view_of_matrix(v: np.ndarray,
             title=f"Gyroid field heatmap (z = {z_axis[k0]:.3f})",
             xaxis_title="X",
             yaxis_title="Y",
+            yaxis=dict(scaleanchor="x", scaleratio=1),
             width=800,
             height=650,
             updatemenus=[

@@ -480,7 +480,7 @@ class TPMSModel:
             logger.error("Mesh has not been generated yet.")
             return
 
-        self.faces, self.verts = mesh_tools.simplify_mesh(self.faces, self.verts, target=target_faces, mode=mode)
+        self.verts, self.faces = mesh_tools.simplify_mesh(self.verts, self.faces, target=target_faces, mode=mode)
 
         # keep the largest connected component and discard stray pieces
         self.verts, self.faces = mesh_tools.keep_largest_connected_component(self.verts, self.faces)

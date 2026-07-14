@@ -5,7 +5,8 @@ from .logger import logger
 import sys
 import SimpleITK as sitk
 import tifffile as tiff
-from .CT_visualization_window import open_window
+from PIL import Image as PILImage
+from .CT_visualization_window import open_window, lightweigth_open
 #from gyroid_utils import CT_visualization_window
 
 
@@ -25,6 +26,7 @@ from .CT_visualization_window import open_window
 11 - find_small_holes
 12 - find_islands
 13 - watershed_algorithm
+14 - convert_jpg_to_mhd
 #=====================================================================================================================
 """
 
@@ -281,10 +283,10 @@ def read_mhd_file(input_file_path, lightweigth_visualization=False):
     """
     image = sitk.ReadImage(input_file_path)
     if not lightweigth_visualization:
-        CT_visualization_window.open_window(image)
+        open_window(image)
     else:
         logger.info("Lightweight visualization enabled")
-        CT_visualization_window.lightweigth_open(image)
+        lightweigth_open(image)
 
     return sitk.GetArrayFromImage(image), image.GetSpacing(), image.GetOrigin()
 
@@ -408,7 +410,7 @@ def segment_from_threshold(image,lower_threshold,upper_threshold):
 # =====================================================================
 # 7) apply_threshold
 # =====================================================================
-def apply_threshold(image, lower_threshold, upper_threshold):
+def apply_threshold(images, lower_threshold, upper_threshold):
     """
     ============================================================================
     7) APPLY_THRESHOLD
@@ -418,7 +420,7 @@ def apply_threshold(image, lower_threshold, upper_threshold):
 
     PARAMETERS
     ----------
-    image : SimpleITK Image or np.ndarray
+    images : SimpleITK Image or np.ndarray
         The MHD image stack.
     lower_threshold : float
         Pixels with grey value below this will be set to zero.
@@ -748,3 +750,81 @@ def watershed_algorithm(single_image, sure_fg, sure_bg):
     original_image[watershed_result == 0] = original_image.max()
 
     return original_image, connection_markers_display
+
+
+# =====================================================================
+# 14) convert_jpg_to_mhd
+# =====================================================================
+
+def convert_jpg_to_mhd(input_path, output_path, spacing=(0.2, 0.2, 0.2), memory_saver=True):
+    """
+    ============================================================================
+    14) CONVERT_JPG_TO_MHD
+    Converts a directory (or glob pattern) of JPG files into a single MHD
+    volume file.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    input_path : str
+        Path to the folder containing all the jpg files (or a glob pattern
+        to match the jpg files, for example, "data/*.jpg").
+    output_path : str
+        Path where the output mhd file will be saved (the function will add
+        the .mhd extension automatically).
+    spacing : tuple, optional
+        Voxel spacing in mm (x, y, z). Default is (0.2, 0.2, 0.2).
+    memory_saver : bool, optional
+        If True, the function will convert the pixel values to uint8 format
+        to save memory. Default is True.
+
+    RETURNS
+    -------
+    None (writes output files to disk)
+    """
+
+    # Collect and sort JPG files (Path-based)
+    p = Path(input_path)
+    if p.is_dir():
+        jpg_directory = sorted(f for f in p.iterdir() if f.is_file())
+    else:
+        jpg_directory = sorted(p.parent.glob(p.name))
+
+    if len(jpg_directory) == 0:
+        raise FileNotFoundError(f"No JPG files found for pattern: {input_path}")
+
+    logger.info(f"{len(jpg_directory)} JPG images found.")
+
+    # Read first image (converted to grayscale) to get dimensions
+    first_image = np.array(PILImage.open(str(jpg_directory[0])).convert("L"))
+    Dimension = (int(first_image.shape[0]), int(first_image.shape[1]), len(jpg_directory))
+    logger.info(f"CT scan of dimension {Dimension} detected")
+
+    Origin = (0.0, 0.0, 0.0)
+    Spacing = spacing
+    logger.info(f"Using spacing: {Spacing} and origin: {Origin}")
+
+    # Preallocate array
+    dtype = np.uint8 if memory_saver else first_image.dtype
+    NpArrDc = np.zeros(Dimension, dtype=dtype)
+
+    # Loop through all images
+    for i, filepath in enumerate(jpg_directory):
+        _loading_bar(i, len(jpg_directory), bar_length=30)
+        img = np.array(PILImage.open(str(filepath)).convert("L"))
+        if memory_saver:
+            img = (img - img.min()) / (img.max() - img.min()) * 255
+            img = img.astype(np.uint8)
+        NpArrDc[:, :, i] = img
+
+    logger.info("Saving as mhd...")
+    NpArrDc = np.transpose(NpArrDc, (2, 0, 1))  # axis transpose
+    sitk_img = sitk.GetImageFromArray(NpArrDc, isVector=False)
+    sitk_img.SetSpacing(Spacing)
+    sitk_img.SetOrigin(Origin)
+
+    output_file = Path(output_path).with_suffix(".mhd")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    sitk.WriteImage(sitk_img, str(output_file))
+
+    return
