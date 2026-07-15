@@ -84,6 +84,7 @@ def detect_overhangs(voxel_grid: np.ndarray,
     if voxel_grid.ndim != 3:
         raise ValueError("voxel_grid must be a 3D numpy array")
     
+    voxel_grid = np.copy(voxel_grid)  # make a copy to avoid modifying the input  
     overhang_grid = np.copy(voxel_grid)  # initialize the overhang grid with zeros
     spacing_2D = np.array([x[1]-x[0], y[1]-y[0]])  # calculate the average voxel size in x and y dimensions
     slice_thickness = z[1]-z[0]  # calculate the voxel size in z dimension
@@ -159,7 +160,8 @@ def detect_overhangs(voxel_grid: np.ndarray,
                         for j in range(i - 1, -1, -1):
                             voxel_grid[support_voxels[:, 0], support_voxels[:, 1], j] = 1
                         # mark the support voxels in the overhang grid as well, so they are not considered overhangs in future slices
-                        overhang_grid[support_voxels[:, 0], support_voxels[:, 1], :1+i] = 1
+                        overhang_grid[support_voxels[:, 0], support_voxels[:, 1], :i] = 4
+                        overhang_grid[support_voxels[:, 0], support_voxels[:, 1], i] = 1
                         logger.debug(f"Slice {i}: {len(support_voxels)} support voxel(s) added in previous slices.")
 
         # remove the (true) overhang voxels from the original voxel grid to prevent

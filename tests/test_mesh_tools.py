@@ -11,8 +11,9 @@ mesh_tools = pytest.importorskip("gyroid_utils.mesh_tools")
 ============================================================================
 0 - TestCalculateTriangleAreas
 1 - TestKeepLargestConnectedComponent
-2 - TestMeshFromMatrix
-3 - TestSimplifyMesh
+2 - TestSimplifyMesh
+3 - TestMeshFromMatrix
+4 - TestMatrixFromMesh
 ============================================================================
 """
 
@@ -125,7 +126,7 @@ class TestKeepLargestConnectedComponent:
 
 
 # ============================================================================
-# 3 - TestSimplifyMesh
+# 2 - TestSimplifyMesh
 # ============================================================================
 class TestSimplifyMesh:
     """
@@ -185,7 +186,7 @@ class TestSimplifyMesh:
 
 
 # ============================================================================
-# 2 - TestMeshFromMatrix
+# 3 - TestMeshFromMatrix
 # ============================================================================
 class TestMeshFromMatrix:
     """
@@ -217,7 +218,6 @@ class TestMeshFromMatrix:
             algo_step_size=1,
             x=x, y=y, z=z,
             pad_width=2,
-            pad_val=-1.0,
         )
         assert verts is not None and faces is not None
         assert len(faces) > 0
@@ -236,3 +236,68 @@ class TestMeshFromMatrix:
                 matrix=field, iso_level=0.0, algo_step_size=1,
                 x=x, y=y, z=z, pad_width=-1,
             )
+
+
+# ============================================================================
+# 4 - TestMatrixFromMesh
+# ============================================================================
+class TestMatrixFromMesh:
+    """
+    Tests for mesh_tools.matrix_from_mesh(), the voxelization function that
+    inverts mesh_from_matrix()'s marching-cubes extraction. Together the two
+    functions form a full loop between the two representations gyroid_utils
+    works with: matrix -> mesh (mesh_from_matrix) -> matrix (matrix_from_mesh).
+    The main test here exercises that full loop end-to-end - build a
+    scalar field, extract its mesh, voxelize the mesh back into a matrix -
+    rather than just testing matrix_from_mesh in isolation against a mesh
+    built by hand.
+    """
+
+    def test_resolution_must_be_positive(self):
+        """resolution<=0 has no meaningful voxel pitch, so it should raise ValueError rather than divide by zero or produce a nonsensical grid."""
+        verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
+        faces = np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]])
+        with pytest.raises(ValueError):
+            mesh_tools.matrix_from_mesh(verts, faces, resolution=0)
+
+    def test_zero_span_mesh_raises_value_error(self):
+        """A mesh flattened onto a single plane (zero extent along z) can't be voxelized into a 3D grid, so it should raise ValueError rather than produce a degenerate matrix."""
+        verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]], dtype=float)
+        faces = np.array([[0, 1, 2], [1, 3, 2]])
+        with pytest.raises(ValueError):
+            mesh_tools.matrix_from_mesh(verts, faces, resolution=16)
+
+    def test_matrix_mesh_matrix_round_trip_preserves_sphere(self):
+        """
+        Full loop: build a scalar field whose isosurface is a unit sphere
+        (same field as TestMeshFromMatrix.test_extracts_sphere_like_isosurface),
+        extract its mesh with mesh_from_matrix(), then voxelize that mesh back
+        into a matrix with matrix_from_mesh(). The occupied voxels of the
+        round-tripped matrix should still describe (roughly) the same unit
+        sphere: nothing occupied far outside radius 1, and the interior
+        (near-zero radius) should actually be filled in, not just the shell,
+        since matrix_from_mesh().fill()'s whole point is a solid volume.
+        """
+        n = 20
+        lin = np.linspace(-1, 1, n)
+        x, y, z = np.meshgrid(lin, lin, lin, indexing="ij")
+        field = 1.0 - (x**2 + y**2 + z**2)  # positive inside the unit sphere
+
+        verts, faces = mesh_tools.mesh_from_matrix(
+            matrix=field,
+            iso_level=0.0,
+            algo_step_size=1,
+            x=x, y=y, z=z,
+            pad_width=2,
+        )
+
+        vx, vy, vz, matrix = mesh_tools.matrix_from_mesh(verts, faces, resolution=20)
+
+        assert matrix.shape == (len(vx), len(vy), len(vz))
+        assert matrix.any()  # something got voxelized and filled in
+
+        gx, gy, gz = np.meshgrid(vx, vy, vz, indexing="ij")
+        occupied_radii = np.sqrt(gx[matrix] ** 2 + gy[matrix] ** 2 + gz[matrix] ** 2)
+
+        assert occupied_radii.max() < 1.5  # nothing filled well outside the sphere
+        assert occupied_radii.min() < 0.3  # the center is filled, not just the shell

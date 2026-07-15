@@ -1,3 +1,4 @@
+from typing import Optional
 import numpy as np
 from typing import Optional, Tuple, Union
 
@@ -407,8 +408,7 @@ class TPMSModel:
         self,
         iso_level: float = 0.0,
         algo_step_size: int = 3,
-        pad_width: int = 5,
-        pad_val: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
+        pad_width: int = 5) -> Tuple[np.ndarray, np.ndarray]:
         """
         ============================================================================
         8) GENERATE_MESH
@@ -424,8 +424,6 @@ class TPMSModel:
             Marching cubes step size (default = 3).
         pad_width : int, optional
             Number of voxels to pad on each face of the volume (default = 5).
-        pad_val : float, optional
-            Constant padding value (default = 0.0).
 
         RETURNS
         -------
@@ -443,9 +441,7 @@ class TPMSModel:
             x=self.x,
             y=self.y,
             z=self.z,
-            pad_width=pad_width,
-            pad_val=pad_val,
-        )
+            pad_width=pad_width)
 
         logger.info(f"Generated mesh with {len(self.faces)} faces")
         return self.verts, self.faces
