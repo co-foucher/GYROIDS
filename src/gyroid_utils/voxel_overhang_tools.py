@@ -66,9 +66,12 @@ def detect_overhangs(voxel_grid: np.ndarray,
     -------
     overhang_grid : (nx, ny, nz) ndarray
         Array of the same shape as voxel_grid, where each element is:
-        0 (not solid), 1 (solid, not an overhang), 2 (overhang), or
-        3 (bridge - unsupported but spanned between two supports within the
-        allowed bridging distance, safe to print without support).
+            0 (not solid), 
+            1 (solid, not an overhang), 
+            2 (overhang), or
+            3 (bridge - unsupported but spanned between two supports within the
+                allowed bridging distance, safe to print without support).
+            4 (support voxel added to support an overhang above, if add_support_voxels=True).
 
     RAISES
     ------
@@ -143,7 +146,6 @@ def detect_overhangs(voxel_grid: np.ndarray,
         ======= STEP 3 ========
         # detect voxels where supports could be added and add support voxels 
         =======================
-        IT DOES NOT WORK YET
         """
         if add_support_voxels:
             if overhang_idx.size:
@@ -397,20 +399,6 @@ def _reorient_voxel_grid(voxel_grid: np.ndarray,
     case, land on the same cell as a neighboring feature -- the same
     quantization trade-off as the original voxelization, not something this
     introduces on top of it.
-
-    version 2 (previously used, see git history) tried to cap voxel growth
-    by fixing new_shape to voxel_grid.shape and solving for a spacing PER
-    AXIS. That deforms the object: rotating an anisotropic bounding box
-    changes each axis's extent by a different amount, so forcing a fixed
-    voxel count per axis forces a different pitch per axis too -- voxels
-    stop being cubes, and the shape stretches/squishes non-uniformly
-    (measured: a 30deg rotation on one test box gave a Z pitch 2.8x the
-    X/Y pitch). version 3 (below, active) fixes this by using ONE voxel
-    size for all three axes -- sized so the TOTAL voxel count lands near
-    the ORIGINAL grid's voxel count (voxel_grid.size) -- so it still
-    bounds the voxel-count explosion, but can't deform the shape since
-    there's only ever one voxel size in play.
-
     EXAMPLE
     -------
     >>> new_grid, nx_, ny_, nz_ = _reorient_voxel_grid(voxel_grid, x, y, z, R)
