@@ -44,17 +44,20 @@ Scripts related to this use case:
 - **TPMS_classes/tpms_frd.py**: `FRDModel` + `create_a_frd()`
 - **TPMS_classes/tpms_lidinoid.py**: `LidinoidModel` + `create_a_lidinoid()`
 - **TPMS_classes/tpms_splitp.py**: `SplitPModel` + `create_a_split_p()`
-- **mesh_tools.py**: Mesh processing functions (simplification, smoothing, fixing, validation, export)
+- **mesh_tools.py**: Mesh processing functions (simplification, smoothing, fixing, validation, export), plus `matrix_from_mesh()` (voxelize a mesh back into a filled 3D grid — the inverse of `mesh_from_matrix`) and `auto_smooth_mesh()` (runs Taubin smoothing in batches and stops automatically once a roughness metric plateaus, instead of a hand-picked iteration count)
 - **io_ops.py**: Input/output operations (STL loading/saving, .npz archives)
 - **viz.py**: Visualization tools (HTML previews, histograms, 2D matrix views)
-- **voxel_overhang_tools.py**: `detect_overhangs()` — flags voxels in a solid/empty voxel grid whose overhang angle (relative to the build plate, along z) exceeds a threshold (default 45°). Useful for a quick 3D-printability check on a generated TPMS lattice before slicing.
+- **voxel_overhang_tools.py**: Print-readiness tools for a solid/empty voxel grid:
+  - `detect_overhangs()`: flags voxels whose overhang angle (relative to the build plate, along z) exceeds a threshold (default 45°), and recognizes safe bridges (span supported from both sides) as distinct from true overhangs.
+  - `find_optimal_orientation()`: samples build directions over a sphere and returns the reoriented grid with the fewest overhangs/bridges — an automatic "best way to print this" search.
+  - Support for optional automatic support-voxel insertion under unsupported overhangs (`add_support_voxels`, still marked experimental in the code).
 
 All nine TPMS types (gyroid, Schwartz P, Diamond, I-WP, Neovius, Fischer-Koch S, F-RD, Lidinoid, Split-P) share the exact same API since they all subclass `TPMSModel` — swap the import/class name and everything else in the Quick Start example below works unchanged.
 
 Example notebooks for this use case:
 - **Gyroids_STL.ipynb**
 - **Gyroids_STL_class.ipynb**
-- **overhang_test.ipynb**: work in progress, will demo `detect_overhangs()`
+- **overhang_test.ipynb**: demos overhang detection and build-orientation search
 
 ## Simulation of STL file
 This is used to be able to create simulations of the generated structures. More specifically, to create a tetrahedral mesh adapted to finite element modeling using FtetWild, manipulate them, create ABAQUS input files, and run them in batches. Example use case in the image below is for simulating the first 10 natural frequencies of a simple gyroid.
@@ -74,7 +77,7 @@ Example notebooks for this use case:
 This is used to help analyse CT scan of structures.
 
 Scripts related to this use case:
-- **CT_scans.py**: CT data readers and preprocessing helpers
+- **CT_scans.py**: CT data readers and preprocessing helpers, including `convert_jpg_to_mhd()` to stack a folder (or glob pattern) of JPG slice images into a single .mhd volume
 - **CT_visualization_window.py**: CT visualization tooling
 
 Example notebooks for this use case:
@@ -94,12 +97,14 @@ Other scripts exist for configuring this library and some usefull functions
 - Three field computation modes: `'abs'`, `'signed'`, and `'distance'`/`'distance_fast'` for flexible wall definition
 - Support for variable periods and thickness (scalar or per-voxel arrays)
 - Optional baseplates for structural support
-- Overhang/print-readiness check on the voxel grid (`voxel_overhang_tools.detect_overhangs()`), flagging voxels beyond a configurable overhang angle (default 45°)
+- Overhang/print-readiness check on the voxel grid (`voxel_overhang_tools.detect_overhangs()`), flagging voxels beyond a configurable overhang angle (default 45°) while recognizing safe two-sided bridges
+- Automatic build-orientation search (`find_optimal_orientation()`) that reorients the grid to minimize overhangs/bridges
 
 ## Surface Mesh Processing
 - Marching cubes algorithm for isosurface extraction
-- Three mesh simplification backends: `'pyvista'` (decimate_pro), `'trimesh'` (vertex clustering, default), or `'open3d'` (quadric decimation)
-- Mesh smoothing with Humphrey filter
+- Mesh voxelization back into a filled 3D grid (`matrix_from_mesh()`), the inverse of the marching-cubes step
+- Three mesh simplification backends: `'pyvista'` (decimate_pro), `'trimesh'` (vertex clustering, default), or `'open3d'` (quadric decimation) — note that `mesh_tools.simplify_mesh()` and other low-level mesh_tools functions now consistently take/return `(verts, faces)`, not `(faces, verts)`
+- Mesh smoothing with Humphrey filter, plus an auto-stopping variant (`auto_smooth_mesh()`) that smooths in batches until a roughness metric plateaus
 - Automatic mesh repair (non-manifold edges, hole filling)
 - Comprehensive mesh validation (watertight, manifold, self-intersections)
 - Interactive HTML previews with Plotly, with different color scheme: constant, random, normal, curvature.
@@ -116,7 +121,7 @@ Other scripts exist for configuring this library and some usefull functions
 - Batch simulation file generation and management
 
 ## CT Scan Analysis
-- CT data reading and preprocessing
+- CT data reading and preprocessing, including converting a folder of JPG slice images into a .mhd volume
 - Interactive visualization window for CT scans
 - Mesh coloring and analysis (including curvature visualization)
 
