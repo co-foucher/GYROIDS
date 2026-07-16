@@ -1,0 +1,252 @@
+Metadata-Version: 2.4
+Name: gyroid_utils
+Version: 3.1.4
+Summary: Gyroid and lattice design utilities: field generation, mesh processing, STL/INP I/O, and simulation helpers.
+Author-email: Corentin Foucher <corentin.foucher@empa.ch>
+License: EMPA
+Project-URL: Homepage, https://github.com/your-account/gyroids
+Project-URL: Documentation, https://github.com/your-account/gyroids
+Project-URL: Source, https://github.com/your-account/gyroids
+Project-URL: Issues, https://github.com/your-account/gyroids/issues
+Keywords: mesh,geometry,gyroid,OpenCascade,STL,STEP,visualization,lattice
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Requires-Python: ==3.10.*
+Description-Content-Type: text/markdown
+Requires-Dist: numpy==2.2.6
+Requires-Dist: numpy-stl==3.2.0
+Requires-Dist: scikit-image==0.25.2
+Requires-Dist: trimesh==4.11.1
+Requires-Dist: plotly==6.5.2
+Requires-Dist: pymeshfix==0.18.0
+Requires-Dist: pyvista==0.46.5
+Requires-Dist: meshio==5.3.5
+Requires-Dist: pathlib==1.0.1
+Requires-Dist: pandas==2.3.3
+Requires-Dist: SimpleITK==2.5.3
+Requires-Dist: pydicom==3.0.2
+Requires-Dist: tifffile==2025.5.10
+Requires-Dist: matplotlib==3.10.8
+Requires-Dist: PyQt5==5.15.11
+Requires-Dist: open3d==0.19.0
+Requires-Dist: pytest==9.1.1
+Requires-Dist: scipy==1.15.3
+Requires-Dist: sympy==1.14.0
+Provides-Extra: gui
+Requires-Dist: streamlit==1.51.0; extra == "gui"
+
+# **GYROIDS UTILS**
+
+  This is a small library to support the development of TPMS structures. It is developed around three use cases, and its structure is shown below
+
+ <img width="1531" height="865" alt="image" src="https://github.com/user-attachments/assets/2d937bd7-631f-4cb0-888b-6f7126523808" />
+
+
+# **REQUIREMENTS**
+  !!!! requires Python 3.10 !!!!
+
+# **INSTALLATION**
+  - You could copy the whole environment directly from the yml file. Or use pip to install only this library and its dependency. 
+  
+  - It is better to first create a python 3.10 venv and then use pip install git+https://github.com/co-foucher/GYROIDS.git
+
+```powershell
+      conda create -n nameofenv python=3.10
+      conda install git
+      pip install git+https://github.com/co-foucher/GYROIDS.git
+```
+  - For changes: update the toml file and then use pip install git+https://github.com/co-foucher/GYROIDS.git
+
+# Known Bugs
+Coordinates in the STL mesh do not match exactly the definition in the matrix. This is due to the marching cube algorithm, resulting in structure about a pixel larger in every dimension.
+
+# Module Organization
+The library is organized around three main use cases:
+
+## TPMS structure generation
+This is used to generate TPMS structures (especially gyroids) using the general workflow below:
+<img width="1894" height="921" alt="image" src="https://github.com/user-attachments/assets/c65cae60-cd07-47e0-a794-d1a3a486b6e0" />
+note that it was originaly designed for creating gyroid, but not limited to them.
+
+All TPMS model code now lives under the **`TPMS_classes/`** subpackage (`src/gyroid_utils/TPMS_classes/`), which re-exports everything so `from gyroid_utils.TPMS_classes import GyroidModel` (etc.) works without reaching into individual files.
+
+Scripts related to this use case:
+- **TPMS_classes/tpms_base.py**: Shared `TPMSModel` base class — field computation, meshing, export, previews, quality checks, and baseplates. Every TPMS type is a thin subclass that only supplies its implicit surface equation.
+- **TPMS_classes/tpms_gyroid.py**: `GyroidModel` + `create_a_gyroid()`
+- **TPMS_classes/tpms_schwartzp.py**: `SchwartzPModel` + `create_a_schwartz_p()`
+- **TPMS_classes/tpms_diamond.py**: `DiamondModel` + `create_a_diamond()`
+- **TPMS_classes/tpms_iwp.py**: `IWPModel` + `create_a_iwp()`
+- **TPMS_classes/tpms_neovius.py**: `NeoviusModel` + `create_a_neovius()`
+- **TPMS_classes/tpms_fischerkochs.py**: `FischerKochSModel` + `create_a_fischer_koch_s()`
+- **TPMS_classes/tpms_frd.py**: `FRDModel` + `create_a_frd()`
+- **TPMS_classes/tpms_lidinoid.py**: `LidinoidModel` + `create_a_lidinoid()`
+- **TPMS_classes/tpms_splitp.py**: `SplitPModel` + `create_a_split_p()`
+- **mesh_tools.py**: Mesh processing functions (simplification, smoothing, fixing, validation, export), plus `matrix_from_mesh()` (voxelize a mesh back into a filled 3D grid — the inverse of `mesh_from_matrix`) and `auto_smooth_mesh()` (runs Taubin smoothing in batches and stops automatically once a roughness metric plateaus, instead of a hand-picked iteration count)
+- **io_ops.py**: Input/output operations (STL loading/saving, .npz archives)
+- **viz.py**: Visualization tools (HTML previews, histograms, 2D matrix views)
+- **voxel_overhang_tools.py**: Print-readiness tools for a solid/empty voxel grid:
+  - `detect_overhangs()`: flags voxels whose overhang angle (relative to the build plate, along z) exceeds a threshold (default 45°), and recognizes safe bridges (span supported from both sides) as distinct from true overhangs.
+  - `find_optimal_orientation()`: samples build directions over a sphere and returns the reoriented grid with the fewest overhangs/bridges — an automatic "best way to print this" search.
+  - Support for optional automatic support-voxel insertion under unsupported overhangs (`add_support_voxels`, still marked experimental in the code).
+
+All nine TPMS types (gyroid, Schwartz P, Diamond, I-WP, Neovius, Fischer-Koch S, F-RD, Lidinoid, Split-P) share the exact same API since they all subclass `TPMSModel` — swap the import/class name and everything else in the Quick Start example below works unchanged.
+
+Example notebooks for this use case:
+- **Gyroids_STL.ipynb**
+- **Gyroids_STL_class.ipynb**
+- **overhang_test.ipynb**: demos overhang detection and build-orientation search
+
+## Simulation of STL file
+This is used to be able to create simulations of the generated structures. More specifically, to create a tetrahedral mesh adapted to finite element modeling using FtetWild, manipulate them, create ABAQUS input files, and run them in batches. Example use case in the image below is for simulating the first 10 natural frequencies of a simple gyroid.
+
+<img width="1533" height="857" alt="image" src="https://github.com/user-attachments/assets/d9eeb841-5424-44ac-96ac-d32f1f1bc317" />
+
+
+Scripts related to this use case:
+- **abaqus_tools.py**: ABAQUS simulation integration
+- **TET_mesh_tools.py**: Tetrahedral mesh operations
+
+Example notebooks for this use case:
+- **full simulation workflow.ipynb**: end-to-end simulation preparation workflow
+- **STL_to_inp_ftetwild.ipynb**: how to use fTetWild to transform a STL to an ABAQUS input file (inp)
+
+## Analysis of CT scans
+This is used to help analyse CT scan of structures.
+
+Scripts related to this use case:
+- **CT_scans.py**: CT data readers and preprocessing helpers, including `convert_jpg_to_mhd()` to stack a folder (or glob pattern) of JPG slice images into a single .mhd volume
+- **CT_visualization_window.py**: CT visualization tooling
+
+Example notebooks for this use case:
+- **CT_scan_processing.ipynb**: CT-to-mesh pipeline and interactive mesh coloring (including curvature mode)
+
+## library tools and configuration
+Other scripts exist for configuring this library and some usefull functions
+- **logger.py**: Logging configuration
+- **config.py**: Shared constants and default tolerances used across the library
+- **utils.py**: Low-level helpers (e.g. `reload_all()` for interactive development)
+
+
+# FEATURES
+
+## TPMS Structure Generation
+- Nine TPMS surface types out of the box: Gyroid, Schwartz P, Diamond, I-WP, Neovius, Fischer-Koch S, F-RD, Lidinoid, and Split-P, all sharing one `TPMSModel` base class/API
+- Three field computation modes: `'abs'`, `'signed'`, and `'distance'`/`'distance_fast'` for flexible wall definition
+- Support for variable periods and thickness (scalar or per-voxel arrays)
+- Optional baseplates for structural support
+- Overhang/print-readiness check on the voxel grid (`voxel_overhang_tools.detect_overhangs()`), flagging voxels beyond a configurable overhang angle (default 45°) while recognizing safe two-sided bridges
+- Automatic build-orientation search (`find_optimal_orientation()`) that reorients the grid to minimize overhangs/bridges
+
+## Surface Mesh Processing
+- Marching cubes algorithm for isosurface extraction
+- Mesh voxelization back into a filled 3D grid (`matrix_from_mesh()`), the inverse of the marching-cubes step
+- Three mesh simplification backends: `'pyvista'` (decimate_pro), `'trimesh'` (vertex clustering, default), or `'open3d'` (quadric decimation) — note that `mesh_tools.simplify_mesh()` and other low-level mesh_tools functions now consistently take/return `(verts, faces)`, not `(faces, verts)`
+- Mesh smoothing with Humphrey filter, plus an auto-stopping variant (`auto_smooth_mesh()`) that smooths in batches until a roughness metric plateaus
+- Automatic mesh repair (non-manifold edges, hole filling)
+- Comprehensive mesh validation (watertight, manifold, self-intersections)
+- Interactive HTML previews with Plotly, with different color scheme: constant, random, normal, curvature.
+- Triangle area analysis and visualization
+- Robust STL import/export (Open3D and numpy-stl backends)
+
+## Tetrahedral Meshing
+- Seamless integration with [fTetWild](https://github.com/wildmeshing/fTetWild) for high-quality mesh generation
+- Tetrahedral mesh manipulation and refinement tools
+
+## ABAQUS Simulation
+- Automated frequency analysis simulations
+- Full DSS (Dynamic Substructuring) simulations
+- Batch simulation file generation and management
+
+## CT Scan Analysis
+- CT data reading and preprocessing, including converting a folder of JPG slice images into a .mhd volume
+- Interactive visualization window for CT scans
+- Mesh coloring and analysis (including curvature visualization)
+
+## Utilities
+- Compressed field data storage (.npz format)
+- Configurable logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- Module reload functionality for interactive development
+
+
+# Quick Start: Creating a Gyroid
+The `GyroidModel` class is the main entry point for gyroid generation. The typical workflow is:
+
+1. Create a coordinate grid
+2. Instantiate `GyroidModel` with your grid and parameters
+3. Compute the scalar field
+4. Generate and simplify mesh
+5. Export as STL
+
+### Simple Example
+
+```python
+import numpy as np
+from gyroid_utils.TPMS_classes import GyroidModel
+
+# Create a 64×64×64 grid
+x, y, z = np.meshgrid(np.linspace(0,1,64),
+                      np.linspace(0,1,64),
+                      np.linspace(0,1,64), indexing='ij')
+
+# Initialize model
+model = GyroidModel(x, y, z, px=1.0, py=1.0, pz=1.0, thickness=0.2)
+
+# Build scalar field (choose 'abs', 'signed', or 'distance')
+model.compute_field(mode='distance')
+
+# Generate mesh from isosurface
+verts, faces = model.generate_mesh()
+
+# Simplify, smooth, and repair
+model.simplify_mesh(target_faces=10000, mode='trimesh')
+model.smooth_mesh(smoothing_factor=0.5)
+model.fix_mesh()
+
+# Export
+model.export_stl("my_gyroid.stl")
+model.save("gyroid_data.npz")  # Save field for later
+```
+
+Any other TPMS type works the same way — just import a different class, e.g. `from gyroid_utils.TPMS_classes import DiamondModel`.
+
+### All-in-One Function
+
+For a quicker workflow, use `create_a_gyroid()`:
+
+```python
+import numpy as np
+from gyroid_utils.TPMS_classes import create_a_gyroid
+
+x, y, z = np.meshgrid(np.linspace(0,10,128),
+                      np.linspace(0,10,128),
+                      np.linspace(0,20,256), indexing='ij')
+
+create_a_gyroid(
+    x, y, z,
+    px=2.0, py=2.0, pz=2.0,
+    t=1.0,
+    save_path="my_gyroid",
+    baseplate_thickness=2.0,
+    step_size=2,
+    simplification_factor=0.8
+)
+```
+
+For more detailed API documentation and parameters, see [tpms_base.py](src/gyroid_utils/TPMS_classes/tpms_base.py) (shared pipeline) and [tpms_gyroid.py](src/gyroid_utils/TPMS_classes/tpms_gyroid.py) (gyroid-specific equation), or check out the example notebooks.
+
+
+# Logging
+Control logging verbosity:
+
+```python
+import gyroid_utils
+gyroid_utils.set_log_level("DEBUG")  # or "INFO", "WARNING", "ERROR", "CRITICAL"
+```
+
+# License
+This project is licensed under EMPA. See the `license` field in `pyproject.toml`.
+
+

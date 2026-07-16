@@ -158,7 +158,10 @@ def save_mesh_as_html(faces: np.ndarray,
                 raise RuntimeError("save_mesh_as_html(): failed to generate random colorscale") from e
 
         elif show_flat_colorscale:
-            facecolor = 'lightblue'
+            # Mesh3d's facecolor needs one entry per face (a list/array),
+            # not a single string - a bare string used to raise
+            # "Invalid value of type 'builtins.str' ... facecolor" below.
+            facecolor = ['lightblue'] * faces.shape[0]
 
         elif show_curvature_colorscale:
             # ---------------------------------------------------------
@@ -382,7 +385,8 @@ def twod_view_of_matrix(v: np.ndarray,
                         y: np.ndarray = None,
                         z: np.ndarray = None,
                         zmin=None,
-                        zmax=None):
+                        zmax=None,
+                        show: bool = True):
     """
     ============================================================================
     3) TWOD_VIEW_OF_MATRIX
@@ -401,19 +405,33 @@ def twod_view_of_matrix(v: np.ndarray,
         Z-coordinate grid. If None, uses np.arange(Nz).
     zmin, zmax : float or None, optional
         Color limits for the heatmap. If None, uses min/max from v.
+    show : bool, optional
+        If True (default), calls fig.show() as before. If False, returns
+        the Plotly Figure instead of showing it - for callers that want to
+        embed it themselves (e.g. Streamlit's st.plotly_chart), matching
+        the save/show split already used by save_mesh_as_html().
 
     RETURNS
     -------
-    None (shows Plotly interactive viewer)
+    fig : plotly.graph_objects.Figure or None
+        The figure, if show=False. Otherwise None (the figure is shown
+        directly instead).
 
     RAISES
     ------
     ValueError
         If v is not 3D, or if the (x, y, z) grid shapes do not match v.
 
+    NOTES
+    -----
+    - Builds one animation frame per Z slice up front, so this can get slow
+      / produce a large payload at high Z resolution (a few hundred+
+      slices) - true whether shown directly or embedded via show=False.
+
     EXAMPLE
     -------
     >>> twod_view_of_matrix(v, x, y, z)
+    >>> fig = twod_view_of_matrix(v, x, y, z, show=False)
     """
 
     logger.info("Starting 2D visualization of 3D matrix.")
@@ -543,6 +561,10 @@ def twod_view_of_matrix(v: np.ndarray,
             ]
         }]
     )
+
+    if not show:
+        logger.info("Returning heatmap figure (show=False).")
+        return fig
 
     logger.info("Displaying interactive heatmap viewer.")
     fig.show()

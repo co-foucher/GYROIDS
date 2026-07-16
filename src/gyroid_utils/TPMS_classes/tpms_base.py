@@ -449,7 +449,7 @@ class TPMSModel:
     # =====================================================================
     # 9) simplify_mesh
     # =====================================================================
-    def simplify_mesh(self, target_faces: int = 10000, mode: str = "trimesh"):
+    def simplify_mesh(self, target_faces: float = 10000, mode: str = "pyvista"):
         """
         ============================================================================
         9) SIMPLIFY_MESH
@@ -460,8 +460,9 @@ class TPMSModel:
 
         PARAMETERS
         ----------
-        target_faces : int, optional
-            Target number of faces to keep (default = 10000).
+        target_faces : float, optional
+                can be either the Desired final number of faces (default = 100000).
+                or the fraction of faces to keep (if between 0 and 1, e.g. 0.5 to keep 50% of faces).
         mode : str, optional
             "pyvista" (uses PyVista decimate_pro),
             or "trimesh" (uses trimesh vertex clustering, default),
@@ -686,8 +687,11 @@ class TPMSModel:
         if self.verts is None or self.faces is None:
             raise RuntimeError("Mesh has not been generated yet.")
 
-        self.verts, self.faces = mesh_tools.smooth_mesh(self.verts, self.faces, smoothing_factor=smoothing_factor)
+        #self.verts, self.faces = mesh_tools.smooth_mesh(self.verts, self.faces, smoothing_factor=smoothing_factor)
 
+        self.verts, self.faces = mesh_tools.auto_smooth_mesh(verts = self.verts, 
+                                                             faces = self.faces,
+                                                             smoothing_factor = smoothing_factor)
 
 # =====================================================================
 # 17) create_a_tpms

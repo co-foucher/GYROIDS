@@ -19,6 +19,7 @@ from . import tpms_fischerkochs
 from . import tpms_frd
 from . import tpms_lidinoid
 from . import tpms_splitp
+from . import tpms_custom
 
 # Re-export the model classes and factory functions so callers can do
 # `from gyroid_utils.TPMS_classes import GyroidModel` instead of reaching
@@ -33,6 +34,7 @@ from .tpms_fischerkochs import FischerKochSModel, create_a_fischer_koch_s
 from .tpms_frd import FRDModel, create_a_frd
 from .tpms_lidinoid import LidinoidModel, create_a_lidinoid
 from .tpms_splitp import SplitPModel, create_a_split_p
+from .tpms_custom import CustomTPMSModel, create_a_custom_tpms
 
 #it defines what from gyroid_utils.TPMS_classes import * actually imports.
 __all__ = [
@@ -46,6 +48,7 @@ __all__ = [
     "tpms_frd",
     "tpms_lidinoid",
     "tpms_splitp",
+    "tpms_custom",
     "TPMSModel",
     "GyroidModel",
     "SchwartzPModel",
@@ -56,6 +59,7 @@ __all__ = [
     "FRDModel",
     "LidinoidModel",
     "SplitPModel",
+    "CustomTPMSModel",
     "create_a_tpms",
     "create_a_gyroid",
     "create_a_schwartz_p",
@@ -66,4 +70,5 @@ __all__ = [
     "create_a_frd",
     "create_a_lidinoid",
     "create_a_split_p",
+    "create_a_custom_tpms",
 ]

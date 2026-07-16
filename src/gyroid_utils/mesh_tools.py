@@ -750,7 +750,6 @@ def matrix_from_mesh(verts: np.ndarray,
     return x, y, z, matrix.matrix
 
 
-
 #=====================================================================
 # 10) auto_smooth_mesh helper: mesh roughness metric
 #=====================================================================

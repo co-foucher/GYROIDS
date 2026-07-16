@@ -55,6 +55,21 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
 
+[project.optional-dependencies]
+# GUI is a thin Streamlit front end over this library (see app/), kept out
+# of the core dependencies so `pip install git+...` for headless/library
+# use doesn't pull in streamlit. Install with:
+#   pip install -e ".[gui]"
+# sympy lives here too, not in the core deps above: it's only used by
+# app/components/equation_input.py to parse the GUI's custom-equation
+# text boxes - the library itself (gyroid_utils.TPMS_classes.tpms_custom)
+# only ever deals with plain numpy arrays and has no notion of equation
+# strings.
+gui = [
+    "streamlit==1.51.0",
+    "sympy==1.14.0",
+]
+
 
 [project.urls]
 Homepage = "https://github.com/your-account/gyroids"
