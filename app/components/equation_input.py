@@ -312,7 +312,7 @@ def render_equation_input(key_prefix: str = "eq") -> Optional[str]:
 
         fig = go.Figure(go.Heatmap(x=g, y=g, z=field.T, colorscale="Portland"))
         fig.update_layout(height=350, margin=dict(l=0, r=0, t=20, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # =================================================
     # ======== define thickness of surface ============

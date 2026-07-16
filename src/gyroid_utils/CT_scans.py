@@ -101,10 +101,27 @@ def convert_dicomm_to_mhd(input_path, output_path, memory_saver=True):
     NpArrDc = np.zeros(Dimension, dtype=dtype)
 
     # loop through all images
+    expected_shape = (Dimension[0], Dimension[1])
     for i,filename in enumerate(DICOM_directory):
         _loading_bar(i,len(DICOM_directory),bar_length=30)
         df = pydicom.dcmread(filename)
         img = df.pixel_array
+        if img.shape != expected_shape:
+            # Without this check, a mismatched file fails deep inside the
+            # NpArrDc[:, :, i] = img assignment below with a cryptic numpy
+            # broadcast error that doesn't say which file is the problem.
+            # This is a common real-world DICOM-folder issue: a scout/
+            # localizer image, secondary capture, or a second series
+            # mixed in with the main slice stack.
+            raise ValueError(
+                f"DICOM file '{filename}' has shape {img.shape}, but the "
+                f"first file in this series ('{DICOM_directory[0]}') has "
+                f"shape {expected_shape}. All files matched by '{input_path}' "
+                f"must be slices from the same series with identical "
+                f"Rows/Columns - check the folder isn't mixing multiple "
+                f"series, scout/localizer images, or secondary captures "
+                f"with the main slice stack."
+            )
         if memory_saver:
             # Normalize to 0-255 before converting to uint8
             img = img.astype(np.float32)
@@ -393,15 +410,15 @@ def segment_from_threshold(image,lower_threshold,upper_threshold):
     binary_image : np.ndarray
         Binary version of the input image (255 or 0).
     """
-    if isinstance(images, sitk.Image):
-        images = sitk.GetArrayFromImage(images)
+    if isinstance(image, sitk.Image):
+        image = sitk.GetArrayFromImage(image)
 
     threshold_filter = sitk.BinaryThresholdImageFilter()
     threshold_filter.SetLowerThreshold(lower_threshold)  # Adjust these values based on your image
     threshold_filter.SetUpperThreshold(upper_threshold)
     threshold_filter.SetInsideValue(255)
     threshold_filter.SetOutsideValue(0)
-    out_image = threshold_filter.Execute(sitk.GetImageFromArray(images))
+    out_image = threshold_filter.Execute(sitk.GetImageFromArray(image))
 
     return sitk.GetArrayFromImage(out_image)
 
@@ -466,8 +483,8 @@ def dilate_filter(image, kernel):
     dilated_image : np.ndarray
         Dilated version of the input image.
     """
-    if isinstance(images, np.ndarray):
-        images = sitk.GetImageFromArray(images)
+    if isinstance(image, np.ndarray):
+        image = sitk.GetImageFromArray(image)
 
     dilate_filter = sitk.GrayscaleDilateImageFilter()
     dilate_filter.SetKernelRadius(kernel)
@@ -498,8 +515,8 @@ def erode_filter(image, kernel):
     eroded_image : np.ndarray
         Eroded version of the input image.
     """
-    if isinstance(images, np.ndarray):
-        images = sitk.GetImageFromArray(images)
+    if isinstance(image, np.ndarray):
+        image = sitk.GetImageFromArray(image)
 
     erode_filter = sitk.GrayscaleErodeImageFilter()
     erode_filter.SetKernelRadius(kernel)

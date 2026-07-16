@@ -1,0 +1,6 @@
+[server]
+# Max size (MB) for messages sent between the browser and the Streamlit
+# server - e.g. large mesh/CT-volume previews embedded via
+# streamlit.components.v1.html() (see app/components/mesh_preview.py) can
+# exceed the 200 MB default on big meshes/volumes.
+maxMessageSize = 1000

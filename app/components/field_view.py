@@ -74,4 +74,4 @@ def render_field_slice(v: Optional[np.ndarray],
 
     zmin, zmax = value_range if value_range is not None else (None, None)
     fig = viz.twod_view_of_matrix(v, x, y, z, zmin=zmin, zmax=zmax, show=False)
-    st.plotly_chart(fig, use_container_width=True, key=f"{key}_fieldfig")
+    st.plotly_chart(fig, width="stretch", key=f"{key}_fieldfig")

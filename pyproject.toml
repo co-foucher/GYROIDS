@@ -27,6 +27,12 @@ dependencies = [
     "pandas==2.3.3",
     "SimpleITK==2.5.3",
     "pydicom==3.0.2",
+    # pydicom itself doesn't decode compressed pixel data (e.g. JPEG
+    # Lossless, common in real-world DICOM exports) - it delegates to one
+    # of these plugins. Needed for CT_scans.convert_dicomm_to_mhd() on any
+    # DICOM series that isn't stored uncompressed/raw.
+    "pylibjpeg>=2.0",
+    "pylibjpeg-libjpeg>=2.1",
     "tifffile==2025.5.10",
     "matplotlib==3.10.8",
     "PyQt5==5.15.11",

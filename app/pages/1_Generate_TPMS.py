@@ -49,8 +49,8 @@ col_params, col_preview = st.columns([1, 1.4])
 # ============== user defined parameters ===================
 # ==========================================================
 with col_params:
-    source = st.radio("Surface", ["Built-in type", "Custom equation"], horizontal=True)
     # ------ choose TPMS type or paste equation ------
+    source = st.radio("Surface", ["Built-in type", "Custom equation"], horizontal=True)
     equation = None
     type_name = None
     if source == "Built-in type":
