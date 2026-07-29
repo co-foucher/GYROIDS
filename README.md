@@ -19,6 +19,12 @@
       pip install git+https://github.com/co-foucher/GYROIDS.git
 ```
   - For changes: update the toml file and then use pip install git+https://github.com/co-foucher/GYROIDS.git
+or using local files
+
+```powershell
+  cd "C:\Users\PATHtoFILES"
+  pip install -e .
+```
 
 # Known Bugs
 Coordinates in the STL mesh do not match exactly the definition in the matrix. This is due to the marching cube algorithm, resulting in structure about a pixel larger in every dimension.
