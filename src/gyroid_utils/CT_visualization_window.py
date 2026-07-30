@@ -568,8 +568,18 @@ def make_greyscale_inRGB(images):
     if images.dtype != np.uint8:
         logger.warning(f"Your image uses {images.dtype} values, values have been rescaled in the plot to fit in UINT8, but still extracted true on click.")
 
-    divider = 255/(images.max()-images.min())
-    temp_images = np.multiply(np.subtract(images,images.min()), divider).astype(np.uint8)
+    divider = (255/(images.max()-images.min())).astype(np.float32)
+    temp_images = np.copy(images)
+    images_min = images.min()
+    # Normalize one Z-slice at a time (images.shape[0]) rather than the
+    # whole volume at once - a whole-volume subtract/multiply needs a
+    # second same-size temporary, which for a large CT stack can dwarf
+    # available RAM. images[i] is also contiguous (Z is the outermost
+    # axis), unlike images[:,:,i], so this is faster too.
+    for i in range(images.shape[0]):
+        temp_images[i] = np.multiply(np.subtract(images[i], images_min), divider).astype(np.uint8)
+    del images_min, divider
+    #temp_images = np.multiply(np.subtract(images,images.min()), divider).astype(np.uint8)
     logger.debug(f"Plotted image has been reduced to UINT8.")
 
     # Convert grayscale image to RGB for color modification
@@ -1085,11 +1095,17 @@ def lightweigth_open(images):
     #images = cv2.normalize(sitk.GetArrayFromImage(images), None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX).astype(np.uint8)
     images = sitk.GetArrayFromImage(images)
     print(f"your image takes {images.nbytes/1000000000} gigabytes")
-    divider = 255/images.max()
-    images = np.multiply(images, divider)
-    images = images.astype(np.uint8)
+    divider = (255/(images.max()-images.min())).astype(np.float32)
+    images_min = images.min()
+    # Normalize one Z-slice at a time (images.shape[0]) rather than the
+    # whole volume at once - a whole-volume subtract/multiply needs a
+    # second same-size temporary, which for a large CT stack can dwarf
+    # available RAM. images[i] is also contiguous (Z is the outermost
+    # axis), unlike images[:,:,i], so this is faster too.
+    for i in range(images.shape[0]):
+        images[i] = np.multiply(np.subtract(images[i], images_min), divider).astype(np.uint8)
     print(f"your image has been reduced to {images.nbytes/1000000000} gigabytes")
-
+    del images_min, divider
     #images = sitk.GetArrayFromImage(sitk.Cast(sitk.RescaleIntensity(images, outputMinimum=0, outputMaximum=255), sitk.sitkUInt8))
     #
 

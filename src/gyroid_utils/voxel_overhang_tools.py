@@ -42,11 +42,11 @@ def detect_overhangs(voxel_grid: np.ndarray,
         3D binary voxel grid, where each element is either 0 (empty) or
         1 (solid).
     x : (nx,) ndarray
-        1D array of voxel coordinates along x. Used to compute voxel size.
+        1D or 3D array of voxel coordinates along x. Used to compute voxel size.
     y : (ny,) ndarray
-        1D array of voxel coordinates along y. Used to compute voxel size.
+        1D or 3D array of voxel coordinates along y. Used to compute voxel size.
     z : (nz,) ndarray
-        1D array of voxel coordinates along z. Used to compute voxel size.
+        1D or 3D array of voxel coordinates along z. Used to compute voxel size.
     angle : float, optional
         Overhang angle threshold in degrees (default = 45.0). Suspicious
         voxels with an implied angle greater than this value are flagged as
@@ -84,6 +84,11 @@ def detect_overhangs(voxel_grid: np.ndarray,
     -------
     >>> overhang_grid = detect_overhangs(voxel_grid, x, y, z, angle=45.0)
     """
+    if x.ndim != 1 or y.ndim != 1 or z.ndim != 1:
+        logger.warning("x, y, and z are 3D arrays and will be cut to 1D.")
+        x = x[:,0,0]
+        y = y[0,:,0]
+        z = z[0,0,:]
     if voxel_grid.ndim != 3:
         raise ValueError("voxel_grid must be a 3D numpy array")
     
@@ -170,6 +175,7 @@ def detect_overhangs(voxel_grid: np.ndarray,
         # them from being used as support in the next slice. Bridge voxels (3) are
         # left in place since they are safe to build on.
         voxel_grid[:,:,i][overhang_grid[:,:,i] == 2] = 0
+    logger.info(f"Overhang detection complete. Total overhang voxels: {np.sum(overhang_grid == 2)}, total bridge voxels: {np.sum(overhang_grid == 3)}.")
     return overhang_grid
 
 
@@ -518,7 +524,7 @@ def find_optimal_orientation(voxel_grid: np.ndarray,
     ----------
     voxel_grid : (nx, ny, nz) ndarray
         3D binary voxel grid (0 = empty, 1 = solid).
-    x, y, z : 1D ndarray
+    x, y, z : 1D or 3D ndarray
         Voxel coordinates along each axis (used to get the voxel pitch and
         origin). Must be evenly spaced.
     n : int, optional
@@ -530,6 +536,9 @@ def find_optimal_orientation(voxel_grid: np.ndarray,
     bridge_size : float, optional
         Maximum bridgeable span, passed through to detect_overhangs as
         `bridge` (default = 10).
+    grid_sample_factor : float, optional
+        Factor to scale the voxel size when re-rasterizing the rotated grid
+        (default = 1.0).
 
     RETURNS
     -------
@@ -551,7 +560,10 @@ def find_optimal_orientation(voxel_grid: np.ndarray,
     if voxel_grid.ndim != 3:
         raise ValueError("voxel_grid must be a 3D numpy array")
     if x.ndim != 1 or y.ndim != 1 or z.ndim != 1:
-        raise ValueError("x, y, and z must be 1D numpy arrays")
+        logger.warning("x, y, and z are 3D arrays and will be cut to 1D.")
+        x = x[:,0,0]
+        y = y[0,:,0]
+        z = z[0,0,:]
     if len(x) != voxel_grid.shape[0] or len(y) != voxel_grid.shape[1] or len(z) != voxel_grid.shape[2]:
         raise ValueError("x, y, and z must match the dimensions of voxel_grid")
     

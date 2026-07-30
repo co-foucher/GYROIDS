@@ -25,14 +25,16 @@ DESIGN
   extra mask inputs (sure_fg, sure_bg) beyond "the current image", which
   doesn't fit this one-image-in-one-image-out step model. Left for a
   future, separate step type that can reference other steps' outputs.
+- apply_mask_on_image DOES fit the model despite also needing a second
+  image: its mask isn't sourced from another step's output, just a
+  separate .mhd file path typed in as a param (see the "Apply mask" step
+  below and _load_mask_array), so the uniform call(image, params) -> image
+  shape still holds.
 - Turning the pipeline result into a 3D mesh lives in
   app/pages/3_CT_Analysis.py, not here - see the "Generate 3D mesh"
   section there, which calls gyroid_utils.mesh_tools.mesh_from_matrix
   directly on this module's returned result.
 """
-import os
-import subprocess
-import sys
 from typing import Optional
 
 import numpy as np
@@ -42,21 +44,42 @@ import streamlit as st
 
 from gyroid_utils import CT_scans
 from app.state import get_output_dir
+from app.components.ct_viewer_launcher import render_lightweight_toggle, launch_ct_viewer
 
 __all__ = ["render_ct_pipeline"]
 
 
 # =====================================================================
 # 0 - (reserved)
-# 1 - _STEP_REGISTRY
-# 2 - _render_add_step
-# 3 - _render_step_list
-# 4 - _run_pipeline
-# 5 - render_ct_pipeline
+# 1 - _load_mask_array
+# 2 - _STEP_REGISTRY
+# 3 - _render_add_step
+# 4 - _render_step_list
+# 5 - _run_pipeline
+# 6 - _build_result_fig
+# 7 - _render_result_preview
+# 8 - render_ct_pipeline
 # =====================================================================
 
 # =====================================================================
-# 1) _STEP_REGISTRY
+# 1) _load_mask_array
+# =====================================================================
+@st.cache_data(show_spinner="Loading mask...")
+def _load_mask_array(path: str) -> np.ndarray:
+    """
+    Reads a mask volume from disk for the "Apply mask" step.
+
+    Cached by Streamlit and keyed on `path` (a cheap string) - same
+    pattern as _load_mhd in app/pages/3_CT_Analysis.py, so re-running the
+    pipeline several times with the same mask path (e.g. while tweaking
+    an unrelated step's parameters) doesn't re-read the mask file from
+    disk on every "Run pipeline" click.
+    """
+    return sitk.GetArrayFromImage(sitk.ReadImage(path))
+
+
+# =====================================================================
+# 2) _STEP_REGISTRY
 # =====================================================================
 # Each entry: "help" (shown under the operation picker), "params" (spec
 # list used to build the add-step widgets), and "call" (adapter from the
@@ -130,11 +153,21 @@ _STEP_REGISTRY = {
         ],
         "call": lambda img, p: CT_scans.find_islands(np.array(img, copy=True), p["max_island_size"]),
     },
+    "Apply mask": {
+        "help": "apply_mask_on_image: pixels outside the mask (mask <= 0) are set to 0. "
+                "The mask is loaded from a separate .mhd volume - it must have the same "
+                "shape as the volume being processed.",
+        "params": [
+            {"key": "mask_path", "label": "Mask .mhd path", "kind": "text", "default": ""},
+        ],
+        "call": lambda img, p: CT_scans.apply_mask_on_image(
+            np.array(img, copy=True), _load_mask_array(p["mask_path"])),
+    },
 }
 
 
 # =====================================================================
-# 2) _render_add_step
+# 3) _render_add_step
 # =====================================================================
 def _render_add_step(key: str, steps: list) -> None:
     """Renders the operation picker + its parameter widgets + "Add step"."""
@@ -155,13 +188,15 @@ def _render_add_step(key: str, steps: list) -> None:
         elif p["kind"] == "select":
             params[p["key"]] = col.selectbox(
                 p["label"], p["options"], index=p["options"].index(p["default"]), key=widget_key)
+        elif p["kind"] == "text":
+            params[p["key"]] = col.text_input(p["label"], value=p["default"], key=widget_key)
 
     if st.button("Add step", key=f"{key}_add_btn"):
         steps.append({"label": op_label, "params": dict(params)})
 
 
 # =====================================================================
-# 3) _render_step_list
+# 4) _render_step_list
 # =====================================================================
 def _render_step_list(key: str, steps: list) -> None:
     """Renders the current pipeline as reorderable/removable rows."""
@@ -186,7 +221,7 @@ def _render_step_list(key: str, steps: list) -> None:
 
 
 # =====================================================================
-# 4) _run_pipeline
+# 5) _run_pipeline
 # =====================================================================
 def _run_pipeline(array: np.ndarray, steps: list) -> np.ndarray:
     """Replays every step, in order, starting from a copy of `array`."""
@@ -198,7 +233,60 @@ def _run_pipeline(array: np.ndarray, steps: list) -> np.ndarray:
 
 
 # =====================================================================
-# 5) render_ct_pipeline
+# 6) _build_result_fig
+# =====================================================================
+@st.cache_data(show_spinner=False)
+def _build_result_fig(_mid_slice: np.ndarray, version: int):
+    """Builds the mid z-slice Heatmap figure for a pipeline result.
+
+    Cached and keyed ONLY on `version` (an int bumped once per successful
+    "Run pipeline" click, see render_ct_pipeline) - the leading
+    underscore on `_mid_slice` tells Streamlit to skip hashing that array
+    entirely rather than use it as part of the cache key. Without that,
+    every rerun (e.g. adding/reordering a step, which doesn't change the
+    result) would still pay to hash the slice just to find an unchanged
+    cache key; with it, a rerun where `version` hasn't changed is a
+    same-key cache hit and this function body doesn't execute at all.
+    """
+    fig = go.Figure(go.Heatmap(z=_mid_slice, colorscale="Gray"))
+    fig.update_layout(height=500, margin=dict(l=0, r=0, t=20, b=0))
+    return fig
+
+
+# =====================================================================
+# 7) _render_result_preview
+# =====================================================================
+def _render_result_preview(array: np.ndarray, result: np.ndarray, version: int, key: str) -> None:
+    """Renders the mid z-slice heatmap of the current pipeline result,
+    plus the interactive-viewer launcher.
+
+    Called on every rerun where a result exists - unlike the old
+    just-ran-gated version, the preview now stays visible while you
+    add/reorder/remove steps in between runs. That's safe to do cheaply
+    because the figure itself comes from the cached _build_result_fig
+    (keyed on `version`, not rebuilt unless the pipeline was actually
+    re-run) and `array`/`result` are already in memory - the genuinely
+    expensive step (reloading the whole volume from disk) is handled by
+    _load_mhd's cache in app/pages/3_CT_Analysis.py, not here.
+    """
+    st.markdown("**Result preview (mid z-slice)**")
+    mid_z_index = array.shape[0] // 2
+    fig = _build_result_fig(result[mid_z_index], version)
+    st.plotly_chart(fig, width="stretch", key=f"{key}_preview_fig")
+    lightweight = render_lightweight_toggle(f"{key}_mask_viewer")
+    if st.button("Open interactive CT viewer (mask preview)", key=f"{key}_viewer_btn"):
+        temp_path = get_output_dir() / "mask_temp.mhd"
+        out_image = sitk.GetImageFromArray(result)
+        # Spacing/direction still apply after any of these filters;
+        # origin may be slightly off post-crop, but that's a minor
+        # detail for a first version - reuses the loaded image's
+        # metadata rather than defaulting to identity spacing.
+        sitk.WriteImage(out_image, temp_path)
+        launch_ct_viewer(str(temp_path), lightweight)
+
+
+# =====================================================================
+# 8) render_ct_pipeline
 # =====================================================================
 def render_ct_pipeline(array: np.ndarray, key: str = "ct_pipeline") -> Optional[np.ndarray]:
     """
@@ -223,8 +311,13 @@ def render_ct_pipeline(array: np.ndarray, key: str = "ct_pipeline") -> Optional[
     """
     steps_key = f"{key}_steps"
     result_key = f"{key}_result"
+    version_key = f"{key}_result_version"
     st.session_state.setdefault(steps_key, [])
     st.session_state.setdefault(result_key, None)
+    # Bumped once per successful "Run pipeline" click - the cache key
+    # _build_result_fig actually keys on, so the preview figure is only
+    # rebuilt when the result genuinely changes, not on every rerun.
+    st.session_state.setdefault(version_key, 0)
     steps = st.session_state[steps_key]
 
     st.subheader("Processing pipeline")
@@ -235,6 +328,20 @@ def render_ct_pipeline(array: np.ndarray, key: str = "ct_pipeline") -> Optional[
     # further down the page every time a step is added.
     col_overview, col_add = st.columns([1, 1])
 
+    with col_add:
+        st.markdown("**Add a step**")
+        _render_add_step(key, steps)
+        st.divider()
+
+        # Rendered every rerun (not gated on "just ran") so the preview
+        # stays visible while you keep editing the pipeline in between
+        # runs - see _render_result_preview and _build_result_fig for how
+        # that's kept cheap via caching rather than by hiding the preview.
+        result = st.session_state[result_key]
+        if result is not None:
+            _render_result_preview(array, result, st.session_state[version_key], key)
+    
+    
     with col_overview:
         st.markdown("**Pipeline overview**")
         _render_step_list(key, steps)
@@ -243,55 +350,10 @@ def render_ct_pipeline(array: np.ndarray, key: str = "ct_pipeline") -> Optional[
             try:
                 with st.spinner(f"Running {len(steps)} step(s)..."):
                     st.session_state[result_key] = _run_pipeline(array, steps)
+                st.session_state[version_key] += 1
                 st.success(f"Pipeline applied ({len(steps)} step(s)).")
             except Exception as e:
                 st.session_state[result_key] = None
                 st.error(f"Pipeline failed: {e}")
-
-    with col_add:
-        st.markdown("**Add a step**")
-        _render_add_step(key, steps)
-        st.divider()
-
-        result = st.session_state[result_key]
-        if result is not None:
-            st.markdown("**Result preview (mid z-slice)**")
-            mid_z_index = array.shape[0] // 2
-            fig = go.Figure(go.Heatmap(z=result[mid_z_index], colorscale="Gray"))
-            fig.update_layout(height=500, margin=dict(l=0, r=0, t=20, b=0))
-            st.plotly_chart(fig, width="stretch", key=f"{key}_preview_fig")
-            if st.button("Open interactive CT viewer (mask preview)", key=f"{key}_viewer_btn"):
-                temp_path = get_output_dir() / "mask_temp.mhd"
-                out_image = sitk.GetImageFromArray(result)
-                # Spacing/direction still apply after any of these filters;
-                # origin may be slightly off post-crop, but that's a minor
-                # detail for a first version - reuses the loaded image's
-                # metadata rather than defaulting to identity spacing.
-                sitk.WriteImage(out_image, temp_path)
-                # CT_visualization_window.py is written for Jupyter, where the
-                # user runs `%matplotlib qt` themselves before calling it - it
-                # never sets a backend on its own. Here there's no such magic,
-                # so matplotlib falls back to whatever it auto-detects; if
-                # Streamlit's own process has MPLBACKEND=Agg set (it often
-                # does, being headless-by-default), a plain subprocess would
-                # inherit that env var and get the non-interactive Agg
-                # backend ("FigureCanvasAgg is non-interactive" warning, no
-                # window ever appears). Force QtAgg explicitly, and strip any
-                # inherited MPLBACKEND so it can't override that.
-                env = os.environ.copy()
-                env.pop("MPLBACKEND", None)
-                subprocess.Popen(
-                    [
-                        sys.executable, "-c",
-                        "import matplotlib; matplotlib.use('QtAgg'); "
-                        "import SimpleITK as sitk, gyroid_utils.CT_visualization_window as w; "
-                        f"w.open_window(sitk.ReadImage(r'{temp_path}'))",
-                    ],
-                    env=env,
-                )
-                st.info(
-                    "Launching in a separate window - requires a local display "
-                    "and PyQt5/PySide installed (see CT_visualization_window.py)."
-                )
 
     return st.session_state[result_key]

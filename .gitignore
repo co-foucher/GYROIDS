@@ -3,3 +3,5 @@ __pycache__/
 *$py.class
 *.html
 *.stl
+*.mhd
+*.raw

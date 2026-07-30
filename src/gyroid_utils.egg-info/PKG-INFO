@@ -28,15 +28,20 @@ Requires-Dist: pathlib==1.0.1
 Requires-Dist: pandas==2.3.3
 Requires-Dist: SimpleITK==2.5.3
 Requires-Dist: pydicom==3.0.2
+Requires-Dist: pylibjpeg>=2.0
+Requires-Dist: pylibjpeg-libjpeg>=2.1
 Requires-Dist: tifffile==2025.5.10
 Requires-Dist: matplotlib==3.10.8
 Requires-Dist: PyQt5==5.15.11
 Requires-Dist: open3d==0.19.0
 Requires-Dist: pytest==9.1.1
 Requires-Dist: scipy==1.15.3
-Requires-Dist: sympy==1.14.0
 Provides-Extra: gui
 Requires-Dist: streamlit==1.51.0; extra == "gui"
+Requires-Dist: sympy==1.14.0; extra == "gui"
+Provides-Extra: notebook
+Requires-Dist: ipywidgets>=8; extra == "notebook"
+Requires-Dist: anywidget; extra == "notebook"
 
 # **GYROIDS UTILS**
 

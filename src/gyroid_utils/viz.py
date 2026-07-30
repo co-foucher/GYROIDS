@@ -386,7 +386,8 @@ def twod_view_of_matrix(v: np.ndarray,
                         z: np.ndarray = None,
                         zmin=None,
                         zmax=None,
-                        show: bool = True):
+                        show: bool = True,
+                        max_pixels: int = 30_000_000):
     """
     ============================================================================
     3) TWOD_VIEW_OF_MATRIX
@@ -410,6 +411,18 @@ def twod_view_of_matrix(v: np.ndarray,
         the Plotly Figure instead of showing it - for callers that want to
         embed it themselves (e.g. Streamlit's st.plotly_chart), matching
         the save/show split already used by save_mesh_as_html().
+    max_pixels : int, optional
+        Pixel budget for the whole animation (default = 1,000,000). One
+        Plotly "frame" is pre-built per displayed Z slice, and each frame
+        costs Nx*Ny pixels - past a few hundred slices that payload is
+        what freezes/crashes the notebook or browser tab. If
+        Nx*Ny*Nz > max_pixels, every Z slice is no longer shown: instead
+        only every `step`-th slice gets a frame, where `step` is the
+        smallest value that brings the *frame count* (not the per-slice
+        resolution) back under budget. X/Y resolution is never reduced -
+        each shown slice is still full Nx*Ny detail, only the number of
+        Z positions you can scrub to goes down. Pass a larger value (or
+        float('inf')) to disable this and always build one frame per slice.
 
     RETURNS
     -------
@@ -424,14 +437,16 @@ def twod_view_of_matrix(v: np.ndarray,
 
     NOTES
     -----
-    - Builds one animation frame per Z slice up front, so this can get slow
-      / produce a large payload at high Z resolution (a few hundred+
-      slices) - true whether shown directly or embedded via show=False.
+    - Builds one animation frame per (possibly strided) Z slice up front,
+      so this can still get slow / produce a large payload for very fine
+      X/Y grids even after striding - true whether shown directly or
+      embedded via show=False. Lower max_pixels for a lighter animation.
 
     EXAMPLE
     -------
     >>> twod_view_of_matrix(v, x, y, z)
     >>> fig = twod_view_of_matrix(v, x, y, z, show=False)
+    >>> twod_view_of_matrix(big_v, x, y, z, max_pixels=2_000_000)  # keep more Z slices
     """
 
     logger.info("Starting 2D visualization of 3D matrix.")
@@ -474,8 +489,29 @@ def twod_view_of_matrix(v: np.ndarray,
 
     logger.debug(f"Color range: zmin={zmin}, zmax={zmax}")
 
-    # Start at first slice
-    k0 = 0
+    # ------------------------------------------------------------------
+    # Decide which Z slices actually get a frame, based on max_pixels.
+    # X/Y resolution is never touched - only how many Z positions are
+    # shown gets reduced, by taking every `step`-th slice instead of all
+    # Nz of them.
+    # ------------------------------------------------------------------
+    total_pixels = Nx * Ny * Nz
+    per_slice_pixels = Nx * Ny
+
+    if total_pixels > max_pixels:
+        max_frames = max(1, int(max_pixels // per_slice_pixels))
+        step = -(-Nz // max_frames)  # ceil(Nz / max_frames) via integer arithmetic
+        slice_indices = list(range(0, Nz, step))
+        logger.warning(
+            f"Volume has {total_pixels:,} pixels ({Nx}×{Ny}×{Nz}), over "
+            f"max_pixels={max_pixels:,}. Showing every {step} of {Nz} Z "
+        )
+    else:
+        step = 1
+        slice_indices = list(range(Nz))
+
+    # Start at first (shown) slice
+    k0 = slice_indices[0]
 
     # ------------------------------------------------------------------
     # Build frames for animation
@@ -492,10 +528,10 @@ def twod_view_of_matrix(v: np.ndarray,
             )],
             name=str(k)
         )
-        for k in range(Nz)
+        for k in slice_indices
     ]
 
-    logger.info("Generated all animation frames.")
+    logger.info(f"Generated {len(frames)} animation frame(s) (of {Nz} Z slices).")
 
     # ------------------------------------------------------------------
     # Build figure
@@ -544,7 +580,7 @@ def twod_view_of_matrix(v: np.ndarray,
     # ------------------------------------------------------------------
     fig.update_layout(
         sliders=[{
-            "active": k0,
+            "active": 0,
             "pad": {"t": 60},
             "currentvalue": {"prefix": "z = "},
             "steps": [
@@ -557,7 +593,7 @@ def twod_view_of_matrix(v: np.ndarray,
                          "frame": {"duration": 0, "redraw": True}}
                     ],
                 }
-                for k in range(Nz)
+                for k in slice_indices
             ]
         }]
     )

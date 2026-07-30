@@ -845,3 +845,62 @@ def convert_jpg_to_mhd(input_path, output_path, spacing=(0.2, 0.2, 0.2), memory_
     sitk.WriteImage(sitk_img, str(output_file))
 
     return
+
+
+# =====================================================================
+# 15) apply_mask_on_image
+# =====================================================================
+
+def apply_mask_on_image(image, mask):
+    """
+    ============================================================================
+    15) APPLY_MASK_ON_IMAGE
+    Applies a binary mask to an image, setting pixels outside the mask to zero.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    image : SimpleITK Image or np.ndarray
+        The input image to which the mask will be applied.
+    mask : SimpleITK Image or np.ndarray
+        The binary mask (foreground=255, background=0).
+
+    RETURNS
+    -------
+    masked_image : np.ndarray
+        The input image with pixels outside the mask set to zero.
+    """
+    if isinstance(image, sitk.Image):
+        image = sitk.GetArrayFromImage(image)
+    if isinstance(mask, sitk.Image):
+        mask = sitk.GetArrayFromImage(mask)
+
+    masked_image = np.where(mask > 0, image, 0)
+    return masked_image
+
+
+# =====================================================================
+# 16) invert_mask
+# =====================================================================
+def invert_mask(mask):
+    """
+    ============================================================================
+    16) INVERT_MASK
+    Inverts a binary mask, swapping foreground and background.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    mask : SimpleITK Image or np.ndarray
+        The binary mask to invert (foreground=255, background=0).
+
+    RETURNS
+    -------
+    inverted_mask : np.ndarray
+        The inverted binary mask (foreground=0, background=255).
+    """
+    if isinstance(mask, sitk.Image):
+        mask = sitk.GetArrayFromImage(mask)
+
+    inverted_mask = np.where(mask > 0, 0, 255)
+    return inverted_mask

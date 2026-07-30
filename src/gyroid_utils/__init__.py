@@ -39,6 +39,7 @@ from .TPMS_classes import tpms_fischerkochs
 from .TPMS_classes import tpms_frd
 from .TPMS_classes import tpms_lidinoid
 from .TPMS_classes import tpms_splitp
+from .TPMS_classes import tpms_custom
 from .logger import logger, set_log_level
 
 #__all__ is a list that defines what gets exported when someone does from package import *.

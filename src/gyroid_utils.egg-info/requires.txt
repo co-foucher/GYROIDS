@@ -10,13 +10,19 @@ pathlib==1.0.1
 pandas==2.3.3
 SimpleITK==2.5.3
 pydicom==3.0.2
+pylibjpeg>=2.0
+pylibjpeg-libjpeg>=2.1
 tifffile==2025.5.10
 matplotlib==3.10.8
 PyQt5==5.15.11
 open3d==0.19.0
 pytest==9.1.1
 scipy==1.15.3
-sympy==1.14.0
 
 [gui]
 streamlit==1.51.0
+sympy==1.14.0
+
+[notebook]
+ipywidgets>=8
+anywidget
