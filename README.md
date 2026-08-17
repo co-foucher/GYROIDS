@@ -9,8 +9,8 @@
   !!!! requires Python 3.10 !!!!
 
 # **INSTALLATION**
-  - You could copy the whole environment directly from the yml file. Or use pip to install only this library and its dependency. 
-  
+## Core dependencies
+  - Use pip to install only this library and its dependencies. 
   - It is better to first create a python 3.10 venv and then use pip install git+https://github.com/co-foucher/GYROIDS.git
 
 ```powershell
@@ -19,11 +19,38 @@
       pip install git+https://github.com/co-foucher/GYROIDS.git
 ```
   - For changes: update the toml file and then use pip install git+https://github.com/co-foucher/GYROIDS.git
-or using local files
+
+## GUI optional dependency
+  - The GUI is optional, thus needs to be specifically named when installing
+
+```powershell
+      conda create -n nameofenv python=3.10
+      conda install git
+      pip install "gyroid_utils[gui] @ git+https://github.com/co-foucher/GYROIDS.git"
+```
+
+## CUDA accelerated marching cube optional dependency
+  - THIS IS NOT WORKING (YET)
+  - This is also optional, thus needs to be specifically named when installing
+  - You NEED to install torch previously
+
+```powershell
+      conda create -n nameofenv python=3.10
+      conda install git
+      pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu132
+      pip install "gyroid_utils[gpu] @ git+https://github.com/co-foucher/GYROIDS.git"
+```
+
+## local installation
+  - If you download the whole repository, you can then use the folder as a source for the library and make any change you want that will also take effect immediately
+  - `pip install -e .` behaves the same as the git-URL install above: it only installs the core dependencies. To also install the optional GUI and GPU dependencies, use the extras syntax:
 
 ```powershell
   cd "C:\Users\PATHtoFILES"
-  pip install -e .
+  conda create -n nameofenv python=3.10
+  conda install git
+  pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu132
+  pip install -e ".[gui,gpu]" --no-build-isolation
 ```
 
 # Known Bugs
@@ -90,7 +117,7 @@ Example notebooks for this use case:
 - **CT_scan_processing.ipynb**: CT-to-mesh pipeline and interactive mesh coloring (including curvature mode)
 
 ## library tools and configuration
-Other scripts exist for configuring this library and some usefull functions
+Other scripts exist for configuring this library and some useful functions
 - **logger.py**: Logging configuration
 - **config.py**: Shared constants and default tolerances used across the library
 - **utils.py**: Low-level helpers (e.g. `reload_all()` for interactive development)

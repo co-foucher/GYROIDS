@@ -356,6 +356,32 @@ def export_as_STL(verts: np.ndarray, faces: np.ndarray, path: str):
 #=====================================================================
 #5) mesh_from_matrix
 #=====================================================================
+# Module-level cache: cheap probe for CUDA marching-cubes support, computed
+# once per process rather than on every mesh_from_matrix() call.
+_CUDA_MC_AVAILABLE = None
+
+
+def _cuda_backend_available() -> bool:
+    """
+    Checks (once, cached) whether torch + cumcubes + a CUDA device are all
+    available. Safe to call repeatedly - only pays the import/probe cost once.
+    """
+    global _CUDA_MC_AVAILABLE
+    if _CUDA_MC_AVAILABLE is None:
+        try:
+            import torch  # noqa: F401
+            import cumcubes  # noqa: F401
+            _CUDA_MC_AVAILABLE = torch.cuda.is_available()
+        except ImportError:
+            _CUDA_MC_AVAILABLE = False
+        logger.info(
+            f"CUDA marching cubes backend "
+            f"{'available' if _CUDA_MC_AVAILABLE else 'not available'} - "
+            f"'auto' will use {'cuda' if _CUDA_MC_AVAILABLE else 'skimage'}."
+        )
+    return _CUDA_MC_AVAILABLE
+
+
 def mesh_from_matrix(
     matrix: np.ndarray,
     iso_level: float,
@@ -364,13 +390,15 @@ def mesh_from_matrix(
     y: np.ndarray,
     z: np.ndarray,
     pad_width: int = 5,
+    pad_val: float = -1,
+    backend: str = "auto",
     ):
     """
     ============================================================================
     5) MESH_FROM_MATRIX
     Extracts an isosurface mesh (verts, faces) from a 3D scalar field using
-    marching cubes. Pads the volume with an auto-computed constant value to
-    close surfaces touching the boundary.
+    marching cubes. Optionally pads the volume with a constant value to help
+    close surfaces touching the boundary).
     ============================================================================
 
     PARAMETERS
@@ -382,22 +410,26 @@ def mesh_from_matrix(
     spacing : tuple(float, float, float)
         Voxel spacing (dx, dy, dz) in physical units.
     algo_step_size : int
-        Marching cubes step size (larger = faster, less detail).
+        Marching cubes step size (larger = faster, less detail). Used by
+        both backends: for "skimage" it's passed straight to
+        measure.marching_cubes; for "cuda" (which has no native step_size)
+        it's applied by strided-downsampling the volume before extraction.
     x, y, z : float, optional
         Physical coordinate of voxel (0,0,0) in the *un-padded* matrix.
     pad_width : int, optional
         Number of voxels to pad on each face of the volume.
-
-    NOTES
-    -----
-    - The padding value used to close boundary caps is computed internally
-      as matrix.min() - 1000 * (matrix.max() - matrix.min()), i.e. far below
-      the data on the void side of iso_level. This assumes the codebase-wide
-      convention used throughout TPMS_classes: solid >= iso_level, void <
-      iso_level (see tpms_base.py). A pad value close to iso_level places the
-      cap up to a full voxel outside the real data; scaling it by the data's
-      own range keeps that offset to a small fraction of a voxel regardless
-      of the field's magnitude.
+    pad_val : float or None, optional
+        Constant padding value. If None, automatically chosen to be safely above
+        iso_level relative to the data range (encourages "caps" on boundaries).
+        If your "solid" is on the other side of the iso_level, you may want to
+        pass a value safely below iso_level instead.
+    backend : str, optional
+        "auto" (default): use CUDA marching cubes (via cumcubes) if torch and
+        cumcubes are importable and a CUDA device is available, otherwise
+        fall back to skimage. "skimage": always use scikit-image's CPU
+        implementation (method='lewiner'). "cuda": force the CUDA
+        implementation; falls back to skimage with a warning if it fails
+        at runtime (e.g. out of GPU memory).
 
     RETURNS
     -------
@@ -423,16 +455,15 @@ def mesh_from_matrix(
                 logger.error("x, y, z must match the shape of matrix or be 1D arrays matching each dimension.")
                 logger.debug(f"x.shape: {x.shape}, y.shape: {y.shape}, z.shape: {z.shape}, matrix.shape: {matrix.shape}")
                 raise ValueError("x, y, z must match the shape of matrix or be 1D arrays matching each dimension.")
-    values_range = np.max(matrix) - np.min(matrix) 
-    if values_range == 0:
-        logger.error("Input matrix has zero range; cannot extract isosurface.")
-        raise ValueError("Input matrix has zero range; cannot extract isosurface.")
+
+    if backend not in ("auto", "skimage", "cuda"):
+        raise ValueError("backend must be one of: 'auto', 'skimage', 'cuda'.")
+
     # ------------------------------------------------------------------
     # Pad volume to help close boundary openings ("caps")
     # ------------------------------------------------------------------
-    pad_val = np.min(matrix) - 1000 * values_range
     try:
-        v_padded = np.pad(matrix, pad_width=pad_width, mode="constant", constant_values=pad_val).astype(np.float32)
+        v_padded = np.pad(matrix, pad_width=pad_width, mode="constant", constant_values=-1.0)
     except Exception as e:
         logger.error(f"np.pad failed: {e}", exc_info=True)
         raise RuntimeError("Failed to pad matrix.") from e
@@ -442,8 +473,44 @@ def mesh_from_matrix(
     # ------------------------------------------------------------------
     spacing = (np.abs(x[1,0,0]-x[0,0,0]),
             np.abs(y[0,1,0]-y[0,0,0]),
-            np.abs(z[0,0,1]-z[0,0,0]))  
+            np.abs(z[0,0,1]-z[0,0,0]))
 
+    # Resolve "auto" now that we know whether a working GPU path exists.
+    if backend == "auto":
+        backend = "cuda" if _cuda_backend_available() else "skimage"
+
+    x_origin = x[0,0,0]
+    y_origin = y[0,0,0]
+    z_origin = z[0,0,0]
+    origin = (x_origin - pad_width * spacing[0], y_origin - pad_width * spacing[1], z_origin - pad_width * spacing[2])
+
+    if backend == "cuda":
+        try:
+            import torch
+            import cumcubes
+
+            step = int(algo_step_size)
+            grid = v_padded[::step, ::step, ::step]
+            grid_spacing = (spacing[0]*step, spacing[1]*step, spacing[2]*step)
+
+            lower = origin
+            upper = tuple(origin[i] + (grid.shape[i]-1) * grid_spacing[i] for i in range(3))
+
+            density = torch.from_numpy(np.ascontiguousarray(grid)).float().cuda()
+            verts_t, faces_t = cumcubes.marching_cubes(density, float(iso_level), scale=(lower, upper))
+            verts = verts_t.cpu().numpy()
+            faces = faces_t.cpu().numpy().astype(np.int64)
+
+            logger.info(f"Extracted mesh (cuda) with {len(verts)} verts and {len(faces)} faces.")
+            return verts, faces
+
+        except Exception as e:
+            logger.warning(f"CUDA marching cubes failed ({e}); falling back to skimage.", exc_info=True)
+            backend = "skimage"
+
+    # ------------------------------------------------------------------
+    # skimage backend (CPU, default fallback)
+    # ------------------------------------------------------------------
     try:
         verts, faces, normals, values = measure.marching_cubes(
             v_padded,
@@ -460,12 +527,6 @@ def mesh_from_matrix(
     # ------------------------------------------------------------------
     # Translate vertices to the physical coordinate system of the unpadded grid
     # ------------------------------------------------------------------
-    x_origin = x[0,0,0]
-    y_origin = y[0,0,0]
-    z_origin = z[0,0,0]
-
-    origin = (x_origin - pad_width * spacing[0], y_origin - pad_width * spacing[1], z_origin - pad_width * spacing[2])
-
     try:
         verts[:, 0] = verts[:,0] + origin[0]
         verts[:, 1] = verts[:,1] + origin[1]
@@ -475,11 +536,6 @@ def mesh_from_matrix(
         raise RuntimeError("Failed to translate mesh vertices.") from e
 
     logger.info(f"Extracted mesh with {len(verts)} verts and {len(faces)} faces.")
-
-    # ------------------------------------------------------------------
-    # Fix mesh (normals, non-manifold edges)
-    # ------------------------------------------------------------------
-    #verts, faces = fix_mesh(verts, faces)
 
     # ------------------------------------------------------------------
     # result

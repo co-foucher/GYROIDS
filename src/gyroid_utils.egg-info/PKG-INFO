@@ -39,9 +39,10 @@ Requires-Dist: scipy==1.15.3
 Provides-Extra: gui
 Requires-Dist: streamlit==1.51.0; extra == "gui"
 Requires-Dist: sympy==1.14.0; extra == "gui"
-Provides-Extra: notebook
-Requires-Dist: ipywidgets>=8; extra == "notebook"
-Requires-Dist: anywidget; extra == "notebook"
+Provides-Extra: gpu
+Requires-Dist: torch; extra == "gpu"
+Requires-Dist: ninja; extra == "gpu"
+Requires-Dist: cumcubes @ git+https://github.com/lzhnb/CuMCubes.git ; extra == "gpu"
 
 # **GYROIDS UTILS**
 
@@ -54,8 +55,8 @@ Requires-Dist: anywidget; extra == "notebook"
   !!!! requires Python 3.10 !!!!
 
 # **INSTALLATION**
-  - You could copy the whole environment directly from the yml file. Or use pip to install only this library and its dependency. 
-  
+## Core dependencies
+  - Use pip to install only this library and its dependencies. 
   - It is better to first create a python 3.10 venv and then use pip install git+https://github.com/co-foucher/GYROIDS.git
 
 ```powershell
@@ -64,6 +65,38 @@ Requires-Dist: anywidget; extra == "notebook"
       pip install git+https://github.com/co-foucher/GYROIDS.git
 ```
   - For changes: update the toml file and then use pip install git+https://github.com/co-foucher/GYROIDS.git
+
+## GUI optional dependency
+  - The GUI is optional, thus needs to be specifically named when installing
+
+```powershell
+      conda create -n nameofenv python=3.10
+      conda install git
+      pip install "gyroid_utils[gui] @ git+https://github.com/co-foucher/GYROIDS.git"
+```
+
+## CUDA accelerated marching cube optional dependency
+  - This is also optional, thus needs to be specifically named when installing
+  - You NEED to install torch previously
+
+```powershell
+      conda create -n nameofenv python=3.10
+      conda install git
+      pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu132
+      pip install "gyroid_utils[gpu] @ git+https://github.com/co-foucher/GYROIDS.git"
+```
+
+## local installation
+  - If you download the whole repository, you can then use the folder as a source for the library and make any change you want that will also take effect immediately
+  - `pip install -e .` behaves the same as the git-URL install above: it only installs the core dependencies. To also install the optional GUI and GPU dependencies, use the extras syntax:
+
+```powershell
+  cd "C:\Users\PATHtoFILES"
+  conda create -n nameofenv python=3.10
+  conda install git
+  pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu132
+  pip install -e ".[gui,gpu]" --no-build-isolation
+```
 
 # Known Bugs
 Coordinates in the STL mesh do not match exactly the definition in the matrix. This is due to the marching cube algorithm, resulting in structure about a pixel larger in every dimension.
@@ -129,7 +162,7 @@ Example notebooks for this use case:
 - **CT_scan_processing.ipynb**: CT-to-mesh pipeline and interactive mesh coloring (including curvature mode)
 
 ## library tools and configuration
-Other scripts exist for configuring this library and some usefull functions
+Other scripts exist for configuring this library and some useful functions
 - **logger.py**: Logging configuration
 - **config.py**: Shared constants and default tolerances used across the library
 - **utils.py**: Low-level helpers (e.g. `reload_all()` for interactive development)

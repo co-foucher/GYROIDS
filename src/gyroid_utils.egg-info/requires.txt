@@ -19,10 +19,11 @@ open3d==0.19.0
 pytest==9.1.1
 scipy==1.15.3
 
+[gpu]
+torch
+ninja
+cumcubes @ git+https://github.com/lzhnb/CuMCubes.git
+
 [gui]
 streamlit==1.51.0
 sympy==1.14.0
-
-[notebook]
-ipywidgets>=8
-anywidget
