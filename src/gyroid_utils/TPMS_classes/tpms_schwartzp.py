@@ -8,7 +8,7 @@ from .tpms_base import TPMSModel, create_a_tpms
 #=====================================================================================================================
 0 - (reserved)
 1 - SchwartzPModel (class)
-2 - SchwartzPModel._surface_term
+2 - SchwartzPModel._implicit_field
 3 - create_a_schwartz_p
 #=====================================================================================================================
 
@@ -70,12 +70,12 @@ class SchwartzPModel(TPMSModel):
     DEFAULT_FIELD_MODE = "abs"
 
     # =====================================================================
-    # 2) _surface_term
+    # 2) _implicit_field
     # =====================================================================
-    def _surface_term(self) -> np.ndarray:
+    def _implicit_field(self) -> np.ndarray:
         """
         ============================================================================
-        2) _SURFACE_TERM
+        2) _IMPLICIT_FIELD
         Schwartz P implicit surface:
             F = cos(2π/px·x) + cos(2π/py·y) + cos(2π/pz·z)
         Amplitude range: [-3, +3] (three cosine terms each in [-1, 1]).
@@ -83,7 +83,7 @@ class SchwartzPModel(TPMSModel):
 
         RETURNS
         -------
-        term : np.ndarray
+        implicit_field : np.ndarray
             F(x, y, z), same shape as self.x.
         """
         return (

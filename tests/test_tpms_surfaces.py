@@ -6,7 +6,7 @@ FischerKochSModel, FRDModel, LidinoidModel, SplitPModel.
 Validation, guard rails, and the abs/signed/distance field pipeline itself
 all live in TPMSModel and are already tested once, generically, through a
 dummy subclass in test_tpms_base.py. What's specific to each of these real
-classes is just its _surface_term() formula and its DEFAULT_FIELD_MODE, so
+classes is just its _implicit_field() formula and its DEFAULT_FIELD_MODE, so
 that's all this file checks - once per class, via parametrize, instead of
 copy-pasting a near-identical test file per surface.
 """
@@ -35,7 +35,7 @@ splitp_mod = pytest.importorskip("gyroid_utils.TPMS_classes.tpms_splitp")
 # ============================================================================
 # 0 - independent formula reimplementations (one per surface)
 # ============================================================================
-# Each of these is a hand-written copy of that surface's _surface_term(),
+# Each of these is a hand-written copy of that surface's _implicit_field(),
 # taken from its docstring/NOTES section, so compute_field() gets checked
 # against an independent implementation rather than against itself.
 
@@ -157,7 +157,7 @@ class TestTPMSSurfaceFormulas:
     """
 
     def test_abs_mode_matches_formula(self, small_grid, model_cls, term_fn, default_mode):
-        """mode="abs" should equal thickness - |term|, per TPMSModel's docstring, for every surface."""
+        """mode="abs" should equal thickness - |implicit_field|, per TPMSModel's docstring, for every surface."""
         x, y, z = small_grid
         model = model_cls(x, y, z, 1.3, 1.1, 0.9, 0.25)
         v = model.compute_field(mode="abs")
@@ -165,7 +165,7 @@ class TestTPMSSurfaceFormulas:
         np.testing.assert_allclose(v, expected)
 
     def test_signed_mode_matches_formula(self, small_grid, model_cls, term_fn, default_mode):
-        """mode="signed" should equal term - thickness (a plain level-set, no abs()), for every surface."""
+        """mode="signed" should equal implicit_field - thickness (a plain level-set, no abs()), for every surface."""
         x, y, z = small_grid
         model = model_cls(x, y, z, 1.3, 1.1, 0.9, 0.25)
         v = model.compute_field(mode="signed")

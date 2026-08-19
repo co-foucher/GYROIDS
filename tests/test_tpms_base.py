@@ -19,7 +19,7 @@ TPMSModel = tpms_base.TPMSModel
 """
 ============================================================================
 0 - _DummyTPMS + helper functions
-1 - TestSurfaceTermIsAbstract
+1 - TestImplicitFieldIsAbstract
 2 - TestValidateInputs
 3 - TestComputeField
 4 - TestGuardedMethodsRequireField
@@ -41,7 +41,7 @@ class _DummyTPMS(TPMSModel):
     """
     DEFAULT_FIELD_MODE = "abs"
 
-    def _surface_term(self):
+    def _implicit_field(self):
         return (
             np.sin((2 * np.pi / self.px) * self.x)
             + np.cos((2 * np.pi / self.py) * self.y)
@@ -49,8 +49,8 @@ class _DummyTPMS(TPMSModel):
         )
 
 
-def _dummy_term(x, y, z, px, py, pz):
-    """Independent reimplementation of _DummyTPMS._surface_term, for formula checks."""
+def _dummy_implicit_field(x, y, z, px, py, pz):
+    """Independent reimplementation of _DummyTPMS._implicit_field, for formula checks."""
     return (
         np.sin((2 * np.pi / px) * x)
         + np.cos((2 * np.pi / py) * y)
@@ -58,11 +58,11 @@ def _dummy_term(x, y, z, px, py, pz):
     )
 
 
-def _expected_distance_field(term, x, y, z, thickness):
+def _expected_distance_field(implicit_field, x, y, z, thickness):
     """
     Independent reimplementation of TPMSModel.compute_field(mode="distance"),
-    given an already-computed term array, so the real implementation can be
-    checked against it instead of against itself.
+    given an already-computed implicit_field array, so the real implementation
+    can be checked against it instead of against itself.
     """
     from scipy.ndimage import distance_transform_edt
 
@@ -71,7 +71,7 @@ def _expected_distance_field(term, x, y, z, thickness):
     dz = float(z[0, 0, 1] - z[0, 0, 0])
     spacing = (dx, dy, dz)
 
-    binary = term > 0
+    binary = implicit_field > 0
     dist_out = distance_transform_edt(~binary, sampling=spacing)
     dist_in = distance_transform_edt(binary, sampling=spacing)
     dist = dist_out + dist_in
@@ -84,13 +84,13 @@ def _expected_distance_field(term, x, y, z, thickness):
 
 
 # ============================================================================
-# 1 - TestSurfaceTermIsAbstract
+# 1 - TestImplicitFieldIsAbstract
 # ============================================================================
-class TestSurfaceTermIsAbstract:
-    """_surface_term() must be overridden by a subclass; the base class's own version should refuse to run."""
+class TestImplicitFieldIsAbstract:
+    """_implicit_field() must be overridden by a subclass; the base class's own version should refuse to run."""
 
     def test_raw_tpmsmodel_raises_not_implemented(self, small_grid):
-        """Instantiating TPMSModel directly (no subclass) is fine, but calling compute_field() must raise NotImplementedError since _surface_term() was never overridden."""
+        """Instantiating TPMSModel directly (no subclass) is fine, but calling compute_field() must raise NotImplementedError since _implicit_field() was never overridden."""
         x, y, z = small_grid
         model = TPMSModel(x, y, z, 1.0, 1.0, 1.0, 0.2)
         with pytest.raises(NotImplementedError):
@@ -153,20 +153,20 @@ class TestComputeField:
     """
 
     def test_abs_mode_matches_formula(self, small_grid):
-        """mode="abs" should equal thickness - |term|, per the docstring."""
+        """mode="abs" should equal thickness - |implicit_field|, per the docstring."""
         x, y, z = small_grid
         model = _DummyTPMS(x, y, z, 1.3, 1.1, 0.9, 0.25)
         v = model.compute_field(mode="abs")
-        expected = 0.25 - np.abs(_dummy_term(x, y, z, 1.3, 1.1, 0.9))
+        expected = 0.25 - np.abs(_dummy_implicit_field(x, y, z, 1.3, 1.1, 0.9))
         np.testing.assert_allclose(v, expected)
         assert model.v is v
 
     def test_signed_mode_matches_formula(self, small_grid):
-        """mode="signed" should equal term - thickness (a plain level-set, no abs())."""
+        """mode="signed" should equal implicit_field - thickness (a plain level-set, no abs())."""
         x, y, z = small_grid
         model = _DummyTPMS(x, y, z, 1.3, 1.1, 0.9, 0.25)
         v = model.compute_field(mode="signed")
-        expected = _dummy_term(x, y, z, 1.3, 1.1, 0.9) - 0.25
+        expected = _dummy_implicit_field(x, y, z, 1.3, 1.1, 0.9) - 0.25
         np.testing.assert_allclose(v, expected)
 
     def test_default_mode_uses_default_field_mode_attribute(self, small_grid):
@@ -191,8 +191,8 @@ class TestComputeField:
         px, py, pz, thickness = 1.3, 1.1, 0.9, 0.5
         model = _DummyTPMS(x, y, z, px, py, pz, thickness)
         v = model.compute_field(mode="distance")
-        term = _dummy_term(x, y, z, px, py, pz)
-        expected = _expected_distance_field(term, x, y, z, thickness)
+        implicit_field = _dummy_implicit_field(x, y, z, px, py, pz)
+        expected = _expected_distance_field(implicit_field, x, y, z, thickness)
         np.testing.assert_allclose(v, expected)
 
     def test_distance_fast_mode_produces_expected_range(self, small_grid):

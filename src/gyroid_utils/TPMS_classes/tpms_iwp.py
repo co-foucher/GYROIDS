@@ -8,7 +8,7 @@ from .tpms_base import TPMSModel, create_a_tpms
 #=====================================================================================================================
 0 - (reserved)
 1 - IWPModel (class)
-2 - IWPModel._surface_term
+2 - IWPModel._implicit_field
 3 - create_a_iwp
 #=====================================================================================================================
 
@@ -72,12 +72,12 @@ class IWPModel(TPMSModel):
     DEFAULT_FIELD_MODE = "distance"
 
     # =====================================================================
-    # 2) _surface_term
+    # 2) _implicit_field
     # =====================================================================
-    def _surface_term(self) -> np.ndarray:
+    def _implicit_field(self) -> np.ndarray:
         """
         ============================================================================
-        2) _SURFACE_TERM
+        2) _IMPLICIT_FIELD
         Schoen I-WP implicit surface:
             F = 2[cos(X)cos(Y) + cos(Y)cos(Z) + cos(Z)cos(X)]
               - [cos(2X) + cos(2Y) + cos(2Z)]
@@ -86,7 +86,7 @@ class IWPModel(TPMSModel):
 
         RETURNS
         -------
-        term : np.ndarray
+        implicit_field : np.ndarray
             F(x, y, z), same shape as self.x.
         """
         X = (2 * np.pi / self.px) * self.x

@@ -8,7 +8,7 @@ from .tpms_base import TPMSModel, create_a_tpms
 #=====================================================================================================================
 0 - (reserved)
 1 - SplitPModel (class)
-2 - SplitPModel._surface_term
+2 - SplitPModel._implicit_field
 3 - create_a_split_p
 #=====================================================================================================================
 
@@ -73,12 +73,12 @@ class SplitPModel(TPMSModel):
     DEFAULT_FIELD_MODE = "distance"
 
     # =====================================================================
-    # 2) _surface_term
+    # 2) _implicit_field
     # =====================================================================
-    def _surface_term(self) -> np.ndarray:
+    def _implicit_field(self) -> np.ndarray:
         """
         ============================================================================
-        2) _SURFACE_TERM
+        2) _IMPLICIT_FIELD
         Split-P implicit surface:
             F = 1.1*(sin(2X)*sin(Z)*cos(Y) + sin(2Y)*sin(X)*cos(Z) + sin(2Z)*sin(Y)*cos(X))
               - 0.2*(cos(2X)*cos(2Y) + cos(2Y)*cos(2Z) + cos(2Z)*cos(2X))
@@ -88,7 +88,7 @@ class SplitPModel(TPMSModel):
 
         RETURNS
         -------
-        term : np.ndarray
+        implicit_field : np.ndarray
             F(x, y, z), same shape as self.x.
         """
         X = (2 * np.pi / self.px) * self.x

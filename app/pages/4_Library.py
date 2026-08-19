@@ -27,16 +27,46 @@ if not stl_files:
 else:
     for stl_path in stl_files:
         html_path = stl_path.with_suffix(".html")
-        with st.expander(stl_path.name):
+        # Naming convention set by the "Export ..." buttons on the Generate
+        # TPMS page: the field is saved as "<name>.npy" and the thickness
+        # field (if exported separately) as "<name>_thickness.npy", both
+        # sharing the STL's base name.
+        field_npy_path = stl_path.with_suffix(".npy")
+        thickness_npy_path = stl_path.with_name(stl_path.stem + "_thickness.npy")
+
+
+        with st.expander(f"{stl_path.name}"):
             col1, col2 = st.columns([1, 2])
             with col1:
-                st.write(f"`{stl_path.name}`")
+                st.success(f"`{stl_path.name}`")
                 st.download_button(
                     "Download STL",
                     data=stl_path.read_bytes(),
                     file_name=stl_path.name,
                     key=f"dl_{stl_path.name}",
                 )
+
+                if field_npy_path.exists():
+                    st.success(f"Field available: `{field_npy_path.name}`")
+                    st.download_button(
+                        "Download field .npy",
+                        data=field_npy_path.read_bytes(),
+                        file_name=field_npy_path.name,
+                        key=f"dl_field_npy_{stl_path.name}",
+                    )
+                else:
+                    st.warning("No field .npy saved alongside this STL.")
+
+                if thickness_npy_path.exists():
+                    st.success(f"Thickness field available: `{thickness_npy_path.name}`")
+                    st.download_button(
+                        "Download thickness .npy",
+                        data=thickness_npy_path.read_bytes(),
+                        file_name=thickness_npy_path.name,
+                        key=f"dl_thickness_npy_{stl_path.name}",
+                    )
+                else:
+                    st.warning("No thickness .npy saved alongside this STL.")
             with col2:
                 if html_path.exists():
                     components.html(html_path.read_text(encoding="utf-8"), height=400, scrolling=True)

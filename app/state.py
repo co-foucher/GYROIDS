@@ -10,8 +10,9 @@ from pathlib import Path
 import streamlit as st
 
 # Default folder for generated .npz/.stl/.html files. Overridable per
-# session from the sidebar (see init_state()).
-DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "gui_outputs"
+# session from the sidebar (see init_state()). Lives inside app/ (this
+# file's own parent) rather than the repo root.
+DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent / "gui_outputs"
 
 
 def init_state() -> None:

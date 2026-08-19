@@ -8,7 +8,7 @@ from .tpms_base import TPMSModel, create_a_tpms
 #=====================================================================================================================
 0 - (reserved)
 1 - GyroidModel (class)
-2 - GyroidModel._surface_term
+2 - GyroidModel._implicit_field
 3 - create_a_gyroid
 #=====================================================================================================================
 
@@ -65,12 +65,12 @@ class GyroidModel(TPMSModel):
     DEFAULT_FIELD_MODE = "distance"
 
     # =====================================================================
-    # 2) _surface_term
+    # 2) _implicit_field
     # =====================================================================
-    def _surface_term(self) -> np.ndarray:
+    def _implicit_field(self) -> np.ndarray:
         """
         ============================================================================
-        2) _SURFACE_TERM
+        2) _IMPLICIT_FIELD
         Gyroid implicit surface:
             F = sin(2π/px·x)·cos(2π/py·y) + sin(2π/py·y)·cos(2π/pz·z)
               + sin(2π/pz·z)·cos(2π/px·x)
@@ -78,7 +78,7 @@ class GyroidModel(TPMSModel):
 
         RETURNS
         -------
-        term : np.ndarray
+        implicit_field : np.ndarray
             F(x, y, z), same shape as self.x.
         """
         return (

@@ -15,83 +15,33 @@ from plotly.colors import sample_colorscale
 """
 
 # =====================================================================
-# 1) save_mesh_as_html
+# 1) _build_mesh_figure / build_mesh_figure / save_mesh_as_html
 # =====================================================================
-def save_mesh_as_html(faces: np.ndarray,
-                      verts: np.ndarray,
-                      file_name: str,
-                      show_normal_colorscale: bool = False,
-                      show_flat_colorscale: bool = False,
-                      show_random_colorscale: bool = False,
-                      show_curvature_colorscale: bool = False,
-                      save: bool = True):
+def _build_mesh_figure(faces: np.ndarray,
+                       verts: np.ndarray,
+                       show_normal_colorscale: bool = False,
+                       show_flat_colorscale: bool = False,
+                       show_random_colorscale: bool = False,
+                       show_curvature_colorscale: bool = False):
     """
-    ============================================================================
-    1) SAVE_MESH_AS_HTML
-    Converts a mesh into a lightweight Plotly 3D HTML visualization.
-    Handles face/edge reduction for performance.
-    ============================================================================
-
-    PARAMETERS
-    ----------
-    faces : (M, 3) ndarray
-        Triangle indices.
-    verts : (N, 3) ndarray
-        Vertex coordinates.
-    file_name : str
-        Output HTML file name (without extension).
-    show_normal_colorscale : bool
-        If True, colors faces based on normal vectors.
-    show_flat_colorscale : bool
-        If True, colors faces with a flat color.
-    show_random_colorscale : bool
-        If True, colors faces with random colors.
-    show_curvature_colorscale : bool
-        If True, colors faces based on curvature (not implemented).
-    save : bool
-        If True, saves the HTML file. If False, displays the figure without saving.
-
-    RETURNS
-    -------
-    None
-
-    RAISES
-    ------
-    TypeError
-        If faces or verts is None.
-    ValueError
-        If faces is empty.
-    RuntimeError
-        If the Plotly figure fails to build, the random colorscale fails to
-        generate, or the HTML file fails to write.
-
-    NOTES
-    -----
-    - Only one colorscale option should be True. If multiple or none are True,
-      normal colorscale takes precedence. This is legacy behavior kept for
-      backward compatibility with existing call sites.
-
-    OUTPUT
-    ------
-    Creates a file:
-        <file_name>.html
-
-    EXAMPLE
-    -------
-    >>> save_mesh_as_html(faces, verts, "mesh_preview")
+    Shared core of build_mesh_figure()/save_mesh_as_html(): validates
+    faces/verts, resolves the show_*_colorscale flag precedence, reduces
+    faces if needed, computes facecolor, and returns the Mesh3d go.Figure.
+    No file I/O and no fig.show()/fig.write_html() here - callers decide
+    what to do with the returned figure. See save_mesh_as_html()'s
+    docstring for parameter/exception details; this raises the same
+    TypeError/ValueError/RuntimeError, at the same points.
     """
-    logger.info(f"Saving mesh visualization → '{file_name}.html'")
-
     # ----------------------------------------------
     # Validate input
     # ----------------------------------------------
     if faces is None or verts is None:
-        logger.error("save_mesh_as_html(): faces or verts is None.")
-        raise TypeError("save_mesh_as_html(): faces and verts must not be None.")
+        logger.error("build_mesh_figure(): faces or verts is None.")
+        raise TypeError("build_mesh_figure(): faces and verts must not be None.")
 
     if len(faces) == 0:
-        logger.error("save_mesh_as_html(): No faces provided.")
-        raise ValueError("save_mesh_as_html(): faces is empty, nothing to visualize.")
+        logger.error("build_mesh_figure(): No faces provided.")
+        raise ValueError("build_mesh_figure(): faces is empty, nothing to visualize.")
 
     if show_curvature_colorscale ==False and show_flat_colorscale == False and show_random_colorscale == False and show_normal_colorscale == False:
         logger.warning("No colorscale option selected. Defaulting to normal colorscale.")
@@ -155,7 +105,7 @@ def save_mesh_as_html(faces: np.ndarray,
                 facecolor = [f"rgb({r},{g},{b})" for r, g, b in cols]
             except Exception as e:
                 logger.error(f"Random colorscale generation failed: {e}", exc_info=True)
-                raise RuntimeError("save_mesh_as_html(): failed to generate random colorscale") from e
+                raise RuntimeError("build_mesh_figure(): failed to generate random colorscale") from e
 
         elif show_flat_colorscale:
             # Mesh3d's facecolor needs one entry per face (a list/array),
@@ -282,7 +232,121 @@ def save_mesh_as_html(faces: np.ndarray,
         )
     except Exception as e:
         logger.error(f"Failed to build Plotly figure: {e}", exc_info=True)
-        raise RuntimeError("save_mesh_as_html(): failed to build Plotly figure") from e
+        raise RuntimeError("build_mesh_figure(): failed to build Plotly figure") from e
+
+    return fig
+
+
+def build_mesh_figure(faces: np.ndarray,
+                      verts: np.ndarray,
+                      show_normal_colorscale: bool = False,
+                      show_flat_colorscale: bool = False,
+                      show_random_colorscale: bool = False,
+                      show_curvature_colorscale: bool = False):
+    """
+    ============================================================================
+    BUILD_MESH_FIGURE
+    Builds the same Mesh3d go.Figure as save_mesh_as_html(), without ever
+    touching disk. For callers that embed the figure directly (e.g.
+    Streamlit's st.plotly_chart) - going through save_mesh_as_html() +
+    reading the .html back would mean writing/re-parsing a multi-MB file
+    (plotly.js embedded inline plus the mesh data) on every call just to
+    get bytes you're about to hand to a renderer that already has its own
+    Plotly runtime. Use save_mesh_as_html() when you actually want a
+    standalone .html artifact on disk (e.g. the Library page's preview
+    files); use this when you just want the figure object.
+    ============================================================================
+
+    PARAMETERS / RAISES
+    --------------------
+    Same as save_mesh_as_html() (see its docstring) minus `file_name` and
+    `save`, which don't apply here.
+
+    RETURNS
+    -------
+    fig : plotly.graph_objects.Figure
+
+    EXAMPLE
+    -------
+    >>> fig = build_mesh_figure(faces, verts, show_normal_colorscale=True)
+    >>> st.plotly_chart(fig)
+    """
+    return _build_mesh_figure(faces, verts, show_normal_colorscale, show_flat_colorscale,
+                              show_random_colorscale, show_curvature_colorscale)
+
+
+def save_mesh_as_html(faces: np.ndarray,
+                      verts: np.ndarray,
+                      file_name: str,
+                      show_normal_colorscale: bool = False,
+                      show_flat_colorscale: bool = False,
+                      show_random_colorscale: bool = False,
+                      show_curvature_colorscale: bool = False,
+                      save: bool = True):
+    """
+    ============================================================================
+    1) SAVE_MESH_AS_HTML
+    Converts a mesh into a lightweight Plotly 3D HTML visualization.
+    Handles face/edge reduction for performance.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    faces : (M, 3) ndarray
+        Triangle indices.
+    verts : (N, 3) ndarray
+        Vertex coordinates.
+    file_name : str
+        Output HTML file name (without extension).
+    show_normal_colorscale : bool
+        If True, colors faces based on normal vectors.
+    show_flat_colorscale : bool
+        If True, colors faces with a flat color.
+    show_random_colorscale : bool
+        If True, colors faces with random colors.
+    show_curvature_colorscale : bool
+        If True, colors faces based on curvature (not implemented).
+    save : bool
+        If True, saves the HTML file. If False, displays the figure without saving.
+
+    RETURNS
+    -------
+    None
+
+    RAISES
+    ------
+    TypeError
+        If faces or verts is None.
+    ValueError
+        If faces is empty.
+    RuntimeError
+        If the Plotly figure fails to build, the random colorscale fails to
+        generate, or the HTML file fails to write.
+
+    NOTES
+    -----
+    - Only one colorscale option should be True. If multiple or none are True,
+      normal colorscale takes precedence. This is legacy behavior kept for
+      backward compatibility with existing call sites.
+    - The exported file loads plotly.js from a CDN (`include_plotlyjs="cdn"`)
+      instead of embedding the ~4 MB library inline, so this both writes and
+      loads noticeably faster - the tradeoff is that opening the .html needs
+      internet access to render. Callers that just want the figure in memory
+      (no disk round-trip at all) should use build_mesh_figure() instead.
+
+    OUTPUT
+    ------
+    Creates a file:
+        <file_name>.html
+
+    EXAMPLE
+    -------
+    >>> save_mesh_as_html(faces, verts, "mesh_preview")
+    """
+    logger.info(f"Saving mesh visualization → '{file_name}.html'")
+
+    fig = _build_mesh_figure(faces, verts, show_normal_colorscale, show_flat_colorscale,
+                             show_random_colorscale, show_curvature_colorscale)
 
     # =========================================================
     # SAVE HTML FILE
@@ -290,9 +354,9 @@ def save_mesh_as_html(faces: np.ndarray,
     if save:
         try:
             out_path = f"{file_name}.html"
-            fig.write_html(out_path, auto_open=False)
+            fig.write_html(out_path, auto_open=False, include_plotlyjs="cdn")
             logger.info(f"HTML visualization saved → {out_path}")
-            
+
         except Exception as e:
             logger.error(f"Failed to save HTML visualization: {e}", exc_info=True)
             raise RuntimeError(f"save_mesh_as_html(): failed to write '{out_path}'") from e
@@ -412,7 +476,7 @@ def twod_view_of_matrix(v: np.ndarray,
         embed it themselves (e.g. Streamlit's st.plotly_chart), matching
         the save/show split already used by save_mesh_as_html().
     max_pixels : int, optional
-        Pixel budget for the whole animation (default = 1,000,000). One
+        Pixel budget for the whole animation (default = 30,000,000). One
         Plotly "frame" is pre-built per displayed Z slice, and each frame
         costs Nx*Ny pixels - past a few hundred slices that payload is
         what freezes/crashes the notebook or browser tab. If

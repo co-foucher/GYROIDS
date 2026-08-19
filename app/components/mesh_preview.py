@@ -1,21 +1,27 @@
 """
 Embeds a mesh preview inside a Streamlit page.
 
-Reuses gyroid_utils.viz.save_mesh_as_html (the same HTML export already
-used by the TPMS pipeline / notebooks) instead of re-implementing the
-Plotly figure here, so there's a single source of truth for what a mesh
-preview looks like. Also exposes save_mesh_as_html's four colorscale
-modes as a selector, instead of hardcoding "normal" as the only option.
+Reuses gyroid_utils.viz.build_mesh_figure (the same Mesh3d figure-building
+core that also backs save_mesh_as_html - see that module for the split)
+instead of re-implementing the Plotly figure here, so there's a single
+source of truth for what a mesh preview looks like. Also exposes
+build_mesh_figure's four colorscale modes as a selector, instead of
+hardcoding "normal" as the only option.
+
+Renders via st.plotly_chart(fig) directly rather than going through
+save_mesh_as_html()'s .html-file export + an embedded iframe: the mesh
+figure never touches disk for the live preview, and the browser reuses the
+Plotly runtime Streamlit already loaded once for the page instead of
+re-downloading/parsing a multi-MB standalone HTML document on every call.
 """
-from pathlib import Path
+from typing import Optional
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from gyroid_utils import viz
 
-# Display label -> save_mesh_as_html() boolean flag name. Only one of the
-# four flags is ever True at a time (mirrors save_mesh_as_html's own
+# Display label -> build_mesh_figure() boolean flag name. Only one of the
+# four flags is ever True at a time (mirrors build_mesh_figure's own
 # "last one wins / normal is the fallback" behavior when it's called
 # directly with more than one flag set).
 _COLORSCALE_FLAGS = {
@@ -26,21 +32,42 @@ _COLORSCALE_FLAGS = {
 }
 
 
-def render_mesh_preview(faces, verts, tmp_dir: Path, key: str, height: int = 600) -> None:
+@st.cache_data(show_spinner="Building mesh preview...", max_entries=8)
+def _build_mesh_figure(faces, verts, selected_flag: str):
+    """
+    Pure, cacheable half of render_mesh_preview: builds the Mesh3d figure
+    for one specific color mode. Deliberately free of any st.* calls -
+    only the returned figure is memoized, no widget/UI side effect rides
+    along with the cache (widgets aren't supported inside cache_data-
+    decorated functions - see the write-up in project memory / chat
+    history for why the original all-in-one version didn't actually work).
+
+    Keyed on `selected_flag` (not just faces/verts) so switching the
+    "Mesh coloring" dropdown is a genuine cache miss that rebuilds the
+    figure, instead of replaying whatever color mode happened to be
+    selected the first time this mesh was rendered.
+
+    max_entries=8 rather than 1 because cache_data's cache is process-
+    global (shared across every session/user, not per browser tab) - a
+    handful of distinct (mesh, colorscale) combos shouldn't evict each
+    other on every call.
+    """
+    flags = {flag: (flag == selected_flag) for flag in _COLORSCALE_FLAGS.values()}
+    return viz.build_mesh_figure(faces, verts, **flags)
+
+
+def render_mesh_preview(faces, verts, key: str, height: int = 600) -> None:
     """
     PARAMETERS
     ----------
     faces, verts : ndarray or None
         Mesh data (as produced by TPMSModel.generate_mesh()). If either is
         None, shows a placeholder instead.
-    tmp_dir : Path
-        Directory to write the intermediate preview .html file to (the
-        session's output directory - see app/state.py).
     key : str
-        Unique suffix for the preview file name / widget keys (avoids
-        collisions between pages/reruns).
+        Unique suffix for widget keys (avoids collisions between
+        pages/reruns).
     height : int, optional
-        Embedded iframe height in pixels (default 600).
+        Plotly figure height in pixels (default 600).
     """
     if faces is None or verts is None:
         st.info("Generate a mesh first to see a preview.")
@@ -51,16 +78,13 @@ def render_mesh_preview(faces, verts, tmp_dir: Path, key: str, height: int = 600
         list(_COLORSCALE_FLAGS.keys()),
         key=f"{key}_colorscale",
         help=(
-            "Passed straight through to viz.save_mesh_as_html(). Curvature "
+            "Passed straight through to viz.build_mesh_figure(). Curvature "
             "coloring does a per-vertex neighborhood search and is "
             "noticeably slower on large/unsimplified meshes."
         ),
     )
     selected_flag = _COLORSCALE_FLAGS[label]
-    flags = {flag: (flag == selected_flag) for flag in _COLORSCALE_FLAGS.values()}
 
-    html_path = tmp_dir / f"_preview_{key}"
-    with st.spinner(f"Building {label.lower()} preview..."):
-        viz.save_mesh_as_html(faces, verts, str(html_path), **flags)
-    html = html_path.with_suffix(".html").read_text(encoding="utf-8")
-    components.html(html, height=height, scrolling=True)
+    fig = _build_mesh_figure(faces, verts, selected_flag)
+    fig.update_layout(height=height)
+    st.plotly_chart(fig, width="stretch", key=f"{key}_meshfig")

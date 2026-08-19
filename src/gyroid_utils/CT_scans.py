@@ -337,53 +337,37 @@ def crop_images(point, direction, images):
         images = sitk.GetArrayFromImage(images)
 
     print('Cropping image')
-    n = images.shape[0]
-    y = images.shape[1]
-    x = images.shape[2]
+    n, y, x = images.shape
     print(f"Current size is {n}, {y}, {x}")
 
     if direction == 'down':
-        start_index = [0, point, 0]
-        size = [x, y - point, n]
-
+        images = images[:, point:, :]
     elif direction == 'up':
-        start_index = [0, 0, 0]
-        size = [x, point, n]
-
+        images = images[:, :point, :]
     elif direction == 'right':
-        start_index = [point, 0, 0]
-        size = [x - point, y, n]
-
+        images = images[:, :, point:]
     elif direction == 'left':
-        start_index = [0, 0, 0]
-        size = [point, y, n]
-
-    elif direction =='back':
-        start_index = [0, 0, point]
-        size = [x , y, n - point]
-
-    elif direction =='front':
-        start_index = [0, 0, 0]
-        size = [x , y, point]
-
+        images = images[:, :, :point]
+    elif direction == 'back':
+        images = images[point:, :, :]
+    elif direction == 'front':
+        images = images[:point, :, :]
     else:
-        raise ValueError("Invalid direction. Must be one of 'up', 'down', 'right', 'left'.")
+        raise ValueError("Invalid direction. Must be one of 'up', 'down', 'left', 'right', 'front', 'back'.")
 
-    extract_filter = sitk.ExtractImageFilter()
-    extract_filter.SetSize(size)
-    extract_filter.SetIndex(start_index)
+    # np.ascontiguousarray forces an actual copy of just the *cropped*
+    # region. Without it, this would return a view into `images` - and a
+    # numpy view keeps its ENTIRE base array alive in memory for as long
+    # as the view exists, even if the view itself looks small. On a large
+    # volume that silently defeats the point of cropping: the caller thinks
+    # they've shrunk the array, but the original full buffer is still
+    # pinned in memory underneath it.
+    images = np.ascontiguousarray(images)
 
-    # Apply the filter to crop the image
-    cropped_image = extract_filter.Execute(sitk.GetImageFromArray(images))
-    print("Image cropped")
-
-    cropped_image = sitk.GetArrayFromImage(cropped_image)
-    n = cropped_image.shape[0]
-    y = cropped_image.shape[1]
-    x = cropped_image.shape[2]
+    n, y, x = images.shape
     print(f"New size is {n}, {y}, {x}")
 
-    return cropped_image
+    return images
 
 
 # =====================================================================
@@ -427,12 +411,12 @@ def segment_from_threshold(image,lower_threshold,upper_threshold):
 # =====================================================================
 # 7) apply_threshold
 # =====================================================================
-def apply_threshold(images, lower_threshold, upper_threshold):
+def apply_threshold(images, lower_threshold, upper_threshold, outside_range_value=0):
     """
     ============================================================================
     7) APPLY_THRESHOLD
     Applies a dual threshold to an image and sets pixels outside the range to
-    zero. Note: this is NOT segmentation, only thresholding.
+    the specified value. Note: this is NOT segmentation, only thresholding.
     ============================================================================
 
     PARAMETERS
@@ -440,9 +424,11 @@ def apply_threshold(images, lower_threshold, upper_threshold):
     images : SimpleITK Image or np.ndarray
         The MHD image stack.
     lower_threshold : float
-        Pixels with grey value below this will be set to zero.
+        Pixels with grey value below this will be set to the outside range value.
     upper_threshold : float
-        Pixels with grey value above this will be set to zero.
+        Pixels with grey value above this will be set to the outside range value.
+    outside_range_value : float, optional
+        The value to set pixels outside the threshold range to (default is 0).  
 
     RETURNS
     -------
@@ -453,9 +439,9 @@ def apply_threshold(images, lower_threshold, upper_threshold):
     if isinstance(images, sitk.Image):
         images = sitk.GetArrayFromImage(images)
 
-    images[images > upper_threshold] = lower_threshold
-    images[images < lower_threshold] = lower_threshold
-    images = images - lower_threshold
+    images[images > upper_threshold] = outside_range_value
+    images[images < lower_threshold] = outside_range_value
+    images = images
 
     return images
 

@@ -21,12 +21,56 @@ from scipy.ndimage import uniform_filter1d
 
 from gyroid_utils import viz
 
-# Above this many Z slices, twod_view_of_matrix's animation (one frame per
-# slice, all built up front) starts producing a large/slow figure - the
-# same cost it would have in a notebook, just more likely to be hit here
-# since the GUI's resolution slider goes much higher than typical
-# exploratory notebook use.
-_SLOW_NZ_WARNING_THRESHOLD = 100
+# Total pixel budget for the WHOLE animation (all shown Z-frames combined),
+# not a raw slice count. twod_view_of_matrix builds one full Nx*Ny frame per
+# shown Z slice up front, and Streamlit/Plotly ship every frame to the
+# browser in one shot (that's what makes the Z-slider/Play button work
+# client-side with no rerun). So wall-clock + payload size scale with
+# Nx*Ny*n_shown_slices, not with Nz alone - a flat "keep <=100 slices" cap
+# (the old _SLOW_NZ_WARNING_THRESHOLD) still left 500*500*100 = 25M pixels
+# on the wire at the GUI's max grid resolution (Nx=Ny=Nz=500), which is
+# exactly the "reducing mesh size didn't help" case: mesh simplification
+# never touches the field grid, only the extracted surface. Budgeting on
+# total pixels instead scales the number of *shown* slices down as Nx*Ny
+# grows, so payload stays roughly constant regardless of resolution.
+# Raise this for a finer Z-scrub at the cost of a slower render, lower it
+# for a snappier one.
+_PREVIEW_PIXEL_BUDGET = 4_000_000
+
+
+@st.cache_data(show_spinner="Building field slice view...", max_entries=8)
+def _build_field_figure(v: np.ndarray, _x: np.ndarray, _y: np.ndarray, _z: np.ndarray,
+                         zmin: Optional[float], zmax: Optional[float]):
+    """
+    Pure, cacheable half of render_field_slice: downscale (if needed) and
+    build the Plotly figure. Deliberately free of any st.* calls - only the
+    (figure, downscale_factor) return value is memoized, so there's no
+    widget/UI side effect riding along with the cache (see the write-up for
+    mesh_preview.render_mesh_preview on why mixing the two doesn't work).
+    Keyed on max_entries=8 rather than 1 so a handful of distinct
+    (field, zmin/zmax) combos - e.g. switching between pages/keys, or a
+    couple of users on the same server - don't evict each other every call;
+    cache_data's cache is process-global, not per-session.
+    """
+    nx, ny, nz = v.shape
+    max_frames = max(1, _PREVIEW_PIXEL_BUDGET // (nx * ny))
+
+    if nz > max_frames:
+        factor = max(1, -(-nz // max_frames))  # ceil(nz / max_frames)
+        # Box-blur along Z first (anti-aliasing) then subsample every `factor`-th
+        # slice, so the preview isn't just skipping slices but a proper
+        # local-average downscale. x/y/z are sliced identically so the
+        # coordinate grids stay aligned with v's new shape. X/Y resolution
+        # is never touched - each shown slice is still full Nx*Ny detail.
+        v = uniform_filter1d(v, size=factor, axis=2)[:, :, ::factor]
+        _x = _x[:, :, ::factor]
+        _y = _y[:, :, ::factor]
+        _z = _z[:, :, ::factor]
+    else:
+        factor = 1
+
+    fig = viz.twod_view_of_matrix(v, _x, _y, _z, zmin=zmin, zmax=zmax, show=False)
+    return fig, factor
 
 
 def render_field_slice(v: Optional[np.ndarray],
@@ -56,22 +100,14 @@ def render_field_slice(v: Optional[np.ndarray],
         return
 
     nz = v.shape[2]
-    if nz > _SLOW_NZ_WARNING_THRESHOLD:
-        factor = max(1, round(nz / _SLOW_NZ_WARNING_THRESHOLD))
+    zmin, zmax = value_range if value_range is not None else (None, None)
+    fig, factor = _build_field_figure(v, x, y, z, zmin, zmax)
+
+    if factor > 1:
         st.caption(
             f"Z resolution is {nz} slices - field will be downscaled by {factor}x "
             f"(blurred + subsampled) for display."
         )
-        # Box-blur along Z first (anti-aliasing) then subsample every `factor`-th
-        # slice, so the preview isn't just skipping slices but a proper
-        # local-average downscale. x/y/z are sliced identically so the
-        # coordinate grids stay aligned with v's new shape.
-        v = uniform_filter1d(v, size=factor, axis=2)[:, :, ::factor]
-        x = x[:, :, ::factor]
-        y = y[:, :, ::factor]
-        z = z[:, :, ::factor]
         st.warning("Field preview is downscaled for performance - the final mesh will use the full resolution.")
 
-    zmin, zmax = value_range if value_range is not None else (None, None)
-    fig = viz.twod_view_of_matrix(v, x, y, z, zmin=zmin, zmax=zmax, show=False)
     st.plotly_chart(fig, width="stretch", key=f"{key}_fieldfig")

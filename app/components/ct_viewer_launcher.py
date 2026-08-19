@@ -20,10 +20,21 @@ viewer" button click instead of it re-running on every page rerun.
 import os
 import subprocess
 import sys
+import numpy as np
+import plotly.graph_objects as go
 
 import streamlit as st
 
-__all__ = ["render_lightweight_toggle", "launch_ct_viewer"]
+"""
+#=====================================================================================================================
+0 - (reserved)
+1 - render_lightweight_toggle
+2 - launch_ct_viewer
+3 - CT_histogram
+#=====================================================================================================================
+"""
+
+__all__ = ["render_lightweight_toggle", "launch_ct_viewer", "CT_histogram"]
 
 
 # =====================================================================
@@ -72,3 +83,37 @@ def launch_ct_viewer(mhd_path: str, lightweight: bool = False) -> None:
         "Launching in a separate window - requires a local display "
         "and PyQt5/PySide installed (see CT_visualization_window.py)."
     )
+
+
+# =====================================================================
+# 3) CT_histogram
+# =====================================================================
+def CT_histogram(hist: np.ndarray, bin_edges: np.ndarray) -> None:
+    """
+    Renders a greyvalue histogram from an already-computed (hist,
+    bin_edges) pair - e.g. from app.pages.3_CT_Analysis._load_histogram,
+    which caches that computation separately, keyed on (mhd_path, bins)
+    rather than on the volume array itself (hashing a full CT volume on
+    every rerun would cost more than just recomputing the histogram - see
+    that function's docstring). Kept as a pure "given numbers, draw a
+    chart" function so the (cached) computation and the (cheap, always-
+    rerun) rendering stay decoupled, the same way _build_result_fig and
+    _run_pipeline are decoupled in ct_pipeline.py.
+
+    Renders via Plotly + st.plotly_chart, matching every other figure in
+    this app (see the Heatmap previews in 3_CT_Analysis.py/ct_pipeline.py/
+    equation_input.py) - a bare matplotlib plt.show(), which this used to
+    call, has nowhere to display to inside the Streamlit server process
+    and never reaches the browser at all.
+    """
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    bin_width = bin_edges[1] - bin_edges[0]
+    fig = go.Figure(go.Bar(x=bin_centers, y=hist, width=bin_width))
+    fig.update_layout(
+        xaxis_title="Greyvalue",
+        yaxis_title="Count",
+        bargap=0,
+        height=350,
+        margin=dict(l=0, r=0, t=20, b=0),
+    )
+    st.plotly_chart(fig, width="stretch")

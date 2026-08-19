@@ -8,7 +8,7 @@ from .tpms_base import TPMSModel, create_a_tpms
 #=====================================================================================================================
 0 - (reserved)
 1 - NeoviusModel (class)
-2 - NeoviusModel._surface_term
+2 - NeoviusModel._implicit_field
 3 - create_a_neovius
 #=====================================================================================================================
 
@@ -70,12 +70,12 @@ class NeoviusModel(TPMSModel):
     DEFAULT_FIELD_MODE = "distance"
 
     # =====================================================================
-    # 2) _surface_term
+    # 2) _implicit_field
     # =====================================================================
-    def _surface_term(self) -> np.ndarray:
+    def _implicit_field(self) -> np.ndarray:
         """
         ============================================================================
-        2) _SURFACE_TERM
+        2) _IMPLICIT_FIELD
         Neovius implicit surface:
             F = 3[cos(X) + cos(Y) + cos(Z)] + 4cos(X)cos(Y)cos(Z)
         Amplitude range: roughly [-13, +13].
@@ -83,7 +83,7 @@ class NeoviusModel(TPMSModel):
 
         RETURNS
         -------
-        term : np.ndarray
+        implicit_field : np.ndarray
             F(x, y, z), same shape as self.x.
         """
         X = (2 * np.pi / self.px) * self.x

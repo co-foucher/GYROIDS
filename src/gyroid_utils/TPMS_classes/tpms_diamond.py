@@ -8,7 +8,7 @@ from .tpms_base import TPMSModel, create_a_tpms
 #=====================================================================================================================
 0 - (reserved)
 1 - DiamondModel (class)
-2 - DiamondModel._surface_term
+2 - DiamondModel._implicit_field
 3 - create_a_diamond
 #=====================================================================================================================
 
@@ -70,12 +70,12 @@ class DiamondModel(TPMSModel):
     DEFAULT_FIELD_MODE = "distance"
 
     # =====================================================================
-    # 2) _surface_term
+    # 2) _implicit_field
     # =====================================================================
-    def _surface_term(self) -> np.ndarray:
+    def _implicit_field(self) -> np.ndarray:
         """
         ============================================================================
-        2) _SURFACE_TERM
+        2) _IMPLICIT_FIELD
         Schwarz Diamond implicit surface:
             F = sin(X)sin(Y)sin(Z) + sin(X)cos(Y)cos(Z)
               + cos(X)sin(Y)cos(Z) + cos(X)cos(Y)sin(Z)
@@ -84,7 +84,7 @@ class DiamondModel(TPMSModel):
 
         RETURNS
         -------
-        term : np.ndarray
+        implicit_field : np.ndarray
             F(x, y, z), same shape as self.x.
         """
         X = (2 * np.pi / self.px) * self.x

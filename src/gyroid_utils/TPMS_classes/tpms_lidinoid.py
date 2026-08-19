@@ -8,7 +8,7 @@ from .tpms_base import TPMSModel, create_a_tpms
 #=====================================================================================================================
 0 - (reserved)
 1 - LidinoidModel (class)
-2 - LidinoidModel._surface_term
+2 - LidinoidModel._implicit_field
 3 - create_a_lidinoid
 #=====================================================================================================================
 
@@ -73,12 +73,12 @@ class LidinoidModel(TPMSModel):
     DEFAULT_FIELD_MODE = "distance"
 
     # =====================================================================
-    # 2) _surface_term
+    # 2) _implicit_field
     # =====================================================================
-    def _surface_term(self) -> np.ndarray:
+    def _implicit_field(self) -> np.ndarray:
         """
         ============================================================================
-        2) _SURFACE_TERM
+        2) _IMPLICIT_FIELD
         Lidinoid implicit surface:
             F = sin(2X)cos(Y)sin(Z) + sin(2Y)cos(Z)sin(X) + sin(2Z)cos(X)sin(Y)
               - cos(2X)cos(2Y) - cos(2Y)cos(2Z) - cos(2Z)cos(2X) + 0.3
@@ -87,7 +87,7 @@ class LidinoidModel(TPMSModel):
 
         RETURNS
         -------
-        term : np.ndarray
+        implicit_field : np.ndarray
             F(x, y, z), same shape as self.x.
         """
         X = (2 * np.pi / self.px) * self.x

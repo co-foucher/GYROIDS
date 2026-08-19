@@ -53,6 +53,26 @@
   pip install -e ".[gui,gpu]" --no-build-isolation
 ```
 
+# Launching the App (GUI)
+There is a small [Streamlit](https://streamlit.io) front end (`app/`) over the library — forms/wiring around the existing TPMS / mesh / simulation / CT functions, no pipeline logic of its own.
+
+  - First install the `gui` extra (see **GUI optional dependency** above).
+  - Then, from the repo root, run:
+
+```powershell
+      streamlit run app/Home.py
+```
+
+  - This opens the app in your browser automatically (default: http://localhost:8501).
+
+Pages (in the sidebar):
+- **Generate TPMS**: built-in surfaces or a custom equation, live preview, export STL — fully functional
+- **Simulation**: mesh an STL with fTetWild and launch ABAQUS batches — wired to the real `gyroid_utils` calls, but minimal parameter coverage
+- **CT Analysis**: convert/inspect CT volumes — wired to the real `gyroid_utils` calls, but minimal parameter coverage
+- **Library**: browse previously generated structures — a simple file browser over the output folder
+
+The output folder (where generated `.stl`/`.html`/`.npz` files are written and read from) can be changed from the sidebar; it defaults to `app/gui_outputs/`.
+
 # Known Bugs
 Coordinates in the STL mesh do not match exactly the definition in the matrix. This is due to the marching cube algorithm, resulting in structure about a pixel larger in every dimension.
 

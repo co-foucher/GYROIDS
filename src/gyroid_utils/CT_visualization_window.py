@@ -1161,7 +1161,18 @@ def lightweigth_open(images):
         -------
         None
         """
-        global ax_image, images, slice_slider
+        # `images` is deliberately NOT in this global declaration (unlike
+        # ax_image/slice_slider, which genuinely are module-level globals
+        # here - see lightweigth_open's own `global` line above). In
+        # lightweigth_open, images is just a local variable (its own
+        # parameter), and this nested function closes over it exactly
+        # like update_plot_light already does a few lines below.
+        # Declaring `global images` (as this used to, likely copied from
+        # open_window/onclick, where images IS a real module global)
+        # makes Python look up a module-level `images` that doesn't
+        # exist in this code path, raising NameError the moment you
+        # click.
+        global ax_image, slice_slider
         if event.inaxes == ax_image:
             x, y = event.xdata, event.ydata
             slice = int(slice_slider.val)

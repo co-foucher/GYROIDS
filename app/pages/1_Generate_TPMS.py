@@ -25,6 +25,8 @@ from app.state import init_state, get_output_dir
 from app.components.equation_input import render_equation_input, evaluate_custom_inputs, EquationError
 from app.components.mesh_preview import render_mesh_preview
 from app.components.field_view import render_field_slice
+from app.components.file_picker import browse_file, browse_directory
+from app.components.import_TPMS_files import import_matrix_from_file
 
 st.set_page_config(page_title="Generate TPMS", layout="wide")
 init_state()
@@ -49,19 +51,6 @@ col_params, col_preview = st.columns([1, 1.4])
 # ============== user defined parameters ===================
 # ==========================================================
 with col_params:
-    # ------ choose TPMS type or paste equation ------
-    source = st.radio("Surface", ["Built-in type", "Custom equation"], horizontal=True)
-    equation = None
-    type_name = None
-    if source == "Built-in type":
-        type_name = st.selectbox("TPMS type", list(BUILTIN_TYPES.keys()))
-    else:
-        equation, thickness = render_equation_input()
-        field_mode = st.selectbox("Field mode", ["distance", "signed", "abs"], index=0)
-        threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
-            help="The field isosurface at this value is extracted to generate the mesh.")
-
-
     # ------ grid parameters ------
     st.subheader("Grid parameters")
     resolution = st.slider(
@@ -72,10 +61,16 @@ with col_params:
     size_x = d1.number_input("Size X", value=10.0, min_value=0.01)
     size_y = d2.number_input("Size Y", value=10.0, min_value=0.01)
     size_z = d3.number_input("Size Z", value=10.0, min_value=0.01)
+    st.divider()
 
-    # ------ TPMS parameters ------
+    # ------ choose TPMS type / paste equation / import from file ------
+    st.subheader("TPMS Definition")
+    source = st.radio("Surface", ["Built-in type", "Custom equation", "Import from file"], horizontal=True)
+    equation = None
+    type_name = None
+
     if source == "Built-in type":
-        st.subheader("TPMS parameters")
+        type_name = st.selectbox("TPMS type", list(BUILTIN_TYPES.keys()))
         c1, c2, c3 = st.columns(3)
         px = c1.number_input("Period X", value=5.0, min_value=0.01)
         py = c2.number_input("Period Y", value=5.0, min_value=0.01)
@@ -84,9 +79,50 @@ with col_params:
         field_mode = st.selectbox("Field mode", ["distance", "signed", "abs"], index=0)
         threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
             help="The field isosurface at this value is extracted to generate the mesh.")
+    
+    elif source == "Custom equation":
+        equation, thickness = render_equation_input()
+        field_mode = st.selectbox("Field mode", ["distance", "signed", "abs"], index=0)
+        threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
+            help="The field isosurface at this value is extracted to generate the mesh.")
+    
+    elif source == "Import from file":
+        st.warning("File import functionality is not yet implemented.")
+        st.session_state.setdefault("field_matrix_path", "")
+        st.session_state.setdefault("thickness_matrix_path", "")
+        # define TPMS field
+        col_path, col_browse = st.columns([5, 1])
+        with col_path:
+            matrix_path = st.text_input("Path to matrix file", key="field_matrix_path")
+        with col_browse:
+            st.write("")  # spacer so the button lines up with the text box, not its label
+            browse_file(
+                "field_matrix_path",
+                title="Select a matrix file",
+                filetypes=[("Numpy files", "*.npy"), ("CSV files", "*.csv"), ("All files", "*.*")],)
+        field = import_matrix_from_file(file_path = st.session_state["field_matrix_path"])
+
+        #define thickness field
+        col_path, col_browse = st.columns([5, 1])
+        with col_path:
+            matrix_path = st.text_input("Path to thickness file", key="thickness_matrix_path")
+        with col_browse:
+            st.write("")  # spacer so the button lines up with the text box, not its label
+            browse_file(
+                "thickness_matrix_path",
+                title="Select a matrix file",
+                filetypes=[("Numpy files", "*.npy"), ("CSV files", "*.csv"), ("All files", "*.*")],)
+        thickness_value = import_matrix_from_file(file_path = st.session_state["thickness_matrix_path"])
+
+        field_mode = st.selectbox("Field mode", ["distance", "signed", "abs"], index=0)
+        threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
+                    help="The field isosurface at this value is extracted to generate the mesh.")
+    st.divider()
+
     # ----- additional features ------
     st.subheader("Additional Features")
     baseplate_thickness = st.number_input("Baseplate thickness (0 = none)", value=0.0, min_value=0.0)
+    st.divider()
     
     # ----- mesh parameters ------
     st.subheader("Mesh parameters")
@@ -127,9 +163,13 @@ if generate:
 
     try:
         with st.spinner("Computing field and generating mesh..."):
+
+            # ----- Built-in type ------ 
             if source == "Built-in type":
                 model = BUILTIN_TYPES[type_name](x, y, z, px, py, pz, thickness)
-            else:
+            
+            # ----- Custom equation ------ 
+            elif source == "Custom equation":
                 # equation_input.evaluate_custom_inputs() turns the two
                 # strings into plain arrays on the real generation grid -
                 # this page has no parsing-related imports at all, and
@@ -137,14 +177,24 @@ if generate:
                 # docstring).
                 field, thickness_value = evaluate_custom_inputs(equation, thickness, x, y, z)
                 model = CustomTPMSModel(x, y, z, thickness_value, field=field)
-
+            
+            # ----- Import from file ------ 
+            elif source == "Import from file":
+                if field.shape != (resolution, resolution, resolution):
+                    st.warning(f"Imported field shape {field.shape} does not match the expected resolution ({resolution}, {resolution}, {resolution}).")
+                if thickness_value.ndim == 1:
+                    thickness_value = thickness_value[0]  # take the first value as a scalar thickness
+                elif thickness_value.shape != (resolution, resolution, resolution) and not np.isscalar(thickness_value):
+                    st.warning(f"Imported thickness shape {thickness_value.shape} does not match the expected resolution ({resolution}, {resolution}, {resolution}).")
+                model = CustomTPMSModel(x, y, z, thickness_value, field=field)
+            
             model.compute_field(mode=field_mode)
+
+            # ----- add baseplates ------ 
             if baseplate_thickness > 0:
                 model.add_baseplates(thickness=baseplate_thickness)
-            # cache the field's value range once here (after baseplates, which
-            # edit self.v in place) rather than recomputing it on every 2D-slice
-            # slider drag below - v can be large at high resolution (up to
-            # 500^3 with the current slider max).
+
+            # ----- generate mesh ------ 
             st.session_state["current_field_range"] = (float(model.v.min()), float(model.v.max()))
             model.generate_mesh(iso_level=threshold)
             model.simplify_mesh(target_faces=simplification_factor)
@@ -174,10 +224,10 @@ model = st.session_state.get("current_model")
 # =================== preview section ======================
 # ==========================================================
 with col_preview:
-    st.subheader("Field (2D slice)")
-    if model is not None and model.v is not None:
+    st.subheader("IMPLICIT Field (2D slice)")
+    if model is not None and model.implicit_field is not None:
         render_field_slice(
-            model.v, model.x, model.y, model.z, key="generate",
+            model.implicit_field, model.x, model.y, model.z, key="generate",
             value_range=st.session_state.get("current_field_range"),
         )
     else:
@@ -185,12 +235,47 @@ with col_preview:
 
     st.subheader("Mesh preview")
     if model is not None and model.faces is not None:
-        render_mesh_preview(model.faces, model.verts, get_output_dir(), key="generate")
+        render_mesh_preview(model.faces, model.verts, key="generate")
+    else:
+        st.info("Set parameters and click Generate.")
+
+
+
+# ==========================================================
+# ================ save outputs section ====================
+# ==========================================================
+with col_preview:
+    if model is not None and model.faces is not None:
         name = st.text_input("File name", value="my_tpms")
+
+        # ----- Export STL ------
         if st.button("Export STL"):
             out_path = get_output_dir() / name
             model.export_stl(str(out_path))
             model.save_mesh_preview(str(out_path))  # keep an .html alongside the .stl, picked up by the Library page
             st.success(f"Saved {out_path}.stl (+ preview .html)")
+
+        # ----- Export TPMS field ------
+        if st.button("Export TPMS implicit field (.npy)"):
+            out_path = get_output_dir() / name
+            if model.implicit_field is None: # check if thickness field exists
+                st.warning("No TPMS field available to export. Please ensure that the model field exists before exporting.")
+            np.save(str(out_path) + ".npy", model.implicit_field)
+            st.success(f"Saved {out_path}.npy")
+
+        # ----- Export TPMS thickness field ------
+        if st.button("Export TPMS thickness field (.npy)"):
+            out_path = get_output_dir() / (name + "_thickness")
+            if model.thickness is None: # check if thickness field exists
+                st.error("No thickness field available to export. Please ensure that the model has a thickness field before exporting.")
+            elif isinstance(model.thickness, float): #check if thickness field is a float
+                st.warning("Thickness field is a float, not an array...")
+                np.save(str(out_path) + ".npy", np.array([model.thickness])) #save as a 1D array
+                st.success(f"Saved {out_path}.npy")
+            elif isinstance(model.thickness, np.ndarray) and model.thickness.ndim == 3: #check if thickness field is a 3D array
+                np.save(str(out_path) + ".npy", model.thickness)
+                st.success(f"Saved {out_path}.npy")
+            else:
+                st.error("Thickness field is not a valid 3D array. Please ensure that the model's thickness field is a valid 3D array before exporting.")
     else:
         st.info("Set parameters and click Generate.")

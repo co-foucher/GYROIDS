@@ -12,8 +12,9 @@ from ..logger import logger
 0 - (reserved)
 1 - TPMSModel (class)
 2 - TPMSModel.__init__
+2b - v (deprecated alias for density_field)
 3 - TPMSModel._validate_inputs
-4 - TPMSModel._surface_term
+4 - TPMSModel._implicit_field
 5 - TPMSModel.compute_field
 6 - TPMSModel.save
 7 - TPMSModel.load
@@ -38,7 +39,7 @@ generation/simplification/export, previews, and baseplates.
 
 A concrete TPMS type (see tpms_gyroid.py, tpms_schwartzp.py) is expected to
 be a small subclass that only:
-  1) overrides `_surface_term()` with its implicit surface equation F(x,y,z),
+  1) overrides `_implicit_field()` with its implicit surface equation F(x,y,z),
   2) optionally sets the `DEFAULT_FIELD_MODE` class attribute.
 Everything else is inherited unchanged.
 """
@@ -70,7 +71,7 @@ class TPMSModel:
 
     SUBCLASSING
     -----------
-    - `_surface_term(self) -> np.ndarray` : REQUIRED. Return the implicit
+    - `_implicit_field(self) -> np.ndarray` : REQUIRED. Return the implicit
       surface function F(x, y, z) evaluated on self.x/self.y/self.z using
       self.px/self.py/self.pz. The zero-isosurface of F is the TPMS surface.
     - `DEFAULT_FIELD_MODE` : class attribute used by compute_field() when no
@@ -138,8 +139,9 @@ class TPMSModel:
         self.thickness = thickness
 
         # --- optional data to the object ---
+        self.implicit_field: Optional[np.ndarray] = None
         # Scalar field (computed by compute_field)
-        self.v: Optional[np.ndarray] = None
+        self.density_field: Optional[np.ndarray] = None
 
         # Mesh data (filled by generate_mesh)
         self.verts: Optional[np.ndarray] = None
@@ -147,6 +149,21 @@ class TPMSModel:
 
         self._validate_inputs()
 
+    # =====================================================================
+    # 2b) v (deprecated alias for density_field)
+    # =====================================================================
+    # @property turns a method into something that looks like a plain attribute from the outside but is actually a function call under the hood.
+    # I honestly don't understand exactly how it works, but the end is that you can access the method like an attribute, without parentheses, and it will execute the method and return the result.
+    # that allows to keep the old interface (model.v) while still using the new attribute (model.density_field) for the future.
+    @property
+    def v(self) -> Optional[np.ndarray]:
+        """Deprecated alias for `density_field`, kept for backward compatibility."""
+        return self.density_field
+
+    @v.setter
+    def v(self, value: Optional[np.ndarray]) -> None:
+        self.density_field = value
+    
     # =====================================================================
     # 3) _validate_inputs
     # =====================================================================
@@ -192,12 +209,12 @@ class TPMSModel:
         _check_param("thickness", self.thickness)
 
     # =====================================================================
-    # 4) _surface_term
+    # 4) _implicit_field
     # =====================================================================
-    def _surface_term(self) -> np.ndarray:
+    def _implicit_field(self) -> np.ndarray:
         """
         ============================================================================
-        4) _SURFACE_TERM
+        4) _IMPLICIT_FIELD
         Must be overridden by every concrete TPMS subclass. Returns the
         implicit surface function F(x, y, z) evaluated on self.x/self.y/self.z
         using the periods self.px/self.py/self.pz. The zero-isosurface of F
@@ -211,11 +228,11 @@ class TPMSModel:
 
         RETURNS
         -------
-        term : np.ndarray
+        implicit_field : np.ndarray
             F(x, y, z), same shape as self.x.
         """
         raise NotImplementedError(
-            f"{type(self).__name__} must implement _surface_term()."
+            f"{type(self).__name__} must implement _implicit_field()."
         )
 
     # =====================================================================
@@ -227,20 +244,20 @@ class TPMSModel:
         ============================================================================
         5) COMPUTE_FIELD
         Computes the TPMS scalar field from this subclass's implicit surface
-        (see _surface_term).
+        (see _implicit_field).
         ============================================================================
 
         PARAMETERS
         ----------
         mode : str, optional
             - None (default): uses this class's `DEFAULT_FIELD_MODE`.
-            - "abs": original behavior -> v = thickness - |term|
+            - "abs": original behavior -> density_field = thickness - |implicit_field|
               (useful for value-space wall thresholding; thickness here is in
-              term units).
-            - "signed": standard level-set -> v = term - level (signed field).
+              implicit_field units).
+            - "signed": standard level-set -> density_field = implicit_field - level.
             - "distance" / "distance_fast": produce a signed-distance-derived
               thickness field:
-                1) binary = term > level
+                1) binary = implicit_field > level
                 2) compute signed distance (uses spacing); "distance" uses
                    the exact Euclidean transform, "distance_fast" uses a
                    cheaper taxicab approximation (inaccurate for anisotropic
@@ -251,8 +268,9 @@ class TPMSModel:
 
         RETURNS
         -------
-        v : np.ndarray
-            The computed scalar field (also stored in self.v).
+        density_field : np.ndarray
+            The computed scalar field (also stored in self.density_field;
+            self.v remains available as a deprecated alias).
 
         NOTES
         -----
@@ -265,19 +283,19 @@ class TPMSModel:
         if mode is None:
             mode = self.DEFAULT_FIELD_MODE
 
-        term = self._surface_term()
+        self.implicit_field = self._implicit_field()
 
         if mode == "abs":
-            # original behaviour: thickness interpreted in term-value units (supports scalar or per-voxel thickness)
+            # original behaviour: thickness interpreted in implicit_field-value units (supports scalar or per-voxel thickness)
             logger.info(f"Computing absolute field")
-            self.v = self.thickness - np.abs(term)
-            return self.v
+            self.density_field = self.thickness - np.abs(self.implicit_field)
+            return self.density_field
 
         if mode == "signed":
             # signed level-set relative to provided level (C)
             logger.info(f"Computing signed field")
-            self.v = term - self.thickness
-            return self.v
+            self.density_field = self.implicit_field - self.thickness
+            return self.density_field
 
         if mode in ("distance", "distance_fast"):
             # requires scipy
@@ -294,7 +312,7 @@ class TPMSModel:
 
             # binary solid from level-set (classical TPMS surface at 'level')
             # first create binary mask of solid region, the surface of interest is at the intersection of the two regions
-            binary = (term > 0)
+            binary = (self.implicit_field > 0)
 
             # distance_transform_edt supports a 'sampling' parameter for anisotropic voxels
             # second, compute in the solid part, the distance of every voxel to the nearest zero (empty part)
@@ -319,9 +337,9 @@ class TPMSModel:
             mask = dist < half_t
 
             # final field: positive inside the desired wall band, zero outside
-            self.v = np.zeros_like(dist) - 1
-            self.v[mask] = dist[mask]
-            return self.v
+            self.density_field = np.zeros_like(dist) - 1
+            self.density_field[mask] = dist[mask]
+            return self.density_field
 
         raise ValueError("mode must be one of: 'abs', 'signed', 'distance', 'distance_fast'.")
 
@@ -345,7 +363,7 @@ class TPMSModel:
         -------
         None
         """
-        if self.v is None:
+        if self.density_field is None:
             raise RuntimeError("Field has not been computed yet (call compute_field).")
 
         io_ops.save_gyroid_matrices(
@@ -357,7 +375,7 @@ class TPMSModel:
             Yperiod=self.py,
             Zperiod=self.pz,
             thickness=self.thickness,
-            gyroid_field=self.v,
+            gyroid_field=self.density_field,
         )
 
     # =====================================================================
@@ -388,7 +406,7 @@ class TPMSModel:
         -------
         >>> model = GyroidModel.load("gyroid_data.npz")
         """
-        x, y, z, px, py, pz, t, v = io_ops.load_gyroid_matrices(infile)
+        x, y, z, px, py, pz, t, density_field = io_ops.load_gyroid_matrices(infile)
         obj = cls.__new__(cls)
         # fill only what is stored; coordinates are unknown from the saved file
         obj.x = x
@@ -396,7 +414,7 @@ class TPMSModel:
         obj.z = z
         obj.px, obj.py, obj.pz = px, py, pz
         obj.thickness = t
-        obj.v = v
+        obj.density_field = density_field
         obj.verts = None
         obj.faces = None
         return obj
@@ -430,12 +448,12 @@ class TPMSModel:
         verts, faces : (np.ndarray, np.ndarray)
             The generated vertices and faces (also stored on self).
         """
-        if self.v is None:
+        if self.density_field is None:
             logger.error("Field has not been computed yet. Call compute_field() before generate_mesh().")
             return None, None
 
         self.verts, self.faces = mesh_tools.mesh_from_matrix(
-            matrix=self.v,
+            matrix=self.density_field,
             iso_level=iso_level,
             algo_step_size=algo_step_size,
             x=self.x,
@@ -601,7 +619,7 @@ class TPMSModel:
         14) ADD_BASEPLATES
         Adds solid baseplates on the two ends of the z-axis with given physical
         thickness (same units as self.z). The method preserves the 3D shape of
-        self.v and sets voxels inside the baseplate regions to 1.
+        self.density_field and sets voxels inside the baseplate regions to 1.
         ============================================================================
 
         PARAMETERS
@@ -613,7 +631,7 @@ class TPMSModel:
         -------
         None
         """
-        if self.v is None:
+        if self.density_field is None:
             raise RuntimeError("Field not computed: call compute_field() before add_baseplates().")
         if self.z is None:
             raise RuntimeError("Grid coordinates missing: self.z is required to compute baseplate thickness in z.")
@@ -628,7 +646,7 @@ class TPMSModel:
         N = int(thickness/n)                       # number of slices to fill
 
         # clamp to valid range
-        nz = self.v.shape[2]
+        nz = self.density_field.shape[2]
         if N <= 0:
             logger.info("Requested baseplate thickness is zero or smaller than grid spacing; no baseplates added.")
             return
@@ -637,8 +655,8 @@ class TPMSModel:
             N = nz
 
         # set the bottom and top n slices to solid (use in-place assignment to preserve dtype/shape)
-        self.v[:, :, 0:N] = 1
-        self.v[:, :, -N:] = 1
+        self.density_field[:, :, 0:N] = 1
+        self.density_field[:, :, -N:] = 1
 
         logger.info(f"Added baseplates of thickness {thickness} units ({N} z-slices).")
 

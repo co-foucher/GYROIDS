@@ -7,14 +7,14 @@ from .tpms_base import TPMSModel, create_a_tpms
 #=====================================================================================================================
 0 - (reserved)
 1 - CustomTPMSModel (class)
-2 - CustomTPMSModel._surface_term
+2 - CustomTPMSModel._implicit_field
 3 - create_a_custom_tpms
 #=====================================================================================================================
 
 NOTE ON THIS MODULE
 --------------------
 This generalizes tpms_gyroid.py / tpms_schwartzp.py / etc.: instead of a
-hardcoded `_surface_term()`, CustomTPMSModel returns a *precomputed*
+hardcoded `_implicit_field()`, CustomTPMSModel returns a *precomputed*
 implicit-surface field array supplied at construction time. Everything
 else - field-mode processing, meshing, simplification, export, previews -
 is inherited unchanged from TPMSModel, exactly like the built-in types.
@@ -72,7 +72,7 @@ class CustomTPMSModel(TPMSModel):
         caller is starting from a formula string instead of a plain array.
     field : np.ndarray
         Precomputed implicit surface values F(x, y, z), same shape as x.
-        Returned as-is by _surface_term().
+        Returned as-is by _implicit_field().
 
     RAISES
     ------
@@ -111,18 +111,18 @@ class CustomTPMSModel(TPMSModel):
         super().__init__(x, y, z, 1.0, 1.0, 1.0, thickness)
 
     # =====================================================================
-    # 2) _surface_term
+    # 2) _implicit_field
     # =====================================================================
-    def _surface_term(self) -> np.ndarray:
+    def _implicit_field(self) -> np.ndarray:
         """
         ============================================================================
-        2) _SURFACE_TERM
+        2) _IMPLICIT_FIELD
         Returns the field array supplied at construction time, unchanged.
         ============================================================================
 
         RETURNS
         -------
-        term : np.ndarray
+        implicit_field : np.ndarray
             F(x, y, z), same shape as self.x.
         """
         return self._field
