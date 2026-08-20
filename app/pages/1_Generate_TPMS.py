@@ -31,6 +31,11 @@ from app.components.import_TPMS_files import import_matrix_from_file
 st.set_page_config(page_title="Generate TPMS", layout="wide")
 init_state()
 
+# ============================================================
+# ============== define internal variables ===================
+# ============================================================
+
+# ---- Built-in TPMS types (label -> class) ------    
 BUILTIN_TYPES = {
     "Gyroid": GyroidModel,
     "Schwartz P": SchwartzPModel,
@@ -43,6 +48,38 @@ BUILTIN_TYPES = {
     "Split-P": SplitPModel,
 }
 
+
+# ---- Field modes (label -> TPMSModel.compute_field(mode=...) argument) ----
+# mode use to calculate the density field from the implicit field.
+FIELD_MODES = {
+    "Distance": "distance",
+    "Signed": "signed",
+    "Signed (inverted)": "signed_inverse",
+    "Band": "band",
+}
+
+FIELD_HELPS = {
+    "Distance": "The density field is computed as the distance (defined by the thickness) to an iso-surface (defined by the threshold).",
+    "Signed": "The density field is computed by implicit_field > threshold.",
+    "Signed (inverted)": "The density field is computed by implicit_field < threshold.",
+    "Band": "The density field is computed as density_field = (thickness - np.abs(implicit_field)) > threshold. This is a fast approximation of the distance field",
+}
+
+# ----- level / thickness modes ----
+# field modes are separated into two categories: those that use a `level` combined with a thickness (find the surface at the given level, and give it a thickness) 
+# and those that use only a `threshold` (the implicit field value at which the mesh is extracted). 
+LEVEL_MODES = ("signed", "signed_inverse")
+THICKNESS_MODES = ("band", "distance", "distance_fast")
+
+# ============================================================
+# ============== define internal functions ===================
+# ============================================================
+
+# it would be nice to try and do a few functions to make the code below more readable, 
+
+# ============================================================
+# ===================== Start Page ===========================
+# ============================================================
 st.title("Generate a TPMS structure")
 
 col_params, col_preview = st.columns([1, 1.4])
@@ -75,17 +112,42 @@ with col_params:
         px = c1.number_input("Period X", value=5.0, min_value=0.01)
         py = c2.number_input("Period Y", value=5.0, min_value=0.01)
         pz = c3.number_input("Period Z", value=5.0, min_value=0.01)
-        thickness = st.number_input("Thickness", value=1.0, min_value=0.05)
-        field_mode = st.selectbox("Field mode", ["distance", "signed", "abs"], index=0)
-        threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
-            help="The field isosurface at this value is extracted to generate the mesh.")
-    
+
+        mode_label = st.selectbox("Field mode", list(FIELD_MODES.keys()), index=0, 
+                                  key="field_mode",
+                                  help = FIELD_HELPS[st.session_state.get("field_mode", "Distance")])
+        field_mode = FIELD_MODES[mode_label]
+
+        if field_mode in LEVEL_MODES:
+            threshold = st.number_input("Field threshold (implicit field minimum value defining the solid)", value=0.0,
+                help="The TPMS surface is placed where the implicit field equals this value. Every voxel with implicit_field > level is considered solid, and the thickness is applied to that solid region.")
+        else:
+            threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
+                help="The field isosurface at this value is extracted to generate a surface, that is then thickened.")
+
+        if field_mode in THICKNESS_MODES:
+            thickness = st.number_input("Thickness", value=1.0, min_value=0.05)
+        else:
+            thickness = 0.0
+
     elif source == "Custom equation":
         equation, thickness = render_equation_input()
-        field_mode = st.selectbox("Field mode", ["distance", "signed", "abs"], index=0)
-        threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
-            help="The field isosurface at this value is extracted to generate the mesh.")
-    
+
+        mode_label = st.selectbox("Field mode", list(FIELD_MODES.keys()), index=0)
+        field_mode = FIELD_MODES[mode_label]
+        if field_mode not in THICKNESS_MODES:
+            st.caption(
+                "Note: the Thickness formula above is ignored in "
+                f"'{mode_label}' mode - it doesn't use thickness at all."
+            )
+
+        if field_mode in LEVEL_MODES:
+            threshold = st.number_input("Field threshold (implicit field minimum value defining the solid)", value=0.0,
+                help="The TPMS surface is placed where the implicit field equals this value. Every voxel with implicit_field > level is considered solid, and the thickness is applied to that solid region.")
+        else:
+            threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
+                help="The field isosurface at this value is extracted to generate a surface, that is then thickened.")
+
     elif source == "Import from file":
         st.warning("File import functionality is not yet implemented.")
         st.session_state.setdefault("field_matrix_path", "")
@@ -114,9 +176,20 @@ with col_params:
                 filetypes=[("Numpy files", "*.npy"), ("CSV files", "*.csv"), ("All files", "*.*")],)
         thickness_value = import_matrix_from_file(file_path = st.session_state["thickness_matrix_path"])
 
-        field_mode = st.selectbox("Field mode", ["distance", "signed", "abs"], index=0)
-        threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
-                    help="The field isosurface at this value is extracted to generate the mesh.")
+        mode_label = st.selectbox("Field mode", list(FIELD_MODES.keys()), index=0)
+        field_mode = FIELD_MODES[mode_label]
+        if field_mode not in THICKNESS_MODES:
+            st.caption(
+                "Note: the imported thickness file above is ignored in "
+                f"'{mode_label}' mode - it doesn't use thickness at all."
+            )
+
+        if field_mode in LEVEL_MODES:
+            threshold = st.number_input("Field threshold (implicit field minimum value defining the solid)", value=0.0,
+                help="The TPMS surface is placed where the implicit field equals this value. Every voxel with implicit_field > level is considered solid, and the thickness is applied to that solid region.")
+        else:
+            threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
+                        help="The field isosurface at this value is extracted to generate a surface, that is then thickened.")
     st.divider()
 
     # ----- additional features ------
@@ -188,15 +261,27 @@ if generate:
                     st.warning(f"Imported thickness shape {thickness_value.shape} does not match the expected resolution ({resolution}, {resolution}, {resolution}).")
                 model = CustomTPMSModel(x, y, z, thickness_value, field=field)
             
-            model.compute_field(mode=field_mode)
+            # "signed"/"signed_inverse"/"distance"/"distance_fast" bake the
+            # GUI's threshold value into compute_field() as the reference
+            # `level` (the surface sits at implicit_field == level), so the
+            # mesh extraction below always happens at the fixed iso_level
+            # 0.0 for those modes. "band" has no `level` concept - its
+            # threshold is passed straight through as the mesh iso_level,
+            # same as before this mode overhaul.
+            if field_mode in LEVEL_MODES:
+                model.compute_field(mode=field_mode, level=threshold)
+                mesh_iso_level = 0.0
+            else:
+                model.compute_field(mode=field_mode)
+                mesh_iso_level = threshold
 
-            # ----- add baseplates ------ 
+            # ----- add baseplates ------
             if baseplate_thickness > 0:
                 model.add_baseplates(thickness=baseplate_thickness)
 
-            # ----- generate mesh ------ 
-            st.session_state["current_field_range"] = (float(model.v.min()), float(model.v.max()))
-            model.generate_mesh(iso_level=threshold)
+            # ----- generate mesh ------
+            st.session_state["current_field_range"] = (float(model.implicit_field.min()), float(model.implicit_field.max()))
+            model.generate_mesh(iso_level=mesh_iso_level)
             model.simplify_mesh(target_faces=simplification_factor)
             if auto_smooth:
                 model.smooth_mesh(smoothing_factor=smoothing_factor)

@@ -3,8 +3,8 @@ Parametrized tests for every concrete TPMS surface subclass of TPMSModel:
 GyroidModel, SchwartzPModel, DiamondModel, IWPModel, NeoviusModel,
 FischerKochSModel, FRDModel, LidinoidModel, SplitPModel.
 
-Validation, guard rails, and the abs/signed/distance field pipeline itself
-all live in TPMSModel and are already tested once, generically, through a
+Validation, guard rails, and the band/signed/signed_inverse/distance field
+pipeline itself all live in TPMSModel and are already tested once, generically, through a
 dummy subclass in test_tpms_base.py. What's specific to each of these real
 classes is just its _implicit_field() formula and its DEFAULT_FIELD_MODE, so
 that's all this file checks - once per class, via parametrize, instead of
@@ -131,7 +131,7 @@ def _splitp_term(x, y, z, px, py, pz):
 # new formula function above and a new line here.
 _CASES = [
     pytest.param(gyroid_mod.GyroidModel, _gyroid_term, "distance", id="gyroid"),
-    pytest.param(schwartzp_mod.SchwartzPModel, _schwartzp_term, "abs", id="schwartzp"),
+    pytest.param(schwartzp_mod.SchwartzPModel, _schwartzp_term, "band", id="schwartzp"),
     pytest.param(diamond_mod.DiamondModel, _diamond_term, "distance", id="diamond"),
     pytest.param(iwp_mod.IWPModel, _iwp_term, "distance", id="iwp"),
     pytest.param(neovius_mod.NeoviusModel, _neovius_term, "distance", id="neovius"),
@@ -156,20 +156,28 @@ class TestTPMSSurfaceFormulas:
     - without needing a dedicated test file for that surface.
     """
 
-    def test_abs_mode_matches_formula(self, small_grid, model_cls, term_fn, default_mode):
-        """mode="abs" should equal thickness - |implicit_field|, per TPMSModel's docstring, for every surface."""
+    def test_band_mode_matches_formula(self, small_grid, model_cls, term_fn, default_mode):
+        """mode="band" should equal thickness - |implicit_field|, per TPMSModel's docstring, for every surface."""
         x, y, z = small_grid
         model = model_cls(x, y, z, 1.3, 1.1, 0.9, 0.25)
-        v = model.compute_field(mode="abs")
+        v = model.compute_field(mode="band")
         expected = 0.25 - np.abs(term_fn(x, y, z, 1.3, 1.1, 0.9))
         np.testing.assert_allclose(v, expected)
 
     def test_signed_mode_matches_formula(self, small_grid, model_cls, term_fn, default_mode):
-        """mode="signed" should equal implicit_field - thickness (a plain level-set, no abs()), for every surface."""
+        """mode="signed" should equal implicit_field - level (a plain level-set, no abs()), for every surface, regardless of thickness."""
         x, y, z = small_grid
         model = model_cls(x, y, z, 1.3, 1.1, 0.9, 0.25)
-        v = model.compute_field(mode="signed")
+        v = model.compute_field(mode="signed", level=0.25)
         expected = term_fn(x, y, z, 1.3, 1.1, 0.9) - 0.25
+        np.testing.assert_allclose(v, expected)
+
+    def test_signed_inverse_mode_matches_formula(self, small_grid, model_cls, term_fn, default_mode):
+        """mode="signed_inverse" should equal level - implicit_field, the exact negation of "signed"'s result at the same level, for every surface."""
+        x, y, z = small_grid
+        model = model_cls(x, y, z, 1.3, 1.1, 0.9, 0.25)
+        v = model.compute_field(mode="signed_inverse", level=0.25)
+        expected = 0.25 - term_fn(x, y, z, 1.3, 1.1, 0.9)
         np.testing.assert_allclose(v, expected)
 
     def test_default_field_mode_matches_class_attribute(self, small_grid, model_cls, term_fn, default_mode):

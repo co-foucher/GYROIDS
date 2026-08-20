@@ -34,8 +34,8 @@ NOTE ON THIS MODULE
 --------------------
 This holds everything that is common to every Triply Periodic Minimal
 Surface (TPMS) model (gyroid, Schwartz P, diamond, IWP, Neovius, ...):
-grid/parameter validation, the abs/signed/distance field pipeline, mesh
-generation/simplification/export, previews, and baseplates.
+grid/parameter validation, the band/signed/signed_inverse/distance field
+pipeline, mesh generation/simplification/export, previews, and baseplates.
 
 A concrete TPMS type (see tpms_gyroid.py, tpms_schwartzp.py) is expected to
 be a small subclass that only:
@@ -91,7 +91,7 @@ class TPMSModel:
     """
 
     #: Default `mode` used by compute_field() when none is given. Subclasses
-    #: may override this (e.g. a type whose natural default is "abs" rather
+    #: may override this (e.g. a type whose natural default is "band" rather
     #: than "distance").
     DEFAULT_FIELD_MODE: str = "distance"
 
@@ -219,7 +219,7 @@ class TPMSModel:
         implicit surface function F(x, y, z) evaluated on self.x/self.y/self.z
         using the periods self.px/self.py/self.pz. The zero-isosurface of F
         is this TPMS type's minimal surface; compute_field() turns F into a
-        thresholded scalar field ("abs"/"signed"/"distance" modes).
+        thresholded scalar field ("band"/"signed"/"signed_inverse"/"distance" modes).
         ============================================================================
 
         PARAMETERS
@@ -239,7 +239,8 @@ class TPMSModel:
     # 5) compute_field
     # =====================================================================
     def compute_field(self,
-                      mode: Optional[str] = None) -> np.ndarray:
+                      mode: Optional[str] = None,
+                      level: Union[float, np.ndarray] = 0.0) -> np.ndarray:
         """
         ============================================================================
         5) COMPUTE_FIELD
@@ -251,20 +252,41 @@ class TPMSModel:
         ----------
         mode : str, optional
             - None (default): uses this class's `DEFAULT_FIELD_MODE`.
-            - "abs": original behavior -> density_field = thickness - |implicit_field|
-              (useful for value-space wall thresholding; thickness here is in
-              implicit_field units).
-            - "signed": standard level-set -> density_field = implicit_field - level.
+            - "band": two-sided shell -> density_field = thickness - |implicit_field|.
+              Solid wherever |implicit_field| < thickness: a wall of
+              controllable width straddling the implicit_field == 0 surface
+              (thickness is in implicit_field-value units, not physical
+              units). `level` is not used by this mode - the band is always
+              centered on implicit_field == 0.
+            - "signed": level-set network -> density_field = implicit_field - level.
+              Solid wherever implicit_field > level: one continuous
+              "skeletal" solid region on one side of the
+              implicit_field == level surface. `thickness` is not used by
+              this mode.
+            - "signed_inverse": the complement of "signed" ->
+              density_field = level - implicit_field. Solid wherever
+              implicit_field < level: the other side of the same
+              implicit_field == level surface. `thickness` is not used by
+              this mode.
             - "distance" / "distance_fast": produce a signed-distance-derived
               thickness field:
-                1) binary = implicit_field > level
-                2) compute signed distance (uses spacing); "distance" uses
-                   the exact Euclidean transform, "distance_fast" uses a
-                   cheaper taxicab approximation (inaccurate for anisotropic
-                   voxel spacing).
-                3) if physical_thickness provided (scalar or array matching
-                   grid), v = physical_thickness/2 - |signed_dist| (positive
-                   inside the desired wall band)
+                1) binary = implicit_field > level (this places the
+                   reference surface at implicit_field == level, instead of
+                   always at 0)
+                2) compute signed distance to that surface (uses spacing);
+                   "distance" uses the exact Euclidean transform,
+                   "distance_fast" uses a cheaper taxicab approximation
+                   (inaccurate for anisotropic voxel spacing).
+                3) v = physical_thickness/2 - |signed_dist| within the wall
+                   band around the implicit_field == level surface (positive
+                   inside the desired wall band); physical_thickness is
+                   `thickness`.
+
+        level : float or np.ndarray, optional
+            Reference implicit_field value defining where the surface sits.
+            Used by "signed", "signed_inverse", and "distance"/"distance_fast".
+            Ignored by "band" (always centered on implicit_field == 0).
+            May be a scalar or an ndarray matching x/y/z's shape. Default 0.0.
 
         RETURNS
         -------
@@ -285,21 +307,27 @@ class TPMSModel:
 
         self.implicit_field = self._implicit_field()
 
-        if mode == "abs":
-            # original behaviour: thickness interpreted in implicit_field-value units (supports scalar or per-voxel thickness)
-            logger.info(f"Computing absolute field")
+        if mode == "band":
+            # thickness interpreted in implicit_field-value units (supports scalar or per-voxel thickness)
+            logger.info(f"Computing band field")
             self.density_field = self.thickness - np.abs(self.implicit_field)
             return self.density_field
 
         if mode == "signed":
-            # signed level-set relative to provided level (C)
-            logger.info(f"Computing signed field")
-            self.density_field = self.implicit_field - self.thickness
+            # level-set network relative to the provided level
+            logger.info(f"Computing signed field (level={level})")
+            self.density_field = self.implicit_field - level
+            return self.density_field
+
+        if mode == "signed_inverse":
+            # complement of "signed": solid on the other side of the same level surface
+            logger.info(f"Computing signed_inverse field (level={level})")
+            self.density_field = level - self.implicit_field
             return self.density_field
 
         if mode in ("distance", "distance_fast"):
             # requires scipy
-            logger.info(f"Computing distance field")
+            logger.info(f"Computing distance field (level={level})")
             # Auto-compute actual voxel spacing from the coordinate grids
             dx = float(self.x[1, 0, 0] - self.x[0, 0, 0]) if self.x.shape[0] > 1 else 1.0
             dy = float(self.y[0, 1, 0] - self.y[0, 0, 0]) if self.y.shape[1] > 1 else 1.0
@@ -310,9 +338,9 @@ class TPMSModel:
             except Exception as e:
                 raise RuntimeError("distance mode requires scipy.ndimage.distance_transform_edt") from e
 
-            # binary solid from level-set (classical TPMS surface at 'level')
+            # binary solid from level-set (classical TPMS surface at implicit_field == level)
             # first create binary mask of solid region, the surface of interest is at the intersection of the two regions
-            binary = (self.implicit_field > 0)
+            binary = (self.implicit_field > level)
 
             # distance_transform_edt supports a 'sampling' parameter for anisotropic voxels
             # second, compute in the solid part, the distance of every voxel to the nearest zero (empty part)
@@ -341,7 +369,7 @@ class TPMSModel:
             self.density_field[mask] = dist[mask]
             return self.density_field
 
-        raise ValueError("mode must be one of: 'abs', 'signed', 'distance', 'distance_fast'.")
+        raise ValueError("mode must be one of: 'band', 'signed', 'signed_inverse', 'distance', 'distance_fast'.")
 
     # =====================================================================
     # 6) save

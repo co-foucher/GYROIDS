@@ -137,7 +137,7 @@ class TestGyroidModelSaveLoadRoundtrip:
         lin = np.linspace(0, 2, 6)
         x, y, z = np.meshgrid(lin, lin, lin, indexing="ij")
         model = gyroid_mod.GyroidModel(x, y, z, 1.0, 1.0, 1.0, 0.2)
-        model.compute_field(mode="abs")
+        model.compute_field(mode="band")
 
         outfile = tmp_path / "model"
         model.save(str(outfile))

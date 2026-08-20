@@ -3,8 +3,8 @@ Tests for gyroid_utils.tpms_base.TPMSModel.
 
 TPMSModel is the shared base class behind every concrete TPMS type
 (GyroidModel, SchwartzPModel, DiamondModel, IWPModel, ...). Validation, the
-abs/signed/distance field pipeline, guarded methods, and add_baseplates all
-live here now instead of being duplicated per subclass, so they're tested
+band/signed/signed_inverse/distance field pipeline, guarded methods, and
+add_baseplates all live here now instead of being duplicated per subclass, so they're tested
 once, through a minimal concrete subclass built just for these tests
 (_DummyTPMS) rather than through any real surface. Each real surface's own
 implicit-equation formula is tested separately in test_tpms_surfaces.py.
@@ -37,9 +37,10 @@ class _DummyTPMS(TPMSModel):
     shared logic in isolation from any real surface's formula. This is not
     a real TPMS type - the "surface" here is just some periodic trig
     combination, picked to be simple to hand-verify and to oscillate in
-    sign (needed to exercise the abs/signed/distance modes meaningfully).
+    sign (needed to exercise the band/signed/signed_inverse/distance modes
+    meaningfully).
     """
-    DEFAULT_FIELD_MODE = "abs"
+    DEFAULT_FIELD_MODE = "band"
 
     def _implicit_field(self):
         return (
@@ -58,7 +59,7 @@ def _dummy_implicit_field(x, y, z, px, py, pz):
     )
 
 
-def _expected_distance_field(implicit_field, x, y, z, thickness):
+def _expected_distance_field(implicit_field, x, y, z, thickness, level=0.0):
     """
     Independent reimplementation of TPMSModel.compute_field(mode="distance"),
     given an already-computed implicit_field array, so the real implementation
@@ -71,7 +72,7 @@ def _expected_distance_field(implicit_field, x, y, z, thickness):
     dz = float(z[0, 0, 1] - z[0, 0, 0])
     spacing = (dx, dy, dz)
 
-    binary = implicit_field > 0
+    binary = implicit_field > level
     dist_out = distance_transform_edt(~binary, sampling=spacing)
     dist_in = distance_transform_edt(binary, sampling=spacing)
     dist = dist_out + dist_in
@@ -146,36 +147,50 @@ class TestValidateInputs:
 # ============================================================================
 class TestComputeField:
     """
-    Tests for TPMSModel.compute_field(): mode dispatch (abs/signed/
-    distance/distance_fast/invalid) and the "mode=None -> DEFAULT_FIELD_MODE"
-    default lookup. Checked through _DummyTPMS's own simple formula; each
-    real surface's formula is separately verified in test_tpms_surfaces.py.
+    Tests for TPMSModel.compute_field(): mode dispatch (band/signed/
+    signed_inverse/distance/distance_fast/invalid) and the
+    "mode=None -> DEFAULT_FIELD_MODE" default lookup. Checked through
+    _DummyTPMS's own simple formula; each real surface's formula is
+    separately verified in test_tpms_surfaces.py.
     """
 
-    def test_abs_mode_matches_formula(self, small_grid):
-        """mode="abs" should equal thickness - |implicit_field|, per the docstring."""
+    def test_band_mode_matches_formula(self, small_grid):
+        """mode="band" should equal thickness - |implicit_field|, per the docstring."""
         x, y, z = small_grid
         model = _DummyTPMS(x, y, z, 1.3, 1.1, 0.9, 0.25)
-        v = model.compute_field(mode="abs")
+        v = model.compute_field(mode="band")
         expected = 0.25 - np.abs(_dummy_implicit_field(x, y, z, 1.3, 1.1, 0.9))
         np.testing.assert_allclose(v, expected)
         assert model.v is v
 
     def test_signed_mode_matches_formula(self, small_grid):
-        """mode="signed" should equal implicit_field - thickness (a plain level-set, no abs())."""
+        """mode="signed" should equal implicit_field - level (a plain level-set, no abs()), and should NOT depend on thickness."""
         x, y, z = small_grid
         model = _DummyTPMS(x, y, z, 1.3, 1.1, 0.9, 0.25)
-        v = model.compute_field(mode="signed")
-        expected = _dummy_implicit_field(x, y, z, 1.3, 1.1, 0.9) - 0.25
+        v = model.compute_field(mode="signed", level=0.4)
+        expected = _dummy_implicit_field(x, y, z, 1.3, 1.1, 0.9) - 0.4
         np.testing.assert_allclose(v, expected)
 
+        # changing thickness with level fixed must NOT change the result
+        model_other_thickness = _DummyTPMS(x, y, z, 1.3, 1.1, 0.9, 999.0)
+        v_other = model_other_thickness.compute_field(mode="signed", level=0.4)
+        np.testing.assert_allclose(v_other, expected)
+
+    def test_signed_inverse_mode_is_complement_of_signed(self, small_grid):
+        """mode="signed_inverse" should equal level - implicit_field, i.e. exactly the negation of "signed"'s result at the same level."""
+        x, y, z = small_grid
+        model = _DummyTPMS(x, y, z, 1.3, 1.1, 0.9, 0.25)
+        v_signed = model.compute_field(mode="signed", level=0.4)
+        v_inverse = model.compute_field(mode="signed_inverse", level=0.4)
+        np.testing.assert_allclose(v_inverse, -v_signed)
+
     def test_default_mode_uses_default_field_mode_attribute(self, small_grid):
-        """Calling compute_field() with no mode argument should use the subclass's DEFAULT_FIELD_MODE ("abs" for _DummyTPMS)."""
+        """Calling compute_field() with no mode argument should use the subclass's DEFAULT_FIELD_MODE ("band" for _DummyTPMS)."""
         x, y, z = small_grid
         model = _DummyTPMS(x, y, z, 1.3, 1.1, 0.9, 0.25)
         v_default = model.compute_field()
-        v_abs = model.compute_field(mode="abs")
-        np.testing.assert_allclose(v_default, v_abs)
+        v_band = model.compute_field(mode="band")
+        np.testing.assert_allclose(v_default, v_band)
 
     def test_invalid_mode_raises(self, small_grid):
         """An unrecognized mode string should raise ValueError, not silently return a wrong/empty field."""
@@ -185,7 +200,7 @@ class TestComputeField:
             model.compute_field(mode="bogus")
 
     def test_distance_mode_matches_formula(self, small_grid):
-        """mode="distance" is checked by independently rebuilding the whole distance-transform pipeline (binary split -> distance_transform_edt -> threshold at thickness/2) and asserting an exact match."""
+        """mode="distance" is checked by independently rebuilding the whole distance-transform pipeline (binary split at implicit_field > level -> distance_transform_edt -> threshold at thickness/2) and asserting an exact match."""
         pytest.importorskip("scipy")
         x, y, z = small_grid
         px, py, pz, thickness = 1.3, 1.1, 0.9, 0.5
@@ -194,6 +209,26 @@ class TestComputeField:
         implicit_field = _dummy_implicit_field(x, y, z, px, py, pz)
         expected = _expected_distance_field(implicit_field, x, y, z, thickness)
         np.testing.assert_allclose(v, expected)
+
+    def test_distance_mode_respects_level(self, small_grid):
+        """mode="distance" with a non-zero `level` should place the reference surface at implicit_field == level (not hardcoded at 0) - this is the fix for the bug where `level`/`threshold` was silently ignored."""
+        pytest.importorskip("scipy")
+        x, y, z = small_grid
+        # thickness=2.0 (rather than a thinner wall) so the wall band is wide
+        # enough, relative to this coarse 8x8x8 grid's voxel spacing, to
+        # actually capture voxels either way - a thinner band can land
+        # entirely between grid points for every level on a grid this
+        # coarse, which would make the "must differ" check below a false
+        # negative rather than a real assertion about the fix.
+        px, py, pz, thickness = 1.3, 1.1, 0.9, 2.0
+        model = _DummyTPMS(x, y, z, px, py, pz, thickness)
+        v = model.compute_field(mode="distance", level=0.3)
+        implicit_field = _dummy_implicit_field(x, y, z, px, py, pz)
+        expected = _expected_distance_field(implicit_field, x, y, z, thickness, level=0.3)
+        np.testing.assert_allclose(v, expected)
+        # sanity check: level=0.3 must actually produce a different field than level=0.0
+        v_default_level = model.compute_field(mode="distance", level=0.0)
+        assert not np.allclose(v, v_default_level)
 
     def test_distance_fast_mode_produces_expected_range(self, small_grid):
         """mode="distance_fast" (taxicab approximation) should still produce values that are either exactly -1 (outside the wall band) or a distance within [0, thickness/2] (inside it)."""
@@ -264,7 +299,7 @@ class TestAddBaseplates:
         """A thickness worth exactly 3 slices should set exactly the first and last 3 z-slices to 1, and nothing else."""
         x, y, z = small_grid
         model = _DummyTPMS(x, y, z, 1.0, 1.0, 1.0, 0.2)
-        model.compute_field(mode="abs")
+        model.compute_field(mode="band")
 
         dz = abs(z[0, 0, 1] - z[0, 0, 0])
         thickness = 3 * dz  # exactly 3 slices worth
@@ -278,7 +313,7 @@ class TestAddBaseplates:
         """thickness=0.0 (below one voxel of spacing) should leave the field completely untouched, per the documented early-return."""
         x, y, z = small_grid
         model = _DummyTPMS(x, y, z, 1.0, 1.0, 1.0, 0.2)
-        model.compute_field(mode="abs")
+        model.compute_field(mode="band")
         before = model.v.copy()
         model.add_baseplates(thickness=0.0)
         np.testing.assert_array_equal(model.v, before)
@@ -287,6 +322,6 @@ class TestAddBaseplates:
         """A thickness far larger than the grid's z-extent should clamp to filling the entire volume with 1, not raise or index out of bounds."""
         x, y, z = small_grid
         model = _DummyTPMS(x, y, z, 1.0, 1.0, 1.0, 0.2)
-        model.compute_field(mode="abs")
+        model.compute_field(mode="band")
         model.add_baseplates(thickness=1000.0)
         assert np.all(model.v == 1)

@@ -221,6 +221,11 @@ def _build_mesh_figure(faces: np.ndarray,
 
         fig = go.Figure(data=[mesh])
 
+        if faces.shape[0] > target_faces:
+            figure_title = f"Mesh Preview (Reduced to {target_faces} faces)"
+        else:
+            figure_title = "Mesh Preview"
+
         fig.update_layout(
             scene=dict(
                 xaxis=dict(visible=True),
@@ -228,7 +233,7 @@ def _build_mesh_figure(faces: np.ndarray,
                 zaxis=dict(visible=True),
                 aspectmode='data',
             ),
-            title="Mesh Preview (Reduced)"
+            title=figure_title
         )
     except Exception as e:
         logger.error(f"Failed to build Plotly figure: {e}", exc_info=True)

@@ -66,8 +66,8 @@ class SchwartzPModel(TPMSModel):
     """
 
     # Matches the original SchwartzP.py behavior: compute_field() with no
-    # mode defaults to "abs".
-    DEFAULT_FIELD_MODE = "abs"
+    # mode defaults to "band" (renamed from "abs").
+    DEFAULT_FIELD_MODE = "band"
 
     # =====================================================================
     # 2) _implicit_field
