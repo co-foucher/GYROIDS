@@ -454,7 +454,7 @@ class TPMSModel:
     def generate_mesh(
         self,
         iso_level: float = 0.0,
-        algo_step_size: int = 3,
+        algo_step_size: int = 1,
         pad_width: int = 5) -> Tuple[np.ndarray, np.ndarray]:
         """
         ============================================================================
