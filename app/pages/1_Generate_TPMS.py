@@ -21,10 +21,9 @@ from gyroid_utils.TPMS_classes import (
     GyroidModel, SchwartzPModel, DiamondModel, IWPModel, NeoviusModel,
     FischerKochSModel, FRDModel, LidinoidModel, SplitPModel,
 )
-from gyroid_utils.TPMS_classes.tpms_custom import CustomTPMSModel
 
 from app.state import init_state, get_output_dir
-from app.components.equation_input import render_equation_input, evaluate_custom_inputs, EquationError
+from app.components.equation_input import render_equation_input
 from app.components.mesh_preview import render_mesh_preview
 from app.components.field_view import render_field_slice
 from app.components.file_picker import browse_file, browse_directory
@@ -56,8 +55,9 @@ from app.components.tpms_source_panel import (
     render_field_mode,
     render_threshold,
     render_thickness,
-    SKELETAL_MODES,
-    SHEET_MODES,)
+    load_STL,
+    generate_ui_tpms,
+)
 
 
 @dataclass
@@ -89,7 +89,10 @@ class TPMSParams:
 # ============== define internal functions ===================
 # ============================================================
 
-# it would be nice to try and do a few functions to make the code below more readable,
+def _pad_to_square(matrix, pad_value=0):
+    target = max(matrix.shape)
+    pad_width = [(0, target - dim) for dim in matrix.shape]
+    return np.pad(matrix, pad_width=pad_width, mode="constant", constant_values=pad_value)
 
 # ============================================================
 # ===================== Start Page ===========================
@@ -122,6 +125,12 @@ with col_params:
     source = st.radio("Surface", ["Built-in type", "Custom equation", "Import from file"], horizontal=True)
     equation = None
     type_name = None
+    # Pre-initialized so generate_ui_tpms() below always receives bound
+    # names, even for the branches the current "Surface" selection doesn't use.
+    px = py = pz = None
+    thickness = None
+    field = None
+    thickness_value = None
 
     # ---- Built-in type ----
     if source == "Built-in type":
@@ -150,7 +159,7 @@ with col_params:
         st.session_state.setdefault("field_matrix_path", "")
         st.session_state.setdefault("thickness_matrix_path", "")
         # define TPMS field
-        col_path, col_browse = st.columns([5, 1])
+        col_path, col_browse = st.columns([5, 1.5], vertical_alignment="bottom")
         with col_path:
             matrix_path = st.text_input("Path to matrix file", key="field_matrix_path")
         with col_browse:
@@ -161,7 +170,7 @@ with col_params:
         field = import_matrix_from_file(file_path = st.session_state["field_matrix_path"])
 
         #define thickness field
-        col_path, col_browse = st.columns([5, 1])
+        col_path, col_browse = st.columns([5, 1.5], vertical_alignment="bottom")
         with col_path:
             matrix_path = st.text_input("Path to thickness file", key="thickness_matrix_path")
         with col_browse:
@@ -176,9 +185,48 @@ with col_params:
             thickness_source_desc="the imported thickness file above")
     st.divider()
 
-    # ----- additional features ------
-    st.subheader("Additional Features")
+    # ----- add baseplate ------
+    st.subheader("Baseplates")
     params.baseplate_thickness = st.number_input("Baseplate thickness (0 = none)", value=params.baseplate_thickness, min_value=0.0)
+    st.divider()
+
+    # ----- Combine with geometry ------
+    col_1, col_2 = st.columns([1, 15], vertical_alignment="bottom")
+    with col_1:
+        combine_with_geometry = st.checkbox(" ", value=False,)
+    with col_2:
+        st.subheader("Combine with existing geometry")
+    if combine_with_geometry:
+        st.info("This feature is not yet implemented. In the future, you will be able to import a mesh or voxel grid and combine it with the generated TPMS structure.")
+        col_path, col_browse = st.columns([5, 1.5], vertical_alignment="bottom")
+        with col_path:
+            matrix_path = st.text_input("Path to geometry file", key="combined_geometry_path")
+        with col_browse:
+            st.write("")  # spacer so the button lines up with the text box, not its label
+            browse_file("combined_geometry_path",
+                title="Select a matrix file",
+                filetypes=[("STL files", "*.stl"), ("Numpy files", "*.npy"), ("All files", "*.*")],)
+        if '.npy' in st.session_state["combined_geometry_path"]:
+            geometry = import_matrix_from_file(file_path = st.session_state["combined_geometry_path"])
+            geometry = _pad_to_square(geometry)
+        elif '.stl' in st.session_state["combined_geometry_path"]:
+            from gyroid_utils.mesh_tools import matrix_from_mesh
+            st.session_state["combined_geometry_path"]
+            verts, faces = load_STL(st.session_state["combined_geometry_path"])
+            _,_,_, geometry = matrix_from_mesh(verts, faces, params.resolution)
+            geometry = _pad_to_square(geometry)
+        else:
+            st.error("Please select a valid .npy or .stl file for the geometry.")
+        combination_type = st.selectbox("Combination type", ["Intersection", "Union", "Substraction"])
+        with col_preview:
+            st.subheader("combined geometry preview")
+            render_mesh_preview(faces, verts, key="c_geometry")
+
+    else:
+        geometry = None
+        combination_type = None
+
+
     st.divider()
 
     # ----- mesh parameters ------
@@ -208,70 +256,19 @@ with col_params:
 # ===================== generate TPMS ======================
 # ==========================================================
 if generate:
-    x, y, z = np.meshgrid(
-        np.linspace(0, params.size_x, params.resolution),
-        np.linspace(0, params.size_y, params.resolution),
-        np.linspace(0, params.size_z, params.resolution),
-        indexing="ij",)
-
-    try:
-        with st.spinner("Computing field and generating mesh..."):
-            # ----- Built-in type ------
-            if source == "Built-in type":
-                model = BUILTIN_TYPES[type_name](x, y, z, px, py, pz, params.thickness)
-
-            # ----- Custom equation ------
-            elif source == "Custom equation":
-                field, thickness_value = evaluate_custom_inputs(equation, thickness, x, y, z)
-                model = CustomTPMSModel(x, y, z, thickness_value, field=field)
-
-            # ----- Import from file ------
-            elif source == "Import from file":
-                if field.shape != (params.resolution, params.resolution, params.resolution):
-                    st.warning(f"Imported field shape {field.shape} does not match the expected resolution ({params.resolution}, {params.resolution}, {params.resolution}).")
-                if thickness_value.ndim == 1:
-                    thickness_value = thickness_value[0]  # take the first value as a scalar thickness
-                elif thickness_value.shape != (params.resolution, params.resolution, params.resolution) and not np.isscalar(thickness_value):
-                    st.warning(f"Imported thickness shape {thickness_value.shape} does not match the expected resolution ({params.resolution}, {params.resolution}, {params.resolution}).")
-                model = CustomTPMSModel(x, y, z, thickness_value, field=field)
-
-            # ---- compute density_field ------
-            if params.field_mode in SKELETAL_MODES:   # "signed", "signed_inverse"
-                model.compute_field(mode=params.field_mode, level=params.threshold)
-                mesh_iso_level = 0.0
-            elif params.field_mode in SHEET_MODES:   # "band", "distance"
-                model.compute_field(mode=params.field_mode, level=params.threshold)
-                mesh_iso_level = 0.0
-            else:
-                raise ValueError(f"Unknown field mode: {params.field_mode}")
-
-            # ----- add baseplates ------
-            if params.baseplate_thickness > 0:
-                model.add_baseplates(thickness=params.baseplate_thickness)
-
-            # ----- generate mesh ------
-            st.session_state["current_field_range"] = (float(model.implicit_field.min()), float(model.implicit_field.max()))
-            model.generate_mesh(iso_level=mesh_iso_level)
-            target_faces = params.max_faces_count if params.max_faces else params.simplification_factor
-            model.simplify_mesh(target_faces=target_faces)
-            if params.auto_smooth:
-                model.smooth_mesh(smoothing_factor=params.smoothing_factor)
-            model.fix_mesh()
-            is_valid = model.check_mesh_quality()
-
-        st.session_state["current_model"] = model
-        st.session_state["current_equation"] = equation
-
-        if not is_valid:
-            st.warning(
-                "Generated mesh failed validity checks (not watertight / "
-                "self-intersecting). Try a coarser grid, a different "
-                "thickness, or a different field mode."
-            )
-        else:
-            st.success(f"Mesh generated: {len(model.faces)} faces.")
-    except EquationError as e:
-        st.error(f"Equation error: {e}")
+    generate_ui_tpms(
+        source=source, 
+        params=params, 
+        BUILTIN_TYPES=BUILTIN_TYPES,
+        type_name=type_name, 
+        px=px, py=py, pz=pz,
+        custom_equation=equation, 
+        custom_thickness=thickness,
+        field=field, 
+        thickness_value=thickness_value,
+        geometry=geometry,
+        combination_type = combination_type,
+    )
 
 model = st.session_state.get("current_model")
 
@@ -314,7 +311,7 @@ with col_preview:
         # ----- Export TPMS field ------
         if st.button("Export TPMS implicit field (.npy)"):
             out_path = get_output_dir() / name
-            if model.implicit_field is None: # check if thickness field exists
+            if model.implicit_field is None: # check if  field exists
                 st.warning("No TPMS field available to export. Please ensure that the model field exists before exporting.")
             np.save(str(out_path) + ".npy", model.implicit_field)
             st.success(f"Saved {out_path}.npy")

@@ -13,6 +13,7 @@ from .logger import logger
 4 - _get_rotation_matrix_from_new_z_direction
 5 - _REORIENT_VOXEL_GRID
 6 - find_optimal_orientation
+7 - interpolate_voxel_grid
 #=====================================================================================================================
 """
 
@@ -611,7 +612,54 @@ def find_optimal_orientation(voxel_grid: np.ndarray,
 # 7) interpolate_voxel_grid
 # =====================================================================
 def interpolate_voxel_grid(voxel_grid: np.ndarray,
-                         x_dim: np.ndarray,
-                         y_dim: np.ndarray,
-                         z_dim: np.ndarray) -> np.ndarray:
-    return 
+                         x_dim: float,
+                         y_dim: float,
+                         z_dim: float) -> np.ndarray:
+    """
+    ============================================================================
+    7) INTERPOLATE_VOXEL_GRID
+    Resamples a 3D array -- a binary voxel grid, or a continuous scalar
+    field such as one produced by compute_field() -- onto a new grid of
+    shape (x_dim, y_dim, z_dim), using trilinear interpolation (order=1).
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    voxel_grid : (nx, ny, nz) ndarray
+        3D array to resample. Can be a binary voxel grid (0/1) or a
+        continuous scalar field.
+    x_dim : float
+        Target size (number of samples) along axis 0 of the output grid.
+    y_dim : float
+        Target size (number of samples) along axis 1 of the output grid.
+    z_dim : float
+        Target size (number of samples) along axis 2 of the output grid.
+
+    RETURNS
+    -------
+    interpolated_grid : (x_dim, y_dim, z_dim) ndarray
+        Trilinearly-resampled array, matching the requested shape.
+
+    RAISES
+    ------
+    ValueError
+        If voxel_grid is not a 3D array.
+    RuntimeError
+        If scipy is not installed (required for scipy.ndimage.zoom).
+        
+    EXAMPLE
+    -------
+    >>> resized_field = interpolate_voxel_grid(density_field, 128, 128, 128)
+    """
+    if voxel_grid.ndim != 3:
+        raise ValueError("voxel_grid must be a 3D numpy array")
+    try:
+        import scipy.ndimage
+    except ImportError as e:
+        raise RuntimeError("scipy is required for voxel grid interpolation") from e
+    original_x_dim, original_y_dim, original_z_dim = voxel_grid.shape
+    zoom_factors = (x_dim / original_x_dim, y_dim / original_y_dim, z_dim / original_z_dim)
+    
+    interpolated_grid = scipy.ndimage.zoom(voxel_grid, zoom_factors, order=1)
+    return interpolated_grid
+

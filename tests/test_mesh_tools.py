@@ -301,3 +301,42 @@ class TestMatrixFromMesh:
 
         assert occupied_radii.max() < 1.5  # nothing filled well outside the sphere
         assert occupied_radii.min() < 0.3  # the center is filled, not just the shell
+
+    def test_resolution_controls_output_grid_size(self):
+        """
+        resolution sets the voxel count along the mesh's largest bounding-box
+        dimension, and the pitch derived from that is applied uniformly on
+        all three axes (cubic voxels) per the docstring - so shorter
+        dimensions should get proportionally fewer voxels, not the same
+        count as the largest one. Uses an axis-aligned box with spans
+        2 : 1 : 0.5 along x : y : z, so resolution=20 should give roughly
+        (20, 10, 5) voxels.
+        """
+        box_verts = np.array(
+            [
+                [0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0],
+                [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1],
+            ],
+            dtype=float,
+        ) * np.array([2.0, 1.0, 0.5])
+        box_faces = np.array(
+            [
+                [0, 1, 2], [0, 2, 3],  # bottom
+                [4, 6, 5], [4, 7, 6],  # top
+                [0, 5, 1], [0, 4, 5],  # front
+                [3, 2, 6], [3, 6, 7],  # back
+                [0, 3, 7], [0, 7, 4],  # left
+                [1, 5, 6], [1, 6, 2],  # right
+            ]
+        )
+
+        resolution = 20
+        x, y, z, matrix = mesh_tools.matrix_from_mesh(box_verts, box_faces, resolution=resolution)
+
+        assert matrix.shape == (len(x), len(y), len(z))
+        # x has the largest span (2.0) -> should land close to `resolution` voxels
+        assert abs(matrix.shape[0] - resolution) <= 2
+        # y's span (1.0) is half of x's -> roughly half as many voxels
+        assert abs(matrix.shape[1] - resolution / 2) <= 2
+        # z's span (0.5) is a quarter of x's -> roughly a quarter as many voxels
+        assert abs(matrix.shape[2] - resolution / 4) <= 2

@@ -95,7 +95,12 @@ _ALLOWED_FUNCS = {
 # 1) EquationError
 # =====================================================================
 class EquationError(ValueError):
-    """Raised when a user-supplied equation string is invalid."""
+    """
+    ============================================================================
+    1) EQUATIONERROR
+    Raised when a user-supplied equation string is invalid.
+    ============================================================================
+    """
 
 
 # =====================================================================
@@ -268,16 +273,27 @@ DEFAULT_EQUATION = (
 # =====================================================================
 def render_equation_input(key_prefix: str = "eq") -> Optional[str]:
     """
+    ============================================================================
+    5) RENDER_EQUATION_INPUT
     Renders the formula text box, validates it, and (if valid) shows a
     cheap 2D mid-slice preview computed on a small grid - independent of
     the full-resolution grid used for actual generation, so feedback is
     near-instant even before clicking "Generate".
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    key_prefix : str, optional
+        Prefix used to namespace this widget's Streamlit session_state
+        keys (default = "eq"), so multiple equation inputs can coexist
+        on the same page.
 
     RETURNS
     -------
-    equation : str or None
-        The equation string if it validated successfully, else None (the
-        caller should disable the Generate button while this is None).
+    equation, thickness : tuple[str, str], or None
+        The (equation, thickness) formula strings if both validated
+        successfully. None if either failed validation (the caller should
+        disable the Generate button while this is None).
     """
     st.caption("Variables: x, y, z, pi ")
     st.caption("functions: sin, cos, tan, sinh, cosh, tanh, exp, log, sqrt, abs, max, min")

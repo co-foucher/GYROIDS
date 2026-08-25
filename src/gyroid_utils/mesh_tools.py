@@ -784,7 +784,7 @@ def matrix_from_mesh(verts: np.ndarray,
         raise ValueError("Mesh has zero span in at least one dimension; cannot voxelize.")
     # the pitch is determined by the largest span divided by the resolution.
     largest_span = np.max(spans)
-    pitch = largest_span / resolution
+    pitch = largest_span / (resolution - 1)
 
     #using one pitch, keeps square voxels
     matrix = trimesh.voxel.creation.voxelize(trimesh.Trimesh(vertices=verts, faces=faces, process=False),
@@ -804,7 +804,7 @@ def matrix_from_mesh(verts: np.ndarray,
     y = origin[1] + np.arange(shape[1]) * scale[1]
     z = origin[2] + np.arange(shape[2]) * scale[2]
 
-    return x, y, z, matrix.matrix
+    return x, y, z, np.array(matrix.matrix)
 
 
 #=====================================================================

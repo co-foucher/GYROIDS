@@ -13,6 +13,7 @@ from .logger import logger
 0 - (reserved)
 1 - reload_all
 2 - help
+3 - pad_to_square
 #=====================================================================================================================
 """
 
@@ -105,3 +106,44 @@ def help():
            model = GyroidModel(x, y, z, px=1.0, py=1.0, pz=1.0, thickness=0.2)
     """
     print(help_text)
+
+
+# =====================================================================
+# 3) pad_to_square
+# =====================================================================
+def pad_to_square(matrix, pad_value=0):
+    """
+    ============================================================================
+    3) PAD_TO_SQUARE
+    Pads an array with a constant value (zero by default) so that every
+    dimension has the same length, without resampling or cropping any
+    existing data. Works for 2D matrices (square) as well as higher-
+    dimensional arrays (e.g. a 3D voxel grid padded into a cube).
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    matrix : np.ndarray
+        Input array of any shape.
+    pad_value : scalar, optional
+        Constant value used for padding (default 0).
+
+    RETURNS
+    -------
+    padded : np.ndarray
+        Array with all dimensions equal to max(matrix.shape). The original
+        data occupies index 0 along every axis (padding is appended at the
+        end of each axis, not centered).
+
+    EXAMPLE
+    -------
+    >>> pad_to_square(np.ones((2, 5))).shape
+    (5, 5)
+    >>> pad_to_square(np.ones((3, 4, 2))).shape
+    (4, 4, 4)
+    """
+    import numpy as np
+
+    target = max(matrix.shape)
+    pad_width = [(0, target - dim) for dim in matrix.shape]
+    return np.pad(matrix, pad_width=pad_width, mode="constant", constant_values=pad_value)
