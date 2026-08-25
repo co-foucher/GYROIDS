@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from dataclasses import dataclass
+
 import numpy as np
 import streamlit as st
 
@@ -35,7 +37,7 @@ init_state()
 # ============== define internal variables ===================
 # ============================================================
 
-# ---- Built-in TPMS types (label -> class) ------    
+# ---- Built-in TPMS types (label -> class) ------
 BUILTIN_TYPES = {
     "Gyroid": GyroidModel,
     "Schwartz P": SchwartzPModel,
@@ -50,32 +52,44 @@ BUILTIN_TYPES = {
 
 
 # ---- Field modes (label -> TPMSModel.compute_field(mode=...) argument) ----
-# mode use to calculate the density field from the implicit field.
-FIELD_MODES = {
-    "Distance": "distance",
-    "Signed": "signed",
-    "Signed (inverted)": "signed_inverse",
-    "Band": "band",
-}
+from app.components.tpms_source_panel import (
+    render_field_mode,
+    render_threshold,
+    render_thickness,
+    SKELETAL_MODES,
+    SHEET_MODES,)
 
-FIELD_HELPS = {
-    "Distance": "The density field is computed as the distance (defined by the thickness) to an iso-surface (defined by the threshold).",
-    "Signed": "The density field is computed by implicit_field > threshold.",
-    "Signed (inverted)": "The density field is computed by implicit_field < threshold.",
-    "Band": "The density field is computed as density_field = (thickness - np.abs(implicit_field)) > threshold. This is a fast approximation of the distance field",
-}
 
-# ----- level / thickness modes ----
-# field modes are separated into two categories: those that use a `level` combined with a thickness (find the surface at the given level, and give it a thickness) 
-# and those that use only a `threshold` (the implicit field value at which the mesh is extracted). 
-LEVEL_MODES = ("signed", "signed_inverse")
-THICKNESS_MODES = ("band", "distance", "distance_fast")
+@dataclass
+class TPMSParams:
+    """
+    Bundles the generation settings shared across all three "Surface"
+    sources (Built-in type / Custom equation / Import from file), with
+    their default values in one place. Per-source-only inputs - the
+    periods (px/py/pz), the built-in type_name, and the raw equation
+    string - stay as local variables in their own branch below, since
+    only one branch at a time ever uses them.
+    """
+    size_x: float = 10.0
+    size_y: float = 10.0
+    size_z: float = 10.0
+    resolution: int = 64
+    thickness: float = 1.0
+    field_mode: str = "distance"
+    threshold: float = 0.0
+    baseplate_thickness: float = 0.0
+    simplification_factor: float = 0.9
+    max_faces: bool = False
+    max_faces_count: int = 100_000
+    auto_smooth: bool = True
+    smoothing_factor: float = 0.9
+
 
 # ============================================================
 # ============== define internal functions ===================
 # ============================================================
 
-# it would be nice to try and do a few functions to make the code below more readable, 
+# it would be nice to try and do a few functions to make the code below more readable,
 
 # ============================================================
 # ===================== Start Page ===========================
@@ -87,17 +101,20 @@ col_params, col_preview = st.columns([1, 1.4])
 # ==========================================================
 # ============== user defined parameters ===================
 # ==========================================================
+params = TPMSParams()  # fresh instance each rerun; each widget below overwrites
+                        # its own field with its own persisted value (Streamlit
+                        # keeps that per-widget, independent of this object)
 with col_params:
     # ------ grid parameters ------
     st.subheader("Grid parameters")
-    resolution = st.slider(
-        "Grid resolution (per axis)", 16, 500, 64, step=8,
+    params.resolution = st.slider(
+        "Grid resolution (per axis)", 16, 500, params.resolution, step=8,
         help="Higher = finer surface but slower generation. Start low (~48-64) while iterating.",
     )
     d1, d2, d3 = st.columns(3)
-    size_x = d1.number_input("Size X", value=10.0, min_value=0.01)
-    size_y = d2.number_input("Size Y", value=10.0, min_value=0.01)
-    size_z = d3.number_input("Size Z", value=10.0, min_value=0.01)
+    params.size_x = d1.number_input("Size X", value=params.size_x, min_value=0.01)
+    params.size_y = d2.number_input("Size Y", value=params.size_y, min_value=0.01)
+    params.size_z = d3.number_input("Size Z", value=params.size_z, min_value=0.01)
     st.divider()
 
     # ------ choose TPMS type / paste equation / import from file ------
@@ -106,6 +123,7 @@ with col_params:
     equation = None
     type_name = None
 
+    # ---- Built-in type ----
     if source == "Built-in type":
         type_name = st.selectbox("TPMS type", list(BUILTIN_TYPES.keys()))
         c1, c2, c3 = st.columns(3)
@@ -113,43 +131,22 @@ with col_params:
         py = c2.number_input("Period Y", value=5.0, min_value=0.01)
         pz = c3.number_input("Period Z", value=5.0, min_value=0.01)
 
-        mode_label = st.selectbox("Field mode", list(FIELD_MODES.keys()), index=0, 
-                                  key="field_mode",
-                                  help = FIELD_HELPS[st.session_state.get("field_mode", "Distance")])
-        field_mode = FIELD_MODES[mode_label]
+        st.divider()
+        params.field_mode = render_field_mode()
+        params.threshold = render_threshold(params.field_mode)
+        params.thickness = render_thickness(params.field_mode)
 
-        if field_mode in LEVEL_MODES:
-            threshold = st.number_input("Field threshold (implicit field minimum value defining the solid)", value=0.0,
-                help="The TPMS surface is placed where the implicit field equals this value. Every voxel with implicit_field > level is considered solid, and the thickness is applied to that solid region.")
-        else:
-            threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
-                help="The field isosurface at this value is extracted to generate a surface, that is then thickened.")
-
-        if field_mode in THICKNESS_MODES:
-            thickness = st.number_input("Thickness", value=1.0, min_value=0.05)
-        else:
-            thickness = 0.0
-
+    # ---- Custom equation ----
     elif source == "Custom equation":
         equation, thickness = render_equation_input()
+        params.field_mode = render_field_mode()
+        params.threshold = render_threshold(params.field_mode)
+        render_thickness(params.field_mode, draw_widget=False,
+            thickness_source_desc="the Thickness formula above")
 
-        mode_label = st.selectbox("Field mode", list(FIELD_MODES.keys()), index=0)
-        field_mode = FIELD_MODES[mode_label]
-        if field_mode not in THICKNESS_MODES:
-            st.caption(
-                "Note: the Thickness formula above is ignored in "
-                f"'{mode_label}' mode - it doesn't use thickness at all."
-            )
-
-        if field_mode in LEVEL_MODES:
-            threshold = st.number_input("Field threshold (implicit field minimum value defining the solid)", value=0.0,
-                help="The TPMS surface is placed where the implicit field equals this value. Every voxel with implicit_field > level is considered solid, and the thickness is applied to that solid region.")
-        else:
-            threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
-                help="The field isosurface at this value is extracted to generate a surface, that is then thickened.")
-
+    # ---- Import from file ----
+    # (after field/thickness_value are loaded from disk)
     elif source == "Import from file":
-        st.warning("File import functionality is not yet implemented.")
         st.session_state.setdefault("field_matrix_path", "")
         st.session_state.setdefault("thickness_matrix_path", "")
         # define TPMS field
@@ -158,8 +155,7 @@ with col_params:
             matrix_path = st.text_input("Path to matrix file", key="field_matrix_path")
         with col_browse:
             st.write("")  # spacer so the button lines up with the text box, not its label
-            browse_file(
-                "field_matrix_path",
+            browse_file("field_matrix_path",
                 title="Select a matrix file",
                 filetypes=[("Numpy files", "*.npy"), ("CSV files", "*.csv"), ("All files", "*.*")],)
         field = import_matrix_from_file(file_path = st.session_state["field_matrix_path"])
@@ -170,57 +166,42 @@ with col_params:
             matrix_path = st.text_input("Path to thickness file", key="thickness_matrix_path")
         with col_browse:
             st.write("")  # spacer so the button lines up with the text box, not its label
-            browse_file(
-                "thickness_matrix_path",
+            browse_file("thickness_matrix_path",
                 title="Select a matrix file",
                 filetypes=[("Numpy files", "*.npy"), ("CSV files", "*.csv"), ("All files", "*.*")],)
         thickness_value = import_matrix_from_file(file_path = st.session_state["thickness_matrix_path"])
-
-        mode_label = st.selectbox("Field mode", list(FIELD_MODES.keys()), index=0)
-        field_mode = FIELD_MODES[mode_label]
-        if field_mode not in THICKNESS_MODES:
-            st.caption(
-                "Note: the imported thickness file above is ignored in "
-                f"'{mode_label}' mode - it doesn't use thickness at all."
-            )
-
-        if field_mode in LEVEL_MODES:
-            threshold = st.number_input("Field threshold (implicit field minimum value defining the solid)", value=0.0,
-                help="The TPMS surface is placed where the implicit field equals this value. Every voxel with implicit_field > level is considered solid, and the thickness is applied to that solid region.")
-        else:
-            threshold = st.number_input("Field threshold (for surface extraction)", value=0.0,
-                        help="The field isosurface at this value is extracted to generate a surface, that is then thickened.")
+        params.field_mode = render_field_mode()
+        params.threshold = render_threshold(params.field_mode)
+        render_thickness(params.field_mode, draw_widget=False,
+            thickness_source_desc="the imported thickness file above")
     st.divider()
 
     # ----- additional features ------
     st.subheader("Additional Features")
-    baseplate_thickness = st.number_input("Baseplate thickness (0 = none)", value=0.0, min_value=0.0)
+    params.baseplate_thickness = st.number_input("Baseplate thickness (0 = none)", value=params.baseplate_thickness, min_value=0.0)
     st.divider()
-    
+
     # ----- mesh parameters ------
     st.subheader("Mesh parameters")
-    simplification_factor = st.slider(
-        "Mesh simplification (fraction of faces kept)", 0.1, 1.0, 0.9,
-        help="Passed to TPMSModel.simplify_mesh(target_faces=...).",
-    )
-    max_faces = st.checkbox("Limit maximum faces", value=False,
+    params.simplification_factor = st.slider(
+        "Mesh simplification (fraction of faces kept)", 0.1, 1.0, params.simplification_factor,
+        help="Passed to TPMSModel.simplify_mesh(target_faces=...).",)
+    params.max_faces = st.checkbox("Limit maximum faces", value=params.max_faces,
         help="If checked, the mesh is simplified to a maximum number of faces.")
-    if max_faces:
-        simplification_factor = st.number_input(
-            "Maximum faces", value=100_000, min_value=1,
-            help="If 'Limit maximum faces' is checked, the mesh is simplified to this many faces.",
-        )
-    auto_smooth = st.checkbox("Auto-smooth mesh", value=True,
+    if params.max_faces:
+        params.max_faces_count = st.number_input(
+            "Maximum faces", value=params.max_faces_count, min_value=1,
+            help="If 'Limit maximum faces' is checked, the mesh is simplified to this many faces.",)
+    params.auto_smooth = st.checkbox("Auto-smooth mesh", value=params.auto_smooth,
         help="If checked, the mesh is smoothed after simplification and again after fixing.")
-    if auto_smooth:
-        smoothing_factor = st.slider(
-            "Smoothing factor", 0.0, 1.0, 0.9, step=0.01,
+    if params.auto_smooth:
+        params.smoothing_factor = st.slider(
+            "Smoothing factor", 0.0, 1.0, params.smoothing_factor, step=0.01,
             help="Passed to TPMSModel.smooth_mesh(smoothing_factor=...). Higher = more smoothing.")
     # ----- generate button ------
     generate = st.button(
         "Generate", type="primary",
-        disabled=(source == "Custom equation" and equation is None),
-    )
+        disabled=(source == "Custom equation" and equation is None),)
 
 
 # ==========================================================
@@ -228,63 +209,53 @@ with col_params:
 # ==========================================================
 if generate:
     x, y, z = np.meshgrid(
-        np.linspace(0, size_x, resolution),
-        np.linspace(0, size_y, resolution),
-        np.linspace(0, size_z, resolution),
-        indexing="ij",
-    )
+        np.linspace(0, params.size_x, params.resolution),
+        np.linspace(0, params.size_y, params.resolution),
+        np.linspace(0, params.size_z, params.resolution),
+        indexing="ij",)
 
     try:
         with st.spinner("Computing field and generating mesh..."):
-
-            # ----- Built-in type ------ 
+            # ----- Built-in type ------
             if source == "Built-in type":
-                model = BUILTIN_TYPES[type_name](x, y, z, px, py, pz, thickness)
-            
-            # ----- Custom equation ------ 
+                model = BUILTIN_TYPES[type_name](x, y, z, px, py, pz, params.thickness)
+
+            # ----- Custom equation ------
             elif source == "Custom equation":
-                # equation_input.evaluate_custom_inputs() turns the two
-                # strings into plain arrays on the real generation grid -
-                # this page has no parsing-related imports at all, and
-                # CustomTPMSModel has no px/py/pz to pass (see its
-                # docstring).
                 field, thickness_value = evaluate_custom_inputs(equation, thickness, x, y, z)
                 model = CustomTPMSModel(x, y, z, thickness_value, field=field)
-            
-            # ----- Import from file ------ 
+
+            # ----- Import from file ------
             elif source == "Import from file":
-                if field.shape != (resolution, resolution, resolution):
-                    st.warning(f"Imported field shape {field.shape} does not match the expected resolution ({resolution}, {resolution}, {resolution}).")
+                if field.shape != (params.resolution, params.resolution, params.resolution):
+                    st.warning(f"Imported field shape {field.shape} does not match the expected resolution ({params.resolution}, {params.resolution}, {params.resolution}).")
                 if thickness_value.ndim == 1:
                     thickness_value = thickness_value[0]  # take the first value as a scalar thickness
-                elif thickness_value.shape != (resolution, resolution, resolution) and not np.isscalar(thickness_value):
-                    st.warning(f"Imported thickness shape {thickness_value.shape} does not match the expected resolution ({resolution}, {resolution}, {resolution}).")
+                elif thickness_value.shape != (params.resolution, params.resolution, params.resolution) and not np.isscalar(thickness_value):
+                    st.warning(f"Imported thickness shape {thickness_value.shape} does not match the expected resolution ({params.resolution}, {params.resolution}, {params.resolution}).")
                 model = CustomTPMSModel(x, y, z, thickness_value, field=field)
-            
-            # "signed"/"signed_inverse"/"distance"/"distance_fast" bake the
-            # GUI's threshold value into compute_field() as the reference
-            # `level` (the surface sits at implicit_field == level), so the
-            # mesh extraction below always happens at the fixed iso_level
-            # 0.0 for those modes. "band" has no `level` concept - its
-            # threshold is passed straight through as the mesh iso_level,
-            # same as before this mode overhaul.
-            if field_mode in LEVEL_MODES:
-                model.compute_field(mode=field_mode, level=threshold)
+
+            # ---- compute density_field ------
+            if params.field_mode in SKELETAL_MODES:   # "signed", "signed_inverse"
+                model.compute_field(mode=params.field_mode, level=params.threshold)
+                mesh_iso_level = 0.0
+            elif params.field_mode in SHEET_MODES:   # "band", "distance"
+                model.compute_field(mode=params.field_mode, level=params.threshold)
                 mesh_iso_level = 0.0
             else:
-                model.compute_field(mode=field_mode)
-                mesh_iso_level = threshold
+                raise ValueError(f"Unknown field mode: {params.field_mode}")
 
             # ----- add baseplates ------
-            if baseplate_thickness > 0:
-                model.add_baseplates(thickness=baseplate_thickness)
+            if params.baseplate_thickness > 0:
+                model.add_baseplates(thickness=params.baseplate_thickness)
 
             # ----- generate mesh ------
             st.session_state["current_field_range"] = (float(model.implicit_field.min()), float(model.implicit_field.max()))
             model.generate_mesh(iso_level=mesh_iso_level)
-            model.simplify_mesh(target_faces=simplification_factor)
-            if auto_smooth:
-                model.smooth_mesh(smoothing_factor=smoothing_factor)
+            target_faces = params.max_faces_count if params.max_faces else params.simplification_factor
+            model.simplify_mesh(target_faces=target_faces)
+            if params.auto_smooth:
+                model.smooth_mesh(smoothing_factor=params.smoothing_factor)
             model.fix_mesh()
             is_valid = model.check_mesh_quality()
 

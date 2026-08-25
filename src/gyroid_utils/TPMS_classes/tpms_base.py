@@ -367,6 +367,7 @@ class TPMSModel:
             # final field: positive inside the desired wall band, zero outside
             self.density_field = np.zeros_like(dist) - 1
             self.density_field[mask] = dist[mask]
+            logger.info("Max: %s, Min: %s", self.density_field.max(), self.density_field.min())
             return self.density_field
 
         raise ValueError("mode must be one of: 'band', 'signed', 'signed_inverse', 'distance', 'distance_fast'.")

@@ -6,7 +6,7 @@ from stl import mesh as stl_mesh # type: ignore
 from skimage import measure # type: ignore
 import pymeshfix # type: ignore4
 import vtk
-import pyvista as pv # type: ignore
+#import pyvista as pv # type: ignore
 
 
 
@@ -162,6 +162,7 @@ def simplify_mesh(verts: np.ndarray, faces: np.ndarray, target: float = 100000, 
     
     # -------- pyvista mode ---------------
     if mode == "pyvista":
+        import pyvista as pv # type: ignore
         """
         PyVista (VTK wrapper) - FASTer than trimesh and easier API than raw VTK
         """

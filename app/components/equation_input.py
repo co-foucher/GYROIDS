@@ -319,7 +319,7 @@ def render_equation_input(key_prefix: str = "eq") -> Optional[str]:
     # =================================================
     thickness = st.text_area(
         "Thickness",
-        value=st.session_state.get(f"{key_prefix}_thickness", "0.2 + 0.3 * x / max(abs(x))"),
+        value=st.session_state.get(f"{key_prefix}_thickness", "0.5 + 0.8 * x / max(abs(x))"),
         key=f"{key_prefix}_thickness",
         height=80,
     )
