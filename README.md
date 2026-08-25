@@ -100,7 +100,7 @@ Scripts related to this use case:
 - **mesh_tools.py**: Mesh processing functions (simplification, smoothing, fixing, validation, export), plus `matrix_from_mesh()` (voxelize a mesh back into a filled 3D grid — the inverse of `mesh_from_matrix`) and `auto_smooth_mesh()` (runs Taubin smoothing in batches and stops automatically once a roughness metric plateaus, instead of a hand-picked iteration count)
 - **io_ops.py**: Input/output operations (STL loading/saving, .npz archives)
 - **viz.py**: Visualization tools (HTML previews, histograms, 2D matrix views)
-- **voxel_overhang_tools.py**: Print-readiness tools for a solid/empty voxel grid:
+- **voxel_tools.py**: Print-readiness tools for a solid/empty voxel grid:
   - `detect_overhangs()`: flags voxels whose overhang angle (relative to the build plate, along z) exceeds a threshold (default 45°), and recognizes safe bridges (span supported from both sides) as distinct from true overhangs.
   - `find_optimal_orientation()`: samples build directions over a sphere and returns the reoriented grid with the fewest overhangs/bridges — an automatic "best way to print this" search.
   - Support for optional automatic support-voxel insertion under unsupported overhangs (`add_support_voxels`, still marked experimental in the code).
@@ -150,7 +150,7 @@ Other scripts exist for configuring this library and some useful functions
 - Three field computation modes: `'abs'`, `'signed'`, and `'distance'`/`'distance_fast'` for flexible wall definition
 - Support for variable periods and thickness (scalar or per-voxel arrays)
 - Optional baseplates for structural support
-- Overhang/print-readiness check on the voxel grid (`voxel_overhang_tools.detect_overhangs()`), flagging voxels beyond a configurable overhang angle (default 45°) while recognizing safe two-sided bridges
+- Overhang/print-readiness check on the voxel grid (`voxel_tools.detect_overhangs()`), flagging voxels beyond a configurable overhang angle (default 45°) while recognizing safe two-sided bridges
 - Automatic build-orientation search (`find_optimal_orientation()`) that reorients the grid to minimize overhangs/bridges
 
 ## Surface Mesh Processing

@@ -605,3 +605,13 @@ def find_optimal_orientation(voxel_grid: np.ndarray,
     Rotated_structure, new_x, new_y, new_z = _reorient_voxel_grid(voxel_grid, x, y, z, Rotation_matrix, grid_sample_factor=grid_sample_factor)
     Rotated_structure = detect_overhangs(Rotated_structure, new_x, new_y, new_z, angle=overhang_angle, bridge=bridge_size, add_support_voxels=True)
     return Rotated_structure, new_x, new_y, new_z
+
+
+# =====================================================================
+# 7) interpolate_voxel_grid
+# =====================================================================
+def interpolate_voxel_grid(voxel_grid: np.ndarray,
+                         x_dim: np.ndarray,
+                         y_dim: np.ndarray,
+                         z_dim: np.ndarray) -> np.ndarray:
+    return 
