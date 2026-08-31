@@ -37,6 +37,7 @@ browse_file(key = "structure_path",
     filetypes=[("STL files", "*.stl"), ("All files", "*.*")],)
 stl_dir = st.session_state["structure_path"]
 file_name = stl_dir.split("/")[-1].split(".")[0] if stl_dir else None
+stl_dir = "/".join(stl_dir.split("/")[:-1]) if stl_dir else None
 
 ftetwild_path = st.text_input(
     "fTetWild executable path",
