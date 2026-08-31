@@ -19,16 +19,25 @@ from gyroid_utils import TET_mesh_tools, abaqus_tools
 from app.state import init_state, get_output_dir
 from app.jobs import start_job
 from app.components.job_log import render_job_status
+from app.components.file_picker import browse_file, browse_directory
 
 st.set_page_config(page_title="Simulation", layout="wide")
 init_state()
 st.title("Mesh + Simulation")
 
-default_dir = str(get_output_dir())
+# ===============================================================
+# ================== Tetrahedral meshing ========================
+# ==============================================================
 
+default_dir = str(get_output_dir())
 st.subheader("1. Tetrahedral meshing (fTetWild)")
-stl_dir = st.text_input("Folder containing the .stl", value=default_dir)
-file_name = st.text_input("File name (no extension)", value="my_tpms")
+
+browse_file(key = "structure_path",
+    title="Select an STL file for simulation",
+    filetypes=[("STL files", "*.stl"), ("All files", "*.*")],)
+stl_dir = st.session_state["structure_path"]
+file_name = stl_dir.split("/")[-1].split(".")[0] if stl_dir else None
+
 ftetwild_path = st.text_input(
     "fTetWild executable path",
     value=r"C:\Program Files\fTetWild\build\Release\FloatTetwild_bin.exe",
