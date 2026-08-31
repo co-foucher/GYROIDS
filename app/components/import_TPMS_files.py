@@ -8,15 +8,27 @@ import streamlit as st
 # 1 - import_matrix_from_file
 # =====================================================================
 
+# =====================================================================
+# 1) import_matrix_from_file
+# =====================================================================
 def import_matrix_from_file(file_path):
     """
-    Imports a matrix from a numpy or csv file. 
-    
-    Parameters:
-    - file_path: str, path to the text file containing the matrix.
-    
-    Returns:
-    - np.ndarray: The imported matrix as a NumPy array.
+    ============================================================================
+    1) IMPORT_MATRIX_FROM_FILE
+    Imports a matrix from a numpy or csv file.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    file_path : str
+        Path to the file containing the matrix (.npy, or a text file
+        readable by np.loadtxt).
+
+    RETURNS
+    -------
+    matrix : np.ndarray or None
+        The imported matrix, or None if import failed (also shows an
+        st.error with the exception message).
     """
     try:
         if file_path.endswith(".npy"):

@@ -41,7 +41,24 @@ __all__ = ["render_lightweight_toggle", "launch_ct_viewer", "CT_histogram"]
 # 1) render_lightweight_toggle
 # =====================================================================
 def render_lightweight_toggle(key: str) -> bool:
-    """Renders the "use lightweight viewer" checkbox and returns its state."""
+    """
+    ============================================================================
+    1) RENDER_LIGHTWEIGHT_TOGGLE
+    Renders the "use lightweight viewer" checkbox and returns its state.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    key : str
+        Prefix used to namespace this checkbox's Streamlit widget key
+        (f"{key}_lightweight"), so multiple toggles can coexist on the
+        same page.
+
+    RETURNS
+    -------
+    lightweight : bool
+        True if the lightweight viewer should be used.
+    """
     return st.checkbox(
         "Use lightweight viewer (slider only - faster, less memory)",
         value=False,
@@ -54,9 +71,24 @@ def render_lightweight_toggle(key: str) -> bool:
 # =====================================================================
 def launch_ct_viewer(mhd_path: str, lightweight: bool = False) -> None:
     """
+    ============================================================================
+    2) LAUNCH_CT_VIEWER
     Launches gyroid_utils.CT_visualization_window on `mhd_path` in a
     separate process - open_window (full) or lightweigth_open, depending
     on `lightweight`.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    mhd_path : str
+        Path to the .mhd file to open.
+    lightweight : bool, optional
+        If True, launches the lightweight (slider-only) viewer instead of
+        the full one (default = False).
+
+    RETURNS
+    -------
+    None
     """
     # CT_visualization_window.py is written for Jupyter, where the user
     # runs `%matplotlib qt` themselves before calling it - it never sets
@@ -90,6 +122,8 @@ def launch_ct_viewer(mhd_path: str, lightweight: bool = False) -> None:
 # =====================================================================
 def CT_histogram(hist: np.ndarray, bin_edges: np.ndarray) -> None:
     """
+    ============================================================================
+    3) CT_HISTOGRAM
     Renders a greyvalue histogram from an already-computed (hist,
     bin_edges) pair - e.g. from app.pages.3_CT_Analysis._load_histogram,
     which caches that computation separately, keyed on (mhd_path, bins)
@@ -105,6 +139,18 @@ def CT_histogram(hist: np.ndarray, bin_edges: np.ndarray) -> None:
     equation_input.py) - a bare matplotlib plt.show(), which this used to
     call, has nowhere to display to inside the Streamlit server process
     and never reaches the browser at all.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    hist : np.ndarray
+        Histogram counts per bin.
+    bin_edges : np.ndarray
+        Bin edge values (length len(hist) + 1).
+
+    RETURNS
+    -------
+    None
     """
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     bin_width = bin_edges[1] - bin_edges[0]

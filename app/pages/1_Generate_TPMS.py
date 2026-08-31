@@ -57,9 +57,11 @@ from app.components.tpms_source_panel import (
     render_thickness,
     load_STL,
     generate_ui_tpms,
+    pad_to_square,
 )
 
-
+#dataclasses is a decorator from Python's standard library that turns a plain class into a lightweight data container: 
+# with just type-annotated attributes and default values, it generates __init__, __repr__, and __eq__ for you. 
 @dataclass
 class TPMSParams:
     """
@@ -84,15 +86,10 @@ class TPMSParams:
     auto_smooth: bool = True
     smoothing_factor: float = 0.9
 
-
 # ============================================================
 # ============== define internal functions ===================
 # ============================================================
 
-def _pad_to_square(matrix, pad_value=0):
-    target = max(matrix.shape)
-    pad_width = [(0, target - dim) for dim in matrix.shape]
-    return np.pad(matrix, pad_width=pad_width, mode="constant", constant_values=pad_value)
 
 # ============================================================
 # ===================== Start Page ===========================
@@ -156,28 +153,16 @@ with col_params:
     # ---- Import from file ----
     # (after field/thickness_value are loaded from disk)
     elif source == "Import from file":
-        st.session_state.setdefault("field_matrix_path", "")
-        st.session_state.setdefault("thickness_matrix_path", "")
         # define TPMS field
-        col_path, col_browse = st.columns([5, 1.5], vertical_alignment="bottom")
-        with col_path:
-            matrix_path = st.text_input("Path to matrix file", key="field_matrix_path")
-        with col_browse:
-            st.write("")  # spacer so the button lines up with the text box, not its label
-            browse_file("field_matrix_path",
-                title="Select a matrix file",
-                filetypes=[("Numpy files", "*.npy"), ("CSV files", "*.csv"), ("All files", "*.*")],)
+        browse_file(key = "field_matrix_path",
+            title="Select a matrix file",
+            filetypes=[("Numpy files", "*.npy"), ("CSV files", "*.csv"), ("All files", "*.*")],)
         field = import_matrix_from_file(file_path = st.session_state["field_matrix_path"])
 
         #define thickness field
-        col_path, col_browse = st.columns([5, 1.5], vertical_alignment="bottom")
-        with col_path:
-            matrix_path = st.text_input("Path to thickness file", key="thickness_matrix_path")
-        with col_browse:
-            st.write("")  # spacer so the button lines up with the text box, not its label
-            browse_file("thickness_matrix_path",
-                title="Select a matrix file",
-                filetypes=[("Numpy files", "*.npy"), ("CSV files", "*.csv"), ("All files", "*.*")],)
+        browse_file(key = "thickness_matrix_path",
+            title="Select a matrix file",
+            filetypes=[("Numpy files", "*.npy"), ("CSV files", "*.csv"), ("All files", "*.*")],)
         thickness_value = import_matrix_from_file(file_path = st.session_state["thickness_matrix_path"])
         params.field_mode = render_field_mode()
         params.threshold = render_threshold(params.field_mode)
@@ -198,23 +183,17 @@ with col_params:
         st.subheader("Combine with existing geometry")
     if combine_with_geometry:
         st.info("This feature is not yet implemented. In the future, you will be able to import a mesh or voxel grid and combine it with the generated TPMS structure.")
-        col_path, col_browse = st.columns([5, 1.5], vertical_alignment="bottom")
-        with col_path:
-            matrix_path = st.text_input("Path to geometry file", key="combined_geometry_path")
-        with col_browse:
-            st.write("")  # spacer so the button lines up with the text box, not its label
-            browse_file("combined_geometry_path",
-                title="Select a matrix file",
-                filetypes=[("STL files", "*.stl"), ("Numpy files", "*.npy"), ("All files", "*.*")],)
+        browse_file(key = "combined_geometry_path",
+            title="Select a matrix file",
+            filetypes=[("STL files", "*.stl"), ("Numpy files", "*.npy"), ("All files", "*.*")],)
         if '.npy' in st.session_state["combined_geometry_path"]:
             geometry = import_matrix_from_file(file_path = st.session_state["combined_geometry_path"])
-            geometry = _pad_to_square(geometry)
+            geometry = pad_to_square(geometry)
         elif '.stl' in st.session_state["combined_geometry_path"]:
             from gyroid_utils.mesh_tools import matrix_from_mesh
-            st.session_state["combined_geometry_path"]
             verts, faces = load_STL(st.session_state["combined_geometry_path"])
             _,_,_, geometry = matrix_from_mesh(verts, faces, params.resolution)
-            geometry = _pad_to_square(geometry)
+            geometry = pad_to_square(geometry)
         else:
             st.error("Please select a valid .npy or .stl file for the geometry.")
         combination_type = st.selectbox("Combination type", ["Intersection", "Union", "Substraction"])

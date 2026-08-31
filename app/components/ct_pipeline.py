@@ -78,8 +78,23 @@ __all__ = ["render_ct_pipeline"]
 @st.cache_resource(show_spinner="Loading mask...", max_entries=1)
 def _load_mask_array(path: str) -> np.ndarray:
     """
+    ============================================================================
+    1) _LOAD_MASK_ARRAY
     Reads a mask volume from disk for the "Apply mask" step.
+    ============================================================================
 
+    PARAMETERS
+    ----------
+    path : str
+        Path to the mask .mhd file.
+
+    RETURNS
+    -------
+    mask : np.ndarray
+        The mask volume, read-only (write flag disabled).
+
+    NOTES
+    -----
     Cached by Streamlit and keyed on `path` (a cheap string) - same
     pattern as _load_mhd in app/pages/3_CT_Analysis.py, so re-running the
     pipeline several times with the same mask path (e.g. while tweaking
@@ -100,6 +115,7 @@ def _load_mask_array(path: str) -> np.ndarray:
     a full mask volume per entry, so switching mask files shouldn't keep
     every previous one resident.
     """
+
     mask = sitk.GetArrayFromImage(sitk.ReadImage(path))
     mask.setflags(write=False)
     return mask
@@ -109,9 +125,26 @@ def _load_mask_array(path: str) -> np.ndarray:
 # 2) _shape_after_crop
 # =====================================================================
 def _shape_after_crop(shape: tuple, params: dict) -> tuple:
-    """Calculate the (Z, Y, X) array shape that CT_scans.crop_images would 
+    """
+    ============================================================================
+    2) _SHAPE_AFTER_CROP
+    Calculate the (Z, Y, X) array shape that CT_scans.crop_images would
     produce, given the shape entering the crop and its ("direction", "point")
     params.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    shape : tuple
+        The (Z, Y, X) shape entering the crop.
+    params : dict
+        Must contain "direction" (one of "up"/"down"/"left"/"right"/
+        "front"/"back") and "point" (the cut coordinate).
+
+    RETURNS
+    -------
+    shape : tuple
+        The resulting (Z, Y, X) shape after the crop.
     """
     n, y, x = shape
     direction, point = params["direction"], params["point"]
@@ -250,8 +283,28 @@ _STEP_REGISTRY = {
 # 5) _describe_params
 # =====================================================================
 def _describe_params(label: str, params: dict, shape: tuple) -> str:
-    """fetches in the step-specific "describe" adapter from _STEP_REGISTRY and calls it with (params, shape) 
-    to get a short one-liner for the pipeline overview list. 
+    """
+    ============================================================================
+    5) _DESCRIBE_PARAMS
+    Fetches the step-specific "describe" adapter from _STEP_REGISTRY and
+    calls it with (params, shape) to get a short one-liner for the
+    pipeline overview list.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    label : str
+        The step's registry key (e.g. "Threshold -> binary mask").
+    params : dict
+        That step's current parameter values.
+    shape : tuple
+        The (Z, Y, X) shape entering this step.
+
+    RETURNS
+    -------
+    description : str
+        A short one-liner. Falls back to a generic key=value listing if
+        the step has no "describe" adapter.
     """
     describe = _STEP_REGISTRY[label].get("describe")
     if describe is not None:
@@ -264,7 +317,25 @@ def _describe_params(label: str, params: dict, shape: tuple) -> str:
 # 6) _render_add_step
 # =====================================================================
 def _render_add_step(key: str, steps: list) -> None:
-    """Renders the operation picker + its parameter widgets + "Add step"."""
+    """
+    ============================================================================
+    6) _RENDER_ADD_STEP
+    Renders the operation picker + its parameter widgets + "Add step"
+    button.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    key : str
+        Session-state key prefix for this pipeline's widgets.
+    steps : list
+        The pipeline's step list (mutated in place - a new step dict is
+        appended when "Add step" is clicked).
+
+    RETURNS
+    -------
+    None
+    """
     op_label = st.selectbox("Add a step", list(_STEP_REGISTRY.keys()), key=f"{key}_op_select")
     spec = _STEP_REGISTRY[op_label]
     st.caption(spec["help"])
@@ -293,21 +364,35 @@ def _render_add_step(key: str, steps: list) -> None:
 # 7) _render_step_list
 # =====================================================================
 def _render_step_list(key: str, steps: list, shape: tuple) -> None:
-    """Renders the current pipeline as reorderable/removable rows.
+    """
+    ============================================================================
+    7) _RENDER_STEP_LIST
+    Renders the current pipeline as reorderable/removable rows.
+    ============================================================================
 
-    `steps` is the actual list object living in st.session_state (see
-    render_ct_pipeline), not a copy - every mutation below (swap, pop)
-    edits that list in place. There's nothing to write back afterward:
-    session_state already holds a reference to this same list, so
-    mutating it here is enough for the change to stick on the next
-    rerun.
+    PARAMETERS
+    ----------
+    key : str
+        Session-state key prefix for this pipeline's widgets.
+    steps : list
+        The actual list object living in st.session_state (see
+        render_ct_pipeline), not a copy - every mutation below (swap,
+        pop) edits that list in place. There's nothing to write back
+        afterward: session_state already holds a reference to this same
+        list, so mutating it here is enough for the change to stick on
+        the next rerun.
+    shape : tuple
+        The ORIGINAL loaded volume's (Z, Y, X) shape (what step 0 sees)
+        - not what every row's step individually sees. Only "Crop"
+        changes the shape (see _shape_after_crop), so `current_shape`
+        internally starts at `shape` and only gets updated after a
+        "Crop" row, giving each row the shape it actually receives
+        without re-running any of the other (shape-preserving) steps
+        just to find that out.
 
-    `shape` is the ORIGINAL loaded volume's (Z, Y, X) shape (what step 0
-    sees) - not what every row's step individually sees. Only "Crop"
-    changes the shape (see _shape_after_crop), so `current_shape` below
-    starts at `shape` and only gets updated after a "Crop" row, giving
-    each row the shape it actually receives without re-running any of
-    the other (shape-preserving) steps just to find that out.
+    RETURNS
+    -------
+    None
     """
     if not steps:
         st.info("No steps yet - add one above.")
@@ -348,7 +433,25 @@ def _render_step_list(key: str, steps: list, shape: tuple) -> None:
 # 8) _run_pipeline
 # =====================================================================
 def _run_pipeline(array: np.ndarray, steps: list) -> np.ndarray:
-    """Replays every step, in order, starting from a copy of `array`."""
+    """
+    ============================================================================
+    8) _RUN_PIPELINE
+    Replays every step, in order, starting from a copy of `array`.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    array : np.ndarray
+        The original loaded volume. Never mutated - a copy is made
+        before the loop starts.
+    steps : list
+        The pipeline's step list, each a {"label", "params"} dict.
+
+    RETURNS
+    -------
+    result : np.ndarray
+        The volume after replaying every step.
+    """
     current = np.array(array, copy=True)
     for step in steps:
         fn = _STEP_REGISTRY[step["label"]]["call"]
@@ -361,22 +464,41 @@ def _run_pipeline(array: np.ndarray, steps: list) -> np.ndarray:
 # =====================================================================
 @st.cache_data(show_spinner=False)
 def _build_result_fig(mid_slice: np.ndarray, spacing: tuple = (1.0, 1.0, 1.0)) -> go.Figure:
-    """Builds the mid z-slice Heatmap figure for a pipeline result.
+    """
+    ============================================================================
+    9) _BUILD_RESULT_FIG
+    Builds the mid z-slice Heatmap figure for a pipeline result.
+    ============================================================================
 
+    PARAMETERS
+    ----------
+    mid_slice : np.ndarray
+        The 2D (Y, X) mid z-slice to plot.
+    spacing : tuple, optional
+        (sx, sy, sz) physical voxel spacing, used to keep the aspect
+        ratio correct (default = (1.0, 1.0, 1.0)).
+
+    RETURNS
+    -------
+    fig : plotly.graph_objects.Figure
+        The Heatmap figure.
+
+    NOTES
+    -----
     Cached on `mid_slice` ITSELF - not on st.session_state[result_key]
     (the full 3D result _render_result_preview slices this out of).
     That distinction matters: `mid_slice` is bounded by the volume's
-    (Y, X) footprint alone, the same size regardless of how many Z-slices
-    or pipeline steps are involved, so hashing it directly on every
-    rerun is cheap (unlike hashing the full `result`, which is exactly
-    the large-array cost _load_histogram's docstring in
+    (Y, X) footprint alone, the same size regardless of how many
+    Z-slices or pipeline steps are involved, so hashing it directly on
+    every rerun is cheap (unlike hashing the full `result`, which is
+    exactly the large-array cost _load_histogram's docstring in
     app/pages/3_CT_Analysis.py warns against). Because the hash is of
     the actual data, there's no separate "did it change" signal to
     maintain by hand - no version counter to remember to bump, no
     session-state key beyond `result_key` itself. A rerun that slices
-    out the same mid_slice content is a cache hit; a genuinely different
-    slice (new pipeline run, or Up/Down changing which step feeds the
-    preview) is a miss, exactly and automatically.
+    out the same mid_slice content is a cache hit; a genuinely
+    different slice (new pipeline run, or Up/Down changing which step
+    feeds the preview) is a miss, exactly and automatically.
     """
     sx, sy, _sz = spacing
     fig = go.Figure(go.Heatmap(z=mid_slice, colorscale="Gray"))
@@ -390,9 +512,32 @@ def _build_result_fig(mid_slice: np.ndarray, spacing: tuple = (1.0, 1.0, 1.0)) -
 # 10) _render_result_preview
 # =====================================================================
 def _render_result_preview(array: np.ndarray, result: np.ndarray, key: str, spacing: tuple) -> None:
-    """Renders the mid z-slice heatmap of the current pipeline result,
-    plus the interactive-viewer launcher.
+    """
+    ============================================================================
+    10) _RENDER_RESULT_PREVIEW
+    Renders the mid z-slice heatmap of the current pipeline result, plus
+    the interactive-viewer launcher.
+    ============================================================================
 
+    PARAMETERS
+    ----------
+    array : np.ndarray
+        The original loaded volume (used only for array.shape[0] to
+        find the mid z-index).
+    result : np.ndarray
+        The current pipeline result to preview.
+    key : str
+        Session-state key prefix for this pipeline's widgets.
+    spacing : tuple
+        (sx, sy, sz) physical voxel spacing, forwarded to
+        _build_result_fig.
+
+    RETURNS
+    -------
+    None
+
+    NOTES
+    -----
     Called on every rerun where a result exists, so the preview stays
     visible while you add/reorder/remove steps in between runs. That's
     cheap because `array`/`result` are already in memory and building
@@ -421,8 +566,11 @@ def _render_result_preview(array: np.ndarray, result: np.ndarray, key: str, spac
 # =====================================================================
 def render_ct_pipeline(array: np.ndarray, key: str = "ct_pipeline", spacing: tuple = (1.0, 1.0, 1.0)) -> Optional[np.ndarray]:
     """
+    ============================================================================
+    11) RENDER_CT_PIPELINE
     Renders the full pipeline builder (add step / reorder / remove / run)
     for a loaded CT volume, plus a 2D slice preview of the final result.
+    ============================================================================
 
     PARAMETERS
     ----------

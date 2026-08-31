@@ -43,14 +43,13 @@
 
 ## local installation
   - If you download the whole repository, you can then use the folder as a source for the library and make any change you want that will also take effect immediately
-  - `pip install -e .` behaves the same as the git-URL install above: it only installs the core dependencies. To also install the optional GUI and GPU dependencies, use the extras syntax:
+  - `pip install -e .` behaves the same as the git-URL install above: it only installs the core dependencies. To also install the optional GUI dependencies, use the extras syntax:
 
 ```powershell
   cd "C:\Users\PATHtoFILES"
   conda create -n nameofenv python=3.10
   conda install git
-  pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu132
-  pip install -e ".[gui,gpu]" --no-build-isolation
+  pip install -e ".[gui]"
 ```
 
 # Launching the App (GUI)

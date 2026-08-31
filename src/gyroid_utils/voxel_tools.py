@@ -100,7 +100,13 @@ def detect_overhangs(voxel_grid: np.ndarray,
         raise ValueError("voxel_grid must be a 3D numpy array")
     
     voxel_grid = np.copy(voxel_grid)  # make a copy to avoid modifying the input  
-    overhang_grid = np.copy(voxel_grid)  # initialize the overhang grid with zeros
+    # overhang_grid stores labels 0/1/2/3/4 (see RETURNS below), not just
+    # solid/empty - if voxel_grid is bool (e.g. straight from
+    # matrix_from_mesh), copying it keeps that bool dtype, and every later
+    # assignment of 2 (overhang), 3 (bridge), or 4 (support) silently casts
+    # down to True instead of actually storing that label. Widen to a small
+    # int dtype up front so those labels survive.
+    overhang_grid = np.copy(voxel_grid).astype(np.uint8)  # initialize the overhang grid from voxel_grid, widened so labels 2/3/4 aren't clipped to bool
     spacing_2D = np.array([x[1]-x[0], y[1]-y[0]])  # calculate the average voxel size in x and y dimensions
     slice_thickness = z[1]-z[0]  # calculate the voxel size in z dimension
 
@@ -367,55 +373,9 @@ def _get_rotation_matrix_from_new_z_direction(build_direction: np.ndarray,
 def _reorient_voxel_grid(voxel_grid: np.ndarray,
                          x: np.ndarray,
                          y: np.ndarray,
-                         z: np.ndarray,
+                         z: np.ndarray, 
                          rotation: np.ndarray,
                          grid_sample_factor: float = 1.0) :
-    """
-    ============================================================================
-    5) _REORIENT_VOXEL_GRID
-    Reorients a 3D binary voxel grid according to a given rotation matrix.
-    The reorientation is done by rotating the physical 3D coordinates of the
-    solid voxels and then re-rasterizing onto a fresh regular grid.
-    ============================================================================
-
-    PARAMETERS
-    ----------
-    voxel_grid : (nx, ny, nz) ndarray
-        3D binary voxel grid (0 = empty, 1 = solid).
-    x, y, z : 1D ndarray
-        Voxel coordinates along each axis (used to get the voxel pitch and
-        origin). Must be evenly spaced.
-    rotation : (3, 3) ndarray
-        Rotation matrix applied to the object: new_point = rotation @ old_point.
-        After this transform, the new +Z axis is the build direction to test.
-        calculate it with _get_rotation_matrix_from_new_z_direction().
-
-    RETURNS
-    -------
-    new_grid : (nx', ny', nz') ndarray
-        Reoriented binary voxel grid, cropped to the bounding box of the
-        rotated solid voxels (empty padding from the original grid is not
-        preserved).
-    new_x, new_y, new_z : 1D ndarray
-        Coordinate arrays for new_grid. Pitch is equal on all three axes
-        (see NOTE), so voxels stay cubic.
-
-    RAISES
-    ------
-    ValueError
-        If voxel_grid is not 3D, or rotation is not a 3x3 matrix.
-
-    NOTE
-    ----
-    Re-rasterizing onto a fixed-pitch grid is still a voxelization step, so
-    very thin features can shift by up to half a voxel or, in the worst
-    case, land on the same cell as a neighboring feature -- the same
-    quantization trade-off as the original voxelization, not something this
-    introduces on top of it.
-    EXAMPLE
-    -------
-    >>> new_grid, nx_, ny_, nz_ = _reorient_voxel_grid(voxel_grid, x, y, z, R)
-    """
     # ===== check inputs =====
     if voxel_grid.ndim != 3:
         raise ValueError("voxel_grid must be a 3D numpy array")
@@ -427,81 +387,69 @@ def _reorient_voxel_grid(voxel_grid: np.ndarray,
     if len(x) != voxel_grid.shape[0] or len(y) != voxel_grid.shape[1] or len(z) != voxel_grid.shape[2]:
         raise ValueError("x, y, and z must match the dimensions of voxel_grid")
 
-    #===== compute position of points after rotation =====
+    if grid_sample_factor != 1.0:
+        logger.warning(f"grid_sample_factor={grid_sample_factor} is not 1.0, re-sampling the voxel grid.")
+        x_dim = int(x.size * grid_sample_factor)
+        y_dim = int(y.size * grid_sample_factor)
+        z_dim = int(z.size * grid_sample_factor)
+        voxel_grid = interpolate_voxel_grid(voxel_grid, x_dim=x_dim, y_dim=y_dim, z_dim=z_dim)
+        x = np.linspace(x[0], x[-1], x_dim)
+        y = np.linspace(y[0], y[-1], y_dim)
+        z = np.linspace(z[0], z[-1], z_dim) 
+        
+    # ===== compute new grid shape and coordinates =====
     # get the voxel spacing and origin from the input coordinate arrays
     spacing = np.array([x[1] - x[0], y[1] - y[0], z[1] - z[0]])
     origin = np.array([x[0], y[0], z[0]])
 
-    # sparse solid-voxel coordinates only -- this is what keeps the cost down
+    # sparse solid-voxel coordinates only to keep the cost down      
     idx = np.argwhere(voxel_grid == 1)
+    # error handling: if there are no solid voxels in the input grid, return an empty grid
     if idx.size == 0:
         logger.debug("_reorient_voxel_grid: no solid voxels in input, returning an empty grid.")
         return (np.zeros((1, 1, 1), dtype=voxel_grid.dtype),
                 np.array([0.0]), np.array([0.0]), np.array([0.0]))
-    # get the physical coordinates of the solid voxel centers
+
+    # compute new grid size
     pts = origin + idx * spacing
-
-    # O(M) matrix multiply -- exact, no interpolation, no aliasing
-    # equation for each point in pts: pts_rot[i] = rotation @ pts[i]
-    # where pts is a (3,1) vector and rotation is a (3,3) matrix
-    # however, our pts is a (1,3) array, so we have to transpose it to (3,1) before multiplying by the rotation matrix, and then transpose it back to (1,3) after the multiplication
-    # so the final equation is: pts_rot.T = (rotation @ pts.T)
-    #                           pts_rot = (rotation @ pts.T).T
-    # since (A*B).T = B.T * A.T
-    #                           pts_rot = pts @ rotation.T
-    # and we parallelize by expanding pts to (N,3) and using the @ operator for matrix multiplication in numpy.
-    # thus pts_rot is a (N,3).
     pts_rot = pts @ rotation.T
+    mins = pts_rot.min(axis=0)
+    maxs = pts_rot.max(axis=0)
+    extents = maxs - mins
 
-    # ===== compute new grid shape and coordinates =====
-    mins = pts_rot.min(axis=0)  #min value of each direction
-    maxs = pts_rot.max(axis=0)  #max value of each direction
-    extents = maxs - mins  # (Lx, Ly, Lz) physical size of the rotated bounding box
-
-    #--- version 1: keep the same voxel size as the original grid ----
-    # shape is the number of voxels in each direction, rounded up to the first integer above (ceiling),
-    # plus 1 to include the last voxel.
-    # this allows to keep the same voxel size as the original grid, but it results most often in more voxels
-    # in the new grid than in the original grid, because the rotated solid voxels are not aligned with the original grid.
-    """new_shape = np.ceil((maxs - mins) / spacing).astype(int) + 1
-
-    new_x = mins[0] + np.arange(new_shape[0]) * spacing[0]
-    new_y = mins[1] + np.arange(new_shape[1]) * spacing[1]
-    new_z = mins[2] + np.arange(new_shape[2]) * spacing[2]"""
-
-    # ----- version 2 (DEFORMS the shape -- kept only for reference, see NOTE above) -----
-    # new_shape = np.array(voxel_grid.shape)
-    # new_spacing = (maxs - mins) / (new_shape - 1)   # <- a DIFFERENT spacing per axis: this is the bug
-    #
-    # new_x = mins[0] + np.arange(new_shape[0]) * new_spacing[0]
-    # new_y = mins[1] + np.arange(new_shape[1]) * new_spacing[1]
-    # new_z = mins[2] + np.arange(new_shape[2]) * new_spacing[2]
-
-    # ----- version 3: same goal as version 2 (bound voxel growth), without deforming the shape -----
-    # use ONE voxel size for all three axes (so voxels stay cubes), 
-    # sized so the TOTAL # voxel count lands near the original number
-    # It is never made finer than the original pitch.
-    new_volume = extents[0] * extents[1] * extents[2] * grid_sample_factor       # volume of the rotated bounding box
-    new_voxel_size = (new_volume / voxel_grid.size) ** (1 / 3) #size the new voxels need to be so that the total number of voxels is the same as the original grid
-    new_voxel_size = max(new_voxel_size, spacing.mean())  # never finer than the original pitch, only coarser if needed
-
-    # calcluate the shape of the new grid based on the new voxel size and the extents of the rotated bounding box
+    new_volume = extents[0] * extents[1] * extents[2] 
+    new_voxel_size = (new_volume / voxel_grid.size) ** (1 / 3)
     new_shape = np.ceil(extents / new_voxel_size).astype(int) + 1
-    # calculate the new coordinates of the new grid based on the new voxel size and the minimum coordinates of the rotated bounding box
+
+    #compute new grid coordinates
     new_x = mins[0] + np.arange(new_shape[0]) * new_voxel_size
     new_y = mins[1] + np.arange(new_shape[1]) * new_voxel_size
     new_z = mins[2] + np.arange(new_shape[2]) * new_voxel_size
 
-    # now create a new grid in this new coordinate system that is EMPTY
-    new_grid = np.zeros(new_shape, dtype=voxel_grid.dtype)
-    # find in this new grid the indices of the rotated solid voxels
-    new_idx = np.round((pts_rot - mins) / new_voxel_size).astype(int)
-    new_idx = np.clip(new_idx, 0, new_shape - 1)  # guard against fp edge rounding
-    # fill in the new grid with solid voxels at the rotated positions
-    new_grid[new_idx[:, 0], new_idx[:, 1], new_idx[:, 2]] = 1
+    # rotate the voxel grid (using affine_transform from scipy.ndimage) into the new grid shape
+    from scipy.ndimage import affine_transform
 
-    logger.debug(f"_reorient_voxel_grid: {idx.shape[0]} solid voxels rotated, "
-                 f"new grid shape {tuple(new_shape)}, pitch={new_voxel_size:.4f}.")
+    # ===== rotate via a single compiled backward-mapping resample =====
+    # good thing : scipy is way faster than a pure Python loop
+    # bad thing : scipy's affine_transform is a bit confusing to use, because it wants the inverse of the rotation matrix 
+    # and the offset in index space, not physical space. So we have to do some math to convert from physical coordinates to index coordinates.
+    # FURTHERMORE, the rotation matrix is applied to the physical coordinates, not the voxel indices. 
+    # So we have to convert from physical coordinates to index coordinates before applying the rotation matrix.
+    # rotation.T / spacing[:, None] divides row i of rotation.T by spacing[i].
+    A = new_voxel_size * (rotation.T / spacing[:, None])
+    # compute the offset in index space for the affine_transform
+    # i.e you need b such that A @ (center_of_new_voxel_indices) + b = center_of_old_voxel_indices
+    # b = center_of_old_voxel_indices - A @ center_of_new_voxel_indices
+    c = mins + extents / 2.0            # absolute center of the rotated bbox
+    o_c = (new_shape - 1) / 2.0         # index-space center of the output array
+    b = (rotation.T @ c - origin) / spacing - A @ o_c
+
+    new_grid = affine_transform(
+        voxel_grid, matrix=A, offset=b,
+        output_shape=tuple(new_shape),
+        order=0, mode="constant", cval=0.0,
+        output=voxel_grid.dtype,
+    )
     return new_grid, new_x, new_y, new_z
 
 # =====================================================================
@@ -514,7 +462,9 @@ def find_optimal_orientation(voxel_grid: np.ndarray,
                          n:int = 20, 
                          overhang_angle: float = 45,
                          bridge_size:float =10, 
-                         grid_sample_factor: float = 1.0) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+                         grid_sample_factor: float = 1.0,
+                         generate_supports: bool = False,
+                         give_rotation_matrix: bool = False) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     ============================================================================
     6) FIND_OPTIMAL_ORIENTATION
@@ -545,7 +495,7 @@ def find_optimal_orientation(voxel_grid: np.ndarray,
         `bridge` (default = 10).
     grid_sample_factor : float, optional
         Factor to scale the voxel size when re-rasterizing the rotated grid
-        (default = 1.0).
+        (default = 1.0).  A value > 1.0 will produce a large grid (less voxels).
 
     RETURNS
     -------
@@ -597,14 +547,16 @@ def find_optimal_orientation(voxel_grid: np.ndarray,
     for idx, direction in enumerate(directions):
         Rotation_matrix =_get_rotation_matrix_from_new_z_direction(direction)
         Rotated_structure, new_x, new_y, new_z = _reorient_voxel_grid(voxel_grid, x, y, z, Rotation_matrix, grid_sample_factor=grid_sample_factor)
-        overhangs = detect_overhangs(Rotated_structure, new_x, new_y, new_z, angle=overhang_angle, bridge=bridge_size, add_support_voxels=True)
+        overhangs = detect_overhangs(Rotated_structure, new_x, new_y, new_z, angle=overhang_angle, bridge=bridge_size, add_support_voxels=generate_supports)
         scores[idx] = np.sum(overhangs == 2) + np.sum(overhangs == 3)  # count overhangs and bridges
         logger.info(f"Tested direction {idx+1}/{len(directions)}. Overhangs: {np.sum(overhangs == 2)}, Bridges: {np.sum(overhangs == 3)}, Total: {scores[idx]}")
 
     best_angle = directions[np.argmin(scores)]
     Rotation_matrix =_get_rotation_matrix_from_new_z_direction(best_angle)
     Rotated_structure, new_x, new_y, new_z = _reorient_voxel_grid(voxel_grid, x, y, z, Rotation_matrix, grid_sample_factor=grid_sample_factor)
-    Rotated_structure = detect_overhangs(Rotated_structure, new_x, new_y, new_z, angle=overhang_angle, bridge=bridge_size, add_support_voxels=True)
+    Rotated_structure = detect_overhangs(Rotated_structure, new_x, new_y, new_z, angle=overhang_angle, bridge=bridge_size, add_support_voxels=generate_supports)
+    if give_rotation_matrix:
+        return Rotated_structure, new_x, new_y, new_z, Rotation_matrix
     return Rotated_structure, new_x, new_y, new_z
 
 
@@ -662,4 +614,6 @@ def interpolate_voxel_grid(voxel_grid: np.ndarray,
     
     interpolated_grid = scipy.ndimage.zoom(voxel_grid, zoom_factors, order=1)
     return interpolated_grid
+
+
 

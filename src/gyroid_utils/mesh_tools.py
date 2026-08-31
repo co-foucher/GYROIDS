@@ -464,7 +464,17 @@ def mesh_from_matrix(
     # Pad volume to help close boundary openings ("caps")
     # ------------------------------------------------------------------
     try:
-        v_padded = np.pad(matrix, pad_width=pad_width, mode="constant", constant_values=-1.0)
+        # Cast to float before padding, for two reasons: (1) pad_val was
+        # previously ignored entirely (hardcoded constant_values=-1.0) - now
+        # honored; (2) if matrix came in as an unsigned type (e.g. the
+        # uint8 0/1/2/3/4 labels from detect_overhangs), padding with a
+        # negative pad_val on the ORIGINAL dtype silently wraps around
+        # (e.g. -1 -> 255 for uint8) instead of producing a small value
+        # below iso_level - 255 reads as massively solid, so the whole
+        # padded shell caps as solid material instead of empty, wrapping
+        # the real mesh in a spurious solid box. Floats have no such
+        # wraparound, so this is safe for any pad_val/iso_level combo.
+        v_padded = np.pad(matrix.astype(float), pad_width=pad_width, mode="constant", constant_values=pad_val)
     except Exception as e:
         logger.error(f"np.pad failed: {e}", exc_info=True)
         raise RuntimeError("Failed to pad matrix.") from e
@@ -804,7 +814,7 @@ def matrix_from_mesh(verts: np.ndarray,
     y = origin[1] + np.arange(shape[1]) * scale[1]
     z = origin[2] + np.arange(shape[2]) * scale[2]
 
-    return x, y, z, np.array(matrix.matrix)
+    return x, y, z, np.array(matrix.matrix).astype(np.uint8)
 
 
 #=====================================================================
@@ -990,3 +1000,41 @@ def auto_smooth_mesh(
 
     return current_verts, current_faces
 
+
+
+
+
+# =====================================================================
+# 12) _reorient_voxel_grid
+# =====================================================================
+def rotate_STL(verts: np.ndarray,
+                rotation: np.ndarray,) :
+    """
+    ============================================================================
+    5) _REORIENT_VOXEL_GRID
+    Reorients a 3D binary voxel grid according to a given rotation matrix.
+    The reorientation is done by rotating the physical 3D coordinates of the
+    solid voxels and then re-rasterizing onto a fresh regular grid.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+
+    RETURNS
+    -------
+
+
+    RAISES
+    ------
+
+
+    EXAMPLE
+
+    """
+    # ===== check inputs =====
+
+    #===== compute position of verts after rotation =====
+    rotation = np.asarray(rotation, dtype=float)
+    verts_rot = verts @ rotation.T
+
+    return verts_rot

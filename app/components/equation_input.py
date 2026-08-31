@@ -354,11 +354,14 @@ def render_equation_input(key_prefix: str = "eq") -> Optional[str]:
 def evaluate_custom_inputs(equation: str, thickness: str,
                            x: np.ndarray, y: np.ndarray, z: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
+    ============================================================================
+    6) EVALUATE_CUSTOM_INPUTS
     Turns the (equation, thickness) strings captured by
     render_equation_input() into the plain numpy arrays CustomTPMSModel
     expects, evaluated on the real generation grid. This is the only place
     that should call evaluate_equation() for the "Generate" flow - keeps
     1_Generate_TPMS.py itself free of any parsing-related imports.
+    ============================================================================
 
     PARAMETERS
     ----------

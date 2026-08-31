@@ -43,6 +43,7 @@ SHEET_MODES = ("band", "distance")
 4 - render_threshold
 5 - render_thickness
 6 - generate_ui_tpms
+7 - pad_to_square
 #=====================================================================================================================
 """
 
@@ -106,7 +107,8 @@ def render_field_mode() -> str:
 # =====================================================================
 # 3) load_STL
 # =====================================================================
-def load_STL(stl_path):
+@st.cache_data(show_spinner=False)
+def load_STL(stl_path: str) -> tuple[np.ndarray, np.ndarray]:
     """
     ============================================================================
     3) LOAD_STL
@@ -379,3 +381,33 @@ def generate_ui_tpms(
             st.success(f"Mesh generated: {len(model.faces)} faces.")
     except EquationError as e:
         st.error(f"Equation error: {e}")
+
+
+
+# =====================================================================
+# 7) pad_to_square
+# =====================================================================
+
+def pad_to_square(matrix, pad_value=0):
+    """
+    ============================================================================
+    7) PAD_TO_SQUARE
+    Pads a matrix with a constant value so every axis matches the largest
+    axis, making the array square along each dimension.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    matrix : np.ndarray
+        The array to pad.
+    pad_value : scalar, optional
+        The constant fill value used for padding (default = 0).
+
+    RETURNS
+    -------
+    padded : np.ndarray
+        The padded array, with each dimension equal to max(matrix.shape).
+    """
+    target = max(matrix.shape)
+    pad_width = [(0, target - dim) for dim in matrix.shape]
+    return np.pad(matrix, pad_width=pad_width, mode="constant", constant_values=pad_value)

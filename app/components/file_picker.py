@@ -32,11 +32,14 @@ __all__ = ["browse_file", "browse_directory"]
 # =====================================================================
 def _run_native_dialog(key: str, method: str, **dialog_kwargs) -> None:
     """
+    ============================================================================
+    1) _RUN_NATIVE_DIALOG
     Shared plumbing for browse_file/browse_directory: opens a hidden,
     topmost Tk root, calls the named tkinter.filedialog method on it, tears
     the root down, and writes the result into st.session_state[key] (or an
     error message into st.session_state[f"{key}_browse_error"] if tkinter
     isn't available or the dialog fails - e.g. no local display).
+    ============================================================================
 
     PARAMETERS
     ----------
@@ -47,6 +50,10 @@ def _run_native_dialog(key: str, method: str, **dialog_kwargs) -> None:
         "askopenfilename" or "askdirectory".
     **dialog_kwargs
         Forwarded to that function (title, filetypes, ...).
+
+    RETURNS
+    -------
+    None
     """
     try:
         import tkinter as tk
@@ -79,7 +86,25 @@ def _run_native_dialog(key: str, method: str, **dialog_kwargs) -> None:
 # 2) _render_browse_button
 # =====================================================================
 def _render_browse_button(key: str, on_click: Callable[[], None]) -> None:
-    """Renders the "Browse..." button + any error left by the last click."""
+    """
+    ============================================================================
+    2) _RENDER_BROWSE_BUTTON
+    Renders the "Browse..." button + any error left by the last click.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    key : str
+        The st.session_state key namespace shared with the dialog helper
+        (used to look up f"{key}_browse_btn" / f"{key}_browse_error").
+    on_click : callable
+        Callback invoked when the button is clicked (typically a lambda
+        wrapping _run_native_dialog()).
+
+    RETURNS
+    -------
+    None
+    """
     st.button("Browse...", key=f"{key}_browse_btn", on_click=on_click)
     error = st.session_state.get(f"{key}_browse_error")
     if error:
@@ -89,22 +114,27 @@ def _render_browse_button(key: str, on_click: Callable[[], None]) -> None:
 # =====================================================================
 # 3) browse_file
 # =====================================================================
-def browse_file(key: str, title: str = "Select a file",
+def browse_file(key: str, 
+                title: str = "Select a file",
                 filetypes: Optional[List[Tuple[str, str]]] = None) -> None:
     """
-    Renders a "Browse..." button that opens a native OS file-open dialog
-    and writes the chosen path into st.session_state[key]. Pair it with a
-    st.text_input(..., key=key) rendered alongside it, so the user can see
-    the result and still edit/paste a path by hand - see
-    app/pages/3_CT_Analysis.py for the pattern.
+    ============================================================================
+    3) BROWSE_FILE
+    Renders a "Path to file" text_input + "Browse..." button side by side
+    (a st.columns([5, 1.5]) row) and writes the chosen path into
+    st.session_state[key] - both from typing/pasting into the text_input
+    directly and from the native file-open dialog opened by the Browse
+    button. Owns the whole widget, so callers just call this and then
+    read st.session_state[key] for the current value.
+    ============================================================================
 
     PARAMETERS
     ----------
     key : str
-        The st.session_state key to write the chosen path into. Must
-        already exist in st.session_state (e.g. via
-        st.session_state.setdefault(key, "")) before the paired
-        text_input is created.
+        The st.session_state key backing the text_input and holding the
+        chosen path. No need to pre-seed it with
+        st.session_state.setdefault(key, "") - the text_input creates it
+        on first run like any other keyed widget.
     title : str, optional
         Dialog window title.
     filetypes : list of (label, pattern) tuples, optional
@@ -114,22 +144,38 @@ def browse_file(key: str, title: str = "Select a file",
 
     RETURNS
     -------
-    None. Writes to st.session_state[key] as a side effect of the button's
-    on_click callback (runs before the page reruns, so the paired
-    text_input picks up the new value on the same rerun - the standard
-    Streamlit pattern for populating a widget from a callback).
+    None
+        Writes to st.session_state[key] as a side effect of rendering
+        the text_input and of the Browse button's on_click callback
+        (which runs before the page reruns, so the text_input picks up
+        the dialog's result on the same rerun). Read
+        st.session_state[key] after calling this to get the current
+        path.
 
     NOTES
     -----
+    The text_input's label is fixed at "Path to file" - there's currently
+    no way to customize it per call site (earlier revisions of this
+    function took a `label` argument for that; it was dropped).
+
     Requires a local display and tkinter (bundled with standard Python
     installs on Windows/macOS; on Linux may need the `python3-tk` system
     package). If unavailable, shows an st.error instead of crashing the
     whole page.
     """
-    _render_browse_button(key, lambda: _run_native_dialog(
-        key, "askopenfilename",
-        title=title, filetypes=filetypes or [("All files", "*.*")],
-    ))
+
+    col_path, col_browse = st.columns([5, 1.5], vertical_alignment="bottom")
+    with col_path:
+        file_path = st.text_input("Path to file", key=key)
+    with col_browse:
+        st.write("")  # spacer so the button lines up with the text box, not its label
+        _render_browse_button(  key = key, 
+                                on_click = lambda: _run_native_dialog(
+                                    key = key, 
+                                    method = "askopenfilename",
+                                    title = title, 
+                                    filetypes=filetypes or [("All files", "*.*")],)
+                                )
 
 
 # =====================================================================
@@ -137,23 +183,37 @@ def browse_file(key: str, title: str = "Select a file",
 # =====================================================================
 def browse_directory(key: str, title: str = "Select a folder") -> None:
     """
-    Same as browse_file(), but opens a native OS folder-select dialog
-    (tkinter's askdirectory) instead of a file-open dialog - for inputs
-    like a folder of JPG/DICOM/TIFF slices, where convert_*_to_mhd()
-    accepts a directory path directly.
+    ============================================================================
+    4) BROWSE_DIRECTORY
+    Renders a "Browse..." button that opens a native OS folder-select
+    dialog (tkinter's askdirectory) and writes the chosen path into
+    st.session_state[key] - for inputs like a folder of JPG/DICOM/TIFF
+    slices, where convert_*_to_mhd() accepts a directory path directly.
+
+    Unlike browse_file(), this does NOT render its own text_input - it's
+    just the button. Pair it with a st.text_input(..., key=key) rendered
+    alongside it, so the user can see the result and still edit/paste a
+    path by hand - see app/pages/3_CT_Analysis.py for the pattern.
+    ============================================================================
 
     PARAMETERS
     ----------
     key : str
         The st.session_state key to write the chosen folder path into.
-        Must already exist in st.session_state before the paired
+        Must already exist in st.session_state (e.g. via
+        st.session_state.setdefault(key, "")) before the paired
         text_input is created.
     title : str, optional
         Dialog window title.
 
     RETURNS
     -------
-    None. See browse_file() for the callback/session_state details.
+    None
+        Writes to st.session_state[key] as a side effect of the button's
+        on_click callback (runs before the page reruns, so the paired
+        text_input picks up the new value on the same rerun - the
+        standard Streamlit pattern for populating a widget from a
+        callback).
     """
     _render_browse_button(key, lambda: _run_native_dialog(
         key, "askdirectory", title=title,

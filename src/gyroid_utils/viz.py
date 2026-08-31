@@ -527,6 +527,13 @@ def twod_view_of_matrix(v: np.ndarray,
         logger.error("twod_view_of_matrix(): v must be 3D (Nx, Ny, Nz).")
         raise ValueError(f"twod_view_of_matrix(): v must be 3D, got ndim={v.ndim}.")
 
+    # Heatmap/JSON serialization needs numeric z values - a bool array
+    # (e.g. the filled occupancy matrix from matrix_from_mesh) round-trips
+    # as JSON true/false rather than 1.0/0.0, which Plotly.js does not
+    # colorize (renders as a blank heatmap with no colorbar).
+    if v.dtype == bool:
+        v = v.astype(float)
+
     Nx, Ny, Nz = v.shape
 
     if x is None:
@@ -616,8 +623,8 @@ def twod_view_of_matrix(v: np.ndarray,
         )],
         layout=go.Layout(
             title=f"Gyroid field heatmap (z = {z_axis[k0]:.3f})",
-            xaxis_title="X",
-            yaxis_title="Y",
+            xaxis_title="",
+            yaxis_title="",
             yaxis=dict(scaleanchor="x", scaleratio=1),
             width=800,
             height=650,

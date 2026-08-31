@@ -69,7 +69,7 @@ if Convert_to_mhd:
     input_format = st.radio("Input format", ["JPG", "DICOM", "TIFF"], horizontal=True)
     # ------ define path to mhd ------
     st.session_state.setdefault("ct_input_path", "")
-    col_path, col_browse = st.columns([5, 1], vertical_alignment="bottom")
+    col_path, col_browse = st.columns([5, 1.5], vertical_alignment="bottom")
     with col_path:
         input_path = st.text_input(
             "Input folder (or glob pattern, e.g. 'data/*.jpg')",
@@ -116,17 +116,12 @@ st.divider()
 # ======== select mhd to work on ============
 # ===========================================
 st.subheader("Preview a .mhd volume (static mid-slice)")
-st.session_state.setdefault("ct_mhd_path", "")
-col_path, col_browse = st.columns([5, 1], vertical_alignment="bottom")
-with col_path:
-    mhd_path = st.text_input("Path to .mhd file", key="ct_mhd_path")
-with col_browse:
-    st.write("")  # spacer so the button lines up with the text box, not its label
-    browse_file(
-        "ct_mhd_path",
-        title="Select an MHD file",
-        filetypes=[("MHD files", "*.mhd"), ("All files", "*.*")],
-    )
+browse_file(
+    "ct_mhd_path",
+    title="Select an MHD file",
+    filetypes=[("MHD files", "*.mhd"), ("All files", "*.*")],
+)
+mhd_path = st.session_state["ct_mhd_path"]
 
 
 # ===========================================

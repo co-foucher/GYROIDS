@@ -1,19 +1,3 @@
-"""
-Embeds a mesh preview inside a Streamlit page.
-
-Reuses gyroid_utils.viz.build_mesh_figure (the same Mesh3d figure-building
-core that also backs save_mesh_as_html - see that module for the split)
-instead of re-implementing the Plotly figure here, so there's a single
-source of truth for what a mesh preview looks like. Also exposes
-build_mesh_figure's four colorscale modes as a selector, instead of
-hardcoding "normal" as the only option.
-
-Renders via st.plotly_chart(fig) directly rather than going through
-save_mesh_as_html()'s .html-file export + an embedded iframe: the mesh
-figure never touches disk for the live preview, and the browser reuses the
-Plotly runtime Streamlit already loaded once for the page instead of
-re-downloading/parsing a multi-MB standalone HTML document on every call.
-"""
 from typing import Optional
 
 import streamlit as st
@@ -32,32 +16,64 @@ _COLORSCALE_FLAGS = {
 }
 
 
+"""
+#=====================================================================================================================
+0 - (reserved)
+1 - _build_mesh_figure
+2 - render_mesh_preview
+#=====================================================================================================================
+"""
+
+
+# =====================================================================
+# 1) _build_mesh_figure
+# =====================================================================
 @st.cache_data(show_spinner="Building mesh preview...", max_entries=8)
 def _build_mesh_figure(faces, verts, selected_flag: str):
     """
+    ============================================================================
+    1) _BUILD_MESH_FIGURE
     Pure, cacheable half of render_mesh_preview: builds the Mesh3d figure
     for one specific color mode. Deliberately free of any st.* calls -
     only the returned figure is memoized, no widget/UI side effect rides
     along with the cache (widgets aren't supported inside cache_data-
     decorated functions - see the write-up in project memory / chat
     history for why the original all-in-one version didn't actually work).
+    ============================================================================
 
-    Keyed on `selected_flag` (not just faces/verts) so switching the
-    "Mesh coloring" dropdown is a genuine cache miss that rebuilds the
-    figure, instead of replaying whatever color mode happened to be
-    selected the first time this mesh was rendered.
+    PARAMETERS
+    ----------
+    faces, verts : ndarray
+        Mesh data (as produced by TPMSModel.generate_mesh()).
+    selected_flag : str
+        One of _COLORSCALE_FLAGS's values (e.g. "show_normal_colorscale"),
+        naming which build_mesh_figure() boolean flag to set True.
 
-    max_entries=8 rather than 1 because cache_data's cache is process-
-    global (shared across every session/user, not per browser tab) - a
-    handful of distinct (mesh, colorscale) combos shouldn't evict each
-    other on every call.
+    RETURNS
+    -------
+    fig : plotly.graph_objects.Figure
+        The Mesh3d figure for the selected color mode.
+
+    NOTES
+    -----
+    max_entries=8 rather than 1 because a handful of distinct (mesh, colorscale) 
+    combos shouldn't evict each other on every call.
     """
     flags = {flag: (flag == selected_flag) for flag in _COLORSCALE_FLAGS.values()}
     return viz.build_mesh_figure(faces, verts, **flags)
 
 
+# =====================================================================
+# 2) render_mesh_preview
+# =====================================================================
 def render_mesh_preview(faces, verts, key: str, height: int = 600) -> None:
     """
+    ============================================================================
+    2) RENDER_MESH_PREVIEW
+    Embeds a mesh preview (Mesh3d figure + coloring selector) inside a
+    Streamlit page.
+    ============================================================================
+
     PARAMETERS
     ----------
     faces, verts : ndarray or None
@@ -68,6 +84,10 @@ def render_mesh_preview(faces, verts, key: str, height: int = 600) -> None:
         pages/reruns).
     height : int, optional
         Plotly figure height in pixels (default 600).
+
+    RETURNS
+    -------
+    None
     """
     if faces is None or verts is None:
         st.info("Generate a mesh first to see a preview.")
