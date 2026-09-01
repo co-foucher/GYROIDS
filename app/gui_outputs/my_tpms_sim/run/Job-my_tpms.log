@@ -5,24 +5,18 @@ Abaqus License Manager checked out the following licenses:
 Abaqus/Foundation checked out 3 tokens from Flexnet server du-lic-abaqusa.
 <9 out of 50 licenses remain available>.
 Begin Analysis Input File Processor
-9/1/2026 3:30:26 PM
+9/1/2026 4:43:18 PM
 Run pre.exe
-9/1/2026 3:30:33 PM
+9/1/2026 4:43:25 PM
 End Analysis Input File Processor
 Begin Abaqus/Standard Analysis
-9/1/2026 3:30:33 PM
+9/1/2026 4:43:25 PM
 Run standard.exe
-*** ABAQUS/standard rank 0 encountered a SEGMENTATION FAULT
-
-*** ERROR CATEGORY:  SOLVER
-
-ReadFile from pipe failed 2226 109
-9/1/2026 3:31:00 PM
-Abaqus Error: Abaqus/Standard Analysis exited with an error - Please see the 
-message file for possible error messages if the file exists.
+9/1/2026 4:44:03 PM
+End Abaqus/Standard Analysis
 Begin SIM Wrap-up
-9/1/2026 3:31:02 PM
+9/1/2026 4:44:05 PM
 Run SMASimUtility.exe
-9/1/2026 3:31:02 PM
+9/1/2026 4:44:05 PM
 End SIM Wrap-up
-Abaqus/Analysis exited with errors
+Abaqus JOB Job-my_tpms COMPLETED

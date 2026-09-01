@@ -142,7 +142,14 @@ def render_job_status(job: Job) -> None:
     if job.status == "running":
         st.info(f"Running: {job.label}")
     elif job.status == "done":
-        st.success(f"Done: {job.label}")
+        # fn returning without raising just means the thread didn't crash -
+        # it says nothing about whether the work itself succeeded. Jobs in
+        # this app return a bool for that, so treat an explicit False result
+        # as a (non-crashing) failure rather than showing it as success.
+        if job.result is False:
+            st.warning(f"Finished but reported failure: {job.label}")
+        else:
+            st.success(f"Done: {job.label}")
     else:
         st.error(f"Failed: {job.label}")
         if job.error:

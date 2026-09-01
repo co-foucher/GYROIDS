@@ -7,3 +7,10 @@ __pycache__/
 *.raw
 *.npy
 *.inp
+*.odb
+*.env
+*.dat
+*.com
+*.log
+*.sim
+*.prt

@@ -42,7 +42,11 @@ def parse_kv_args(argv):
 
 
 
-def built_simulation_of_gyroid(model_name, working_path):
+def built_simulation_of_gyroid(model_name, 
+                                working_path,
+                                young_modulus,
+                                poisson_ratio,
+                                density):
     # ================================================================
     # SECTION 1 : setup paths 
     # ================================================================
@@ -83,44 +87,22 @@ def built_simulation_of_gyroid(model_name, working_path):
         inputFileName=mesh_path)
 
     # ================================================================
-    # SECTION 3 : scale P 
+    # SECTION 3 : get the imported part
     # ================================================================
-    old_part_name = list(mdb.models[model_name].parts.keys())[0]
-    old_part_name_inassembly = list(mdb.models[model_name].rootAssembly.features.keys())[0] 
-    part_name = old_part_name + '-scaled'
-
-
-    # ==== make a copy that is scaled ====
-
-    scale_factor = 0.1
-
-    P = mdb.models[model_name].Part(name=part_name, 
-        objectToCopy=mdb.models[model_name].parts[old_part_name], 
-        compressFeatureList=ON, scale=scale_factor)
-
-    # ==== add it to assembly ====
+    part_name = list(mdb.models[model_name].parts.keys())[0]
+    P = mdb.models[model_name].parts[part_name]
     A = mdb.models[model_name].rootAssembly
-    P = mdb.models[model_name].parts[part_name]     #not sure if I need to redefine it...
-    A.Instance(name=part_name, part=P, dependent=ON)
-    I = mdb.models[model_name].rootAssembly.instances[part_name]
-
-
-    # ==== delete old part ====
-    del mdb.models[model_name].parts[old_part_name] # in part
-    del A.features[old_part_name_inassembly] # in assembly
-
 
     # ===== view mesh =====
     session.viewports['Viewport: 1'].assemblyDisplay.setValues(
         optimizationTasks=OFF, geometricRestrictions=OFF, stopConditions=OFF)
-    P = mdb.models[model_name].parts[part_name]
     session.viewports['Viewport: 1'].setValues(displayedObject=P)
 
     # ====== make mesh quadratic ======
     """
-    elemType1 = mesh.ElemType(elemCode=C3D10, 
-        elemLibrary=STANDARD, 
-        secondOrderAccuracy=OFF, 
+    elemType1 = mesh.ElemType(elemCode=C3D10,
+        elemLibrary=STANDARD,
+        secondOrderAccuracy=OFF,
         distortionControl=DEFAULT)
 
     e = P.elements
@@ -129,11 +111,11 @@ def built_simulation_of_gyroid(model_name, working_path):
     p.setElementType(regions=pickedRegions, elemTypes=(elemType1, ))
     """
     # ================================================================
-    # SECTION 4 : apply material properties 
+    # SECTION 4 : apply material properties
     # ================================================================
     # Define material properties for ALUMINA (aluminum oxide)
     # E: Young's modulus (MPa), v: Poisson's ratio, d: density (ton/mm³)
-    E,v,d = 300000, 0.21, 3.9e-09
+    E,v,d = young_modulus, poisson_ratio, density
 
     mdb.models[model_name].Material(name='ALUMINA')
 
@@ -201,4 +183,11 @@ if __name__ == "__main__":
         raise SystemExit('Missing required argument: input="..."')
     model_name = args["input"]
     working_path = args["output"]
-    built_simulation_of_gyroid(model_name, working_path)
+    young_modulus = float(args.get("young_modulus", 300000))    # with this, if the args are not provided, default values are used
+    poisson_ratio = float(args.get("poisson_ratio", 0.21))
+    density = float(args.get("density", 3.9e-09))
+    built_simulation_of_gyroid(model_name, 
+                            working_path, 
+                            young_modulus,
+                            poisson_ratio,
+                            density)

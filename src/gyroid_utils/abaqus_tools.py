@@ -22,7 +22,10 @@ def create_simulation(input_path:str,
                       output_path:str,
                       file_name:str,
                       script_name:str = "generate_frequency_sim.py",
-                      max_wait_time:int = 600) -> bool:
+                      max_wait_time:int = 600, 
+                      young_modulus:float = 300000.0,
+                      poisson_ratio:float = 0.21,
+                      density:float = 3.9e-09) -> bool:
     """
     ============================================================================
     1) CREATE_SIMULATION
@@ -81,7 +84,11 @@ def create_simulation(input_path:str,
     cmd = ["abaqus", "cae",
            "noGUI=" + script_name,
            "--", "input=" + file_name, 
-           "--", "output=" + output_path]  # pass the file name as an argument to the script
+           "--", "output=" + output_path,
+           "--", "young_modulus=" + str(young_modulus),
+           "--", "poisson_ratio=" + str(poisson_ratio),
+           "--", "density=" + str(density)
+           ]  # pass the file name as an argument to the script
     #logger.error(f"Running command: {' '.join(cmd)} in {script_folder}")
 
     subprocess.run(cmd, check=True, cwd=str(script_folder), shell=True)
@@ -256,18 +263,28 @@ def wait_for_simulation_completed(ODB_path:str,
         try:
             with open(log_file) as file:
                 lines = [line.rstrip() for line in file]
-            # If the last line indicates success, we're done
-            if "COMPLETED" in lines[-1]:
+            if not lines:
+                time.sleep(1)
+                continue
+            # Check the last line against known terminal states. Use substring
+            # matching against the line itself (not `in lines`, which only
+            # matches a line that is *exactly* equal to the keyword and would
+            # never catch e.g. "Abaqus/Analysis exited with errors").
+            last_line = lines[-1]
+            if "COMPLETED" in last_line:
                 logger.info("Simulation run completed.")
                 return True
-            elif "ABORTED" in lines:
+            elif "ABORTED" in last_line:
                 logger.info("Simulation run aborted.")
+                return False
+            elif "exited with error" in last_line.lower():
+                logger.info("Simulation run encountered an error.")
                 return False
             else:
                 # Not ready yet: sleep briefly and try again
                 time.sleep(1)
                 logger.info("simulation not completed yet, waiting...")
-                logger.info(f"last line is {lines[-1]}")
+                logger.info(f"last line is {last_line}")
         except :
             # Log file not present yet; wait and retry
             logger.info("file not found, waiting...")

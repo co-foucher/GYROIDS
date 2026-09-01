@@ -21,6 +21,7 @@ from app.state import init_state, get_output_dir
 from app.components.jobs import start_job, render_job_status
 from app.components.Simulation_source import mesh_job, create_abaqus_job, run_abaqus_job
 from app.components.file_picker import browse_file, browse_directory
+from app.components.tpms_source_panel import load_STL
 
 st.set_page_config(page_title="Simulation", layout="wide")
 init_state()
@@ -32,46 +33,53 @@ st.title("Mesh + Simulation")
 
 default_dir = str(get_output_dir())
 st.subheader("1. Tetrahedral meshing (fTetWild)")
+col_1, col_2 = st.columns([1, 1.4])
+with col_1:
+    # ------  select the input STL ------
+    browse_file(key = "structure_path",
+        title="Select an STL file for simulation",
+        filetypes=[("STL files", "*.stl"), ("All files", "*.*")],)
+    stl_dir = st.session_state["structure_path"]
+    file_name = stl_dir.split("/")[-1].split(".")[0] if stl_dir else None
+    stl_dir = "/".join(stl_dir.split("/")[:-1]) if stl_dir else None
 
-# ------  select the input STL ------
-browse_file(key = "structure_path",
-    title="Select an STL file for simulation",
-    filetypes=[("STL files", "*.stl"), ("All files", "*.*")],)
-stl_dir = st.session_state["structure_path"]
-file_name = stl_dir.split("/")[-1].split(".")[0] if stl_dir else None
-stl_dir = "/".join(stl_dir.split("/")[:-1]) if stl_dir else None
+    # ------ inform fTetWild parameters ------
+    ftetwild_path = st.text_input(
+        "fTetWild executable path",
+        value=r"C:\Program Files\fTetWild\build\Release\FloatTetwild_bin.exe",
+    )
+    c1, c2 = st.columns(2)
+    epsilon = c1.number_input("Epsilon (envelope size)", value=0.001, format="%.5f")
+    cpu_cores = c2.number_input("CPU cores", value=1, min_value=1, step=1)
 
-# ------ inform fTetWild parameters ------
-ftetwild_path = st.text_input(
-    "fTetWild executable path",
-    value=r"C:\Program Files\fTetWild\build\Release\FloatTetwild_bin.exe",
-)
-c1, c2 = st.columns(2)
-epsilon = c1.number_input("Epsilon (envelope size)", value=0.001, format="%.5f")
-cpu_cores = c2.number_input("CPU cores", value=1, min_value=1, step=1)
+    # ------ run fTetWild meshing ------
+    if st.button("Run fTetWild meshing"):
+        # if the user hasn't selected an STL file, show an error
+        if not stl_dir or not file_name:
+            st.error("Please select an STL file first.")
+        # if another meshing job is already running, don't start a new one
+        if st.session_state["jobs"].get(st.session_state.get("mesh_job_id")) is not None:
+            if st.session_state["jobs"].get(st.session_state.get("mesh_job_id")).status == "running":
+                st.warning("Meshing job is already running. Please wait for it to finish.")
+        else :
+            job_id = start_job(st.session_state["jobs"],
+                            f"mesh:{file_name}",
+                            mesh_job,
+                            stl_dir=stl_dir,
+                            file_name=file_name,
+                            ftetwild_path=ftetwild_path,
+                            epsilon=epsilon,
+                            cpu_cores=cpu_cores)
+            st.session_state["mesh_job_id"] = job_id
 
-# ------ run fTetWild meshing ------
-if st.button("Run fTetWild meshing"):
-    # if the user hasn't selected an STL file, show an error
-    if not stl_dir or not file_name:
-        st.error("Please select an STL file first.")
-    # if another meshing job is already running, don't start a new one
-    if st.session_state["jobs"].get(st.session_state.get("mesh_job_id")) is not None:
-        if st.session_state["jobs"].get(st.session_state.get("mesh_job_id")).status == "running":
-            st.warning("Meshing job is already running. Please wait for it to finish.")
-    else :
-        job_id = start_job(st.session_state["jobs"],
-                        f"mesh:{file_name}",
-                        mesh_job,
-                        stl_dir=stl_dir,
-                        file_name=file_name,
-                        ftetwild_path=ftetwild_path,
-                        epsilon=epsilon,
-                        cpu_cores=cpu_cores)
-        st.session_state["mesh_job_id"] = job_id
+    render_job_status(st.session_state["jobs"].get(st.session_state.get("mesh_job_id")))
 
-render_job_status(st.session_state["jobs"].get(st.session_state.get("mesh_job_id")))
-
+with col_2:
+    if stl_dir is not None and '.stl' in stl_dir:
+        verts, faces = load_STL(stl_dir)
+        render_mesh_preview(faces, verts, key="generate")
+    else:
+        st.info("Select a file to preview.")
 st.divider()
 
 
@@ -85,9 +93,18 @@ BUILTIN_SIM = {
     "Static analysis": "generate_static_sim.py",
 }
 
-st.subheader("2. ABAQUS simulation")
+st.subheader("2. create ABAQUS simulation")
+
+# -------  select the simulation type ------
 script_name = st.selectbox("TPMS type", list(BUILTIN_SIM.keys()))
 script_name = BUILTIN_SIM[script_name]
+
+# ------ give material properties for the simulation ------
+st.write("Material properties for the simulation :")
+st.caption("ABAQUS style - you have to make sure the units are consistent with the STL file's units.")
+young_modulus = st.number_input("Young's Modulus", value=300000.0, format="%.1f")
+poisson_ratio = st.number_input("Poisson's Ratio", value=0.21, format="%.2f")
+density = st.number_input("Density", value=3.9e-09, format="%.2e")
 
 if st.button("Create ABAQUS simulation input"):
     # create a sub folder for the simulation output files, named after the STL file
@@ -105,7 +122,10 @@ if st.button("Create ABAQUS simulation input"):
                         stl_dir=stl_dir,
                         file_name=file_name,
                         script_dir=sim_output_dir,
-                        script_name=script_path)
+                        script_name=script_path,
+                        young_modulus=young_modulus,
+                        poisson_ratio=poisson_ratio,
+                        density=density)
     st.session_state["abaqus_job_id"] = job_id
 
 render_job_status(st.session_state["jobs"].get(st.session_state.get("abaqus_job_id")))
