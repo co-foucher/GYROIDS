@@ -22,6 +22,7 @@ from app.components.jobs import start_job, render_job_status
 from app.components.Simulation_source import mesh_job, create_abaqus_job, run_abaqus_job
 from app.components.file_picker import browse_file, browse_directory
 from app.components.tpms_source_panel import load_STL
+from app.components.mesh_preview import render_mesh_preview
 
 st.set_page_config(page_title="Simulation", layout="wide")
 init_state()
@@ -75,8 +76,8 @@ with col_1:
     render_job_status(st.session_state["jobs"].get(st.session_state.get("mesh_job_id")))
 
 with col_2:
-    if stl_dir is not None and '.stl' in stl_dir:
-        verts, faces = load_STL(stl_dir)
+    if stl_dir is not None:
+        verts, faces = load_STL(st.session_state["structure_path"])
         render_mesh_preview(faces, verts, key="generate")
     else:
         st.info("Select a file to preview.")
@@ -92,19 +93,30 @@ BUILTIN_SIM = {
     "Frequency analysis": "generate_frequency_sim.py",
     "Static analysis": "generate_static_sim.py",
 }
+BUILTIN_SIM_INFO = {
+    "Frequency analysis": "Extract the first 10 natural frequencies of the structure.",
+    "Static analysis": "Perform a static analysis of the structure under a given load, in a given direction.",
+}
 
 st.subheader("2. create ABAQUS simulation")
 
-# -------  select the simulation type ------
-script_name = st.selectbox("TPMS type", list(BUILTIN_SIM.keys()))
-script_name = BUILTIN_SIM[script_name]
+col_1, col_2 = st.columns([1, 1.4])
+with col_1:
+    # -------  select the simulation type ------
+    script_accro = st.selectbox("TPMS type", list(BUILTIN_SIM.keys()))
+    script_name = BUILTIN_SIM[script_accro]
 
-# ------ give material properties for the simulation ------
-st.write("Material properties for the simulation :")
-st.caption("ABAQUS style - you have to make sure the units are consistent with the STL file's units.")
-young_modulus = st.number_input("Young's Modulus", value=300000.0, format="%.1f")
-poisson_ratio = st.number_input("Poisson's Ratio", value=0.21, format="%.2f")
-density = st.number_input("Density", value=3.9e-09, format="%.2e")
+    # ------ give material properties for the simulation ------
+    st.write("Material properties for the simulation :")
+    st.caption("ABAQUS style - you have to make sure the units are consistent with the STL file's units.")
+    young_modulus = st.number_input("Young's Modulus", value=300000.0, format="%.1f")
+    poisson_ratio = st.number_input("Poisson's Ratio", value=0.21, format="%.2f")
+    density = st.number_input("Density", value=3.9e-09, format="%.2e")
+with col_2:
+    st.write("Simulation type info :")
+    st.caption(BUILTIN_SIM_INFO[script_accro])
+
+
 
 if st.button("Create ABAQUS simulation input"):
     # create a sub folder for the simulation output files, named after the STL file
