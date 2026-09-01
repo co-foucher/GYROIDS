@@ -13,12 +13,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st
+import shutil
 
 from gyroid_utils import TET_mesh_tools, abaqus_tools
 
 from app.state import init_state, get_output_dir
-from app.jobs import start_job
-from app.components.job_log import render_job_status
+from app.components.jobs import start_job, render_job_status
+from app.components.Simulation_source import mesh_job, create_abaqus_job, run_abaqus_job
 from app.components.file_picker import browse_file, browse_directory
 
 st.set_page_config(page_title="Simulation", layout="wide")
@@ -27,11 +28,12 @@ st.title("Mesh + Simulation")
 
 # ===============================================================
 # ================== Tetrahedral meshing ========================
-# ==============================================================
+# ===============================================================
 
 default_dir = str(get_output_dir())
 st.subheader("1. Tetrahedral meshing (fTetWild)")
 
+# ------  select the input STL ------
 browse_file(key = "structure_path",
     title="Select an STL file for simulation",
     filetypes=[("STL files", "*.stl"), ("All files", "*.*")],)
@@ -39,6 +41,7 @@ stl_dir = st.session_state["structure_path"]
 file_name = stl_dir.split("/")[-1].split(".")[0] if stl_dir else None
 stl_dir = "/".join(stl_dir.split("/")[:-1]) if stl_dir else None
 
+# ------ inform fTetWild parameters ------
 ftetwild_path = st.text_input(
     "fTetWild executable path",
     value=r"C:\Program Files\fTetWild\build\Release\FloatTetwild_bin.exe",
@@ -47,47 +50,91 @@ c1, c2 = st.columns(2)
 epsilon = c1.number_input("Epsilon (envelope size)", value=0.001, format="%.5f")
 cpu_cores = c2.number_input("CPU cores", value=1, min_value=1, step=1)
 
+# ------ run fTetWild meshing ------
 if st.button("Run fTetWild meshing"):
-    def _mesh_job(log, stl_dir=stl_dir, file_name=file_name,
-                 ftetwild_path=ftetwild_path, epsilon=epsilon, cpu_cores=cpu_cores):
-        log(f"Meshing {file_name}.stl with fTetWild (this can take a while)...")
-        TET_mesh_tools.mesh_an_STL(
-            input_path=stl_dir + "/",
-            output_path=stl_dir + "/",
-            file_name=file_name,
-            FtetWild_path=ftetwild_path,
-            epsilon=epsilon,
-            CPU_cores=int(cpu_cores),
-        )
-        log("fTetWild meshing finished - .inp file written.")
-        return True
-
-    job_id = start_job(st.session_state["jobs"], f"mesh:{file_name}", _mesh_job)
-    st.session_state["mesh_job_id"] = job_id
+    # if the user hasn't selected an STL file, show an error
+    if not stl_dir or not file_name:
+        st.error("Please select an STL file first.")
+    # if another meshing job is already running, don't start a new one
+    if st.session_state["jobs"].get(st.session_state.get("mesh_job_id")) is not None:
+        if st.session_state["jobs"].get(st.session_state.get("mesh_job_id")).status == "running":
+            st.warning("Meshing job is already running. Please wait for it to finish.")
+    else :
+        job_id = start_job(st.session_state["jobs"],
+                        f"mesh:{file_name}",
+                        mesh_job,
+                        stl_dir=stl_dir,
+                        file_name=file_name,
+                        ftetwild_path=ftetwild_path,
+                        epsilon=epsilon,
+                        cpu_cores=cpu_cores)
+        st.session_state["mesh_job_id"] = job_id
 
 render_job_status(st.session_state["jobs"].get(st.session_state.get("mesh_job_id")))
 
 st.divider()
 
+
+# ======================================================================
+# ==================== create ABAQUS simulation ========================
+# ======================================================================
+# those are the built-in simulation scripts that can be selected from the dropdown menu.
+# they are stored in the gyroid_utils/pybaqus folder.
+BUILTIN_SIM = {
+    "Frequency analysis": "generate_frequency_sim.py",
+    "Static analysis": "generate_static_sim.py",
+}
+
 st.subheader("2. ABAQUS simulation")
-script_name = st.text_input(
-    "ABAQUS script name (must live in the folder above)",
-    value="generate_frequency_sim.py",
-)
+script_name = st.selectbox("TPMS type", list(BUILTIN_SIM.keys()))
+script_name = BUILTIN_SIM[script_name]
 
 if st.button("Create ABAQUS simulation input"):
-    def _abaqus_job(log, stl_dir=stl_dir, file_name=file_name, script_name=script_name):
-        log("Invoking ABAQUS (noGUI) to create the simulation input...")
-        ok = abaqus_tools.create_simulation(
-            input_path=stl_dir + "/",
-            output_path=stl_dir + "/",
-            file_name=file_name,
-            script_name=script_name,
-        )
-        log(f"create_simulation() returned: {ok}")
-        return ok
-
-    job_id = start_job(st.session_state["jobs"], f"abaqus:{file_name}", _abaqus_job)
+    # create a sub folder for the simulation output files, named after the STL file
+    sim_output_dir = Path(stl_dir) / f"{file_name}_sim" 
+    sim_output_dir.mkdir(parents=True, exist_ok=True)
+    # fetch the simulation script from the built-in scripts and write it to the output folder
+    pybaqus_dir = Path(abaqus_tools.__file__).parent / "pybaqus"
+    script_path = str(sim_output_dir / script_name)
+    shutil.copy(pybaqus_dir / script_name, script_path)
+    
+    # create a job to run the abaqus simulation in a background thread, passing the output folder and script name as arguments
+    job_id = start_job(st.session_state["jobs"],
+                        f"abaqus:{file_name}",
+                        create_abaqus_job,
+                        stl_dir=stl_dir,
+                        file_name=file_name,
+                        script_dir=sim_output_dir,
+                        script_name=script_path)
     st.session_state["abaqus_job_id"] = job_id
 
 render_job_status(st.session_state["jobs"].get(st.session_state.get("abaqus_job_id")))
+
+
+# ======================================================================
+# ====================== run ABAQUS simulation =========================
+# ======================================================================
+st.subheader("3. Run ABAQUS simulation")
+
+CPU_CORES = st.slider("CPU cores for ABAQUS", min_value=1, max_value=16, value=1, step=1)
+
+if st.button("Run ABAQUS simulation"):
+    # if the user hasn't selected an STL file, show an error
+    if not stl_dir or not file_name:
+        st.error("Please select an STL file first.")
+    else:
+        # same folder create_abaqus_job wrote the simulation input into
+        sim_output_dir = Path(stl_dir) / f"{file_name}_sim"
+        # if a run is already in progress for this session, don't start another one
+        run_job = st.session_state["jobs"].get(st.session_state.get("run_job_id"))
+        if run_job is not None and run_job.status == "running":
+            st.warning("A simulation run is already in progress. Please wait for it to finish.")
+        else:
+            job_id = start_job(st.session_state["jobs"],
+                                f"run:{file_name}",
+                                run_abaqus_job,
+                                file_name=file_name,
+                                sim_dir=sim_output_dir)
+            st.session_state["run_job_id"] = job_id
+
+render_job_status(st.session_state["jobs"].get(st.session_state.get("run_job_id")))

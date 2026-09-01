@@ -1,0 +1,15 @@
+2026-09-01 14:47:04,037 - INFO - Current working directory: D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs\my_tpms_sim
+2026-09-01 14:47:04,037 - INFO - loading file : D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs/my_tpms.inp
+2026-09-01 14:47:05,346 - INFO - job has been created : D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs\my_tpms_sim/Job-my_tpms.inp
+2026-09-01 14:47:05,347 - INFO - Run it through : python abq_windows debug=DEBUG cpus=6 job=Job-my_tpms
+2026-09-01 14:47:05,347 - INFO - Simulation created successfully.
+2026-09-01 15:21:58,176 - INFO - Current working directory: D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs\my_tpms_sim
+2026-09-01 15:21:58,176 - INFO - loading file : D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs/my_tpms.inp
+2026-09-01 15:21:59,465 - INFO - job has been created : D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs\my_tpms_sim/Job-my_tpms.inp
+2026-09-01 15:21:59,465 - INFO - Run it through : python abq_windows debug=DEBUG cpus=6 job=Job-my_tpms
+2026-09-01 15:21:59,465 - INFO - Simulation created successfully.
+2026-09-01 15:30:18,632 - INFO - Current working directory: D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs\my_tpms_sim
+2026-09-01 15:30:18,632 - INFO - loading file : D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs/my_tpms.inp
+2026-09-01 15:30:19,948 - INFO - job has been created : D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs\my_tpms_sim/Job-my_tpms.inp
+2026-09-01 15:30:19,948 - INFO - Run it through : python abq_windows debug=DEBUG cpus=6 job=Job-my_tpms
+2026-09-01 15:30:19,948 - INFO - Simulation created successfully.
