@@ -101,11 +101,13 @@ def detect_overhangs(voxel_grid: np.ndarray,
     
     voxel_grid = np.copy(voxel_grid)  # make a copy to avoid modifying the input  
     # overhang_grid stores labels 0/1/2/3/4 (see RETURNS below), not just
-    # solid/empty - if voxel_grid is bool (e.g. straight from
-    # matrix_from_mesh), copying it keeps that bool dtype, and every later
-    # assignment of 2 (overhang), 3 (bridge), or 4 (support) silently casts
-    # down to True instead of actually storing that label. Widen to a small
-    # int dtype up front so those labels survive.
+    # solid/empty - if voxel_grid comes in as bool, copying it keeps that
+    # bool dtype, and every later assignment of 2 (overhang), 3 (bridge), or
+    # 4 (support) silently casts down to True instead of actually storing
+    # that label. Widen to a small int dtype up front so those labels
+    # survive. matrix_from_mesh() already returns uint8 for this same
+    # reason, so this is a no-op on that path - it's here for grids loaded
+    # or built elsewhere.
     overhang_grid = np.copy(voxel_grid).astype(np.uint8)  # initialize the overhang grid from voxel_grid, widened so labels 2/3/4 aren't clipped to bool
     spacing_2D = np.array([x[1]-x[0], y[1]-y[0]])  # calculate the average voxel size in x and y dimensions
     slice_thickness = z[1]-z[0]  # calculate the voxel size in z dimension

@@ -66,14 +66,27 @@ def mesh_job(log: Callable[[str], None],
 # 2) create_abaqus_job
 # =====================================================================
 def create_abaqus_job(log: Callable[[str], None],
-                stl_dir: str, 
-                file_name: str, 
+                stl_dir: str,
+                file_name: str,
                 script_dir: str,
                 script_name: str,
                 young_modulus: float,
                 poisson_ratio: float,
-                density: float):
+                density: float,
+                quadratic_tets: int = 0,
+                extra_args: Optional[dict] = None):
+    """
+    Runs the chosen Abaqus generator script (noGUI) to turn the tet mesh into
+    a solver-ready Job-<file_name>.inp.
+
+    `extra_args` carries the options that only some simulation types take -
+    the static/stiffness case needs axis, load, compression and tol_frac,
+    the frequency case needs none. They're forwarded as key=value arguments
+    on the Abaqus command line; see abaqus_tools.create_simulation().
+    """
     log("Invoking ABAQUS (noGUI) to create the simulation input...")
+    if extra_args:
+        log("Load case: " + ", ".join(f"{k}={v}" for k, v in extra_args.items()))
     ok = abaqus_tools.create_simulation(
         input_path=stl_dir + "/",
         output_path=str(script_dir),
@@ -81,9 +94,18 @@ def create_abaqus_job(log: Callable[[str], None],
         script_name=script_name,
         young_modulus=young_modulus,
         poisson_ratio=poisson_ratio,
-        density=density
+        density=density,
+        quadratic_tets=quadratic_tets,
+        extra_args=extra_args,
     )
     log(f"create_simulation() returned: {ok}")
+    if not ok:
+        log(
+            "Check generate_sim_logger_"
+            f"{file_name}.txt in the simulation folder for the reason - for the "
+            "static case it is usually an empty face node set (raise the face "
+            "tolerance) or a mesh that has no flat ends along the load axis."
+        )
     return ok
 
 
@@ -180,7 +202,7 @@ def run_abaqus_job(log: Callable[[str], None],
     if not cleared:
         log("Aborting - a previous job's files are still locked (see message above).")
         return False
-
+    
     log(f"Starting ABAQUS job for {file_name}...")
     started = abaqus_tools.run_simulation(
         input_path=str(sim_dir),
@@ -200,3 +222,87 @@ def run_abaqus_job(log: Callable[[str], None],
     )
     log(f"wait_for_simulation_completed() returned: {completed}")
     return completed
+
+
+# =====================================================================
+# 3) render_load_case_form
+# =====================================================================
+def render_load_case_form(key: str = "static") -> dict:
+    """
+    ============================================================================
+    1) RENDER_LOAD_CASE_FORM
+    Draws the inputs that define the uniaxial load case and returns them in
+    the shape create_simulation(extra_args=...) expects.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    key : str, optional
+        Unique suffix for the widget keys (default "static").
+
+    RETURNS
+    -------
+    dict with keys
+        "axis"        : "x" | "y" | "z"
+        "load"        : float, total force over the loaded face
+        "compression" : int, 1 = push, 0 = pull (int rather than bool so it
+                        survives the trip through the Abaqus command line)
+        "tol_frac"    : float, face slab thickness / axial extent
+
+    NOTES
+    -----
+    The units are whatever the STL is in - the material properties entered
+    above use the same convention, so with mm + MPa the load is in N.
+    """
+    axis = st.selectbox(
+        "Load axis",
+        ["z", "x", "y"],
+        key=f"{key}_axis",
+        help=(
+            "The structure is gripped on its two extreme faces along this axis "
+            "and loaded along it. Stiffness is measured in this direction."
+        ),
+    )
+    c1, c2 = st.columns(2)
+    load = c1.number_input(
+        "Total load",
+        value=100.0,
+        format="%.4f",
+        key=f"{key}_load",
+        help=(
+            "Total force spread over every node of the loaded face. Same unit "
+            "system as the Young's modulus above (mm + MPa -> N)."
+        ),
+    )
+    sense = c2.radio(
+        "Direction",
+        ["Compression", "Tension"],
+        key=f"{key}_sense",
+        horizontal=True,
+        help="Compression pushes the top face into the structure; tension pulls it away.",
+    )
+    tol_pct = st.slider(
+        "Face thickness (% of height)",
+        min_value=0.1,
+        max_value=10.0,
+        value=1.0,
+        step=0.1,
+        key=f"{key}_tol",
+        help=(
+            "How thick a slab at each end counts as 'the face'. Too tight and "
+            "the node set comes out empty and ABAQUS errors out; too loose and "
+            "you end up clamping a real chunk of the structure. 1 % suits a "
+            "flat-cut block; raise it if the ends are rough or wavy."
+        ),
+    )
+    non_liner_geometry = st.toggle(
+        "Non-linear geometry",
+        help="Account for large deformations non-linearity.",
+    )
+    return {
+        "axis": axis,
+        "load": float(load),
+        "compression": 1 if sense == "Compression" else 0,
+        "tol_frac": tol_pct / 100.0,
+        "non_linear_geometry": 1 if non_liner_geometry else 0,
+    }

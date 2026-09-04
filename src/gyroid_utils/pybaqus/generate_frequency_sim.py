@@ -40,13 +40,31 @@ def parse_kv_args(argv):
             out.setdefault("_positional", []).append(a)
     return out
 
+# ============================================================================
+# _set_quadratic_tets
+# ============================================================================
+def _set_quadratic_tets(part, logger):
+    """
+    Reassigns every element of `part` to the 10-node quadratic tetrahedron
+    (C3D10). fTetWild only ever produces 4-node linear tets, so the whole
+    element set is converted in one call - no per-shape branching needed.
+    """
+    elements = part.elements[0:len(part.elements)]
+    if len(elements) == 0:
+        logger.error("_set_quadratic_tets(): part %r has no elements to convert." % (part.name,))
+        raise ValueError("_set_quadratic_tets(): part %r has no elements to convert." % (part.name,))
 
+    quad_tet = mesh.ElemType(elemCode=C3D10, elemLibrary=STANDARD,
+                             secondOrderAccuracy=OFF, distortionControl=DEFAULT)
+    part.setElementType(regions=(elements, ), elemTypes=(quad_tet, ))
+    logger.info("mesh upgraded to quadratic tets (C3D10): %d elements." % len(elements))
 
-def built_simulation_of_gyroid(model_name, 
-                                working_path,
-                                young_modulus,
-                                poisson_ratio,
-                                density):
+def built_simulation_of_gyroid(model_name:str, 
+                                working_path:str,
+                                young_modulus:float,
+                                poisson_ratio:float,
+                                density:float,
+                                quadratic_tets:int):
     # ================================================================
     # SECTION 1 : setup paths 
     # ================================================================
@@ -69,7 +87,7 @@ def built_simulation_of_gyroid(model_name,
     # SECTION 1.1 : Configure logger to write to a file in the current working directory
     # ================================================================
     log_file = os.path.join(working_path, "generate_sim_logger_"+ model_name +".txt")
-    logging.basicConfig(filename=log_file, level=logging.INFO,
+    logging.basicConfig(filename=log_file, level=logging.DEBUG,
                         format="%(asctime)s - %(levelname)s - %(message)s",
                         filemode='a')
     logger = logging.getLogger(__name__)
@@ -98,18 +116,15 @@ def built_simulation_of_gyroid(model_name,
         optimizationTasks=OFF, geometricRestrictions=OFF, stopConditions=OFF)
     session.viewports['Viewport: 1'].setValues(displayedObject=P)
 
-    # ====== make mesh quadratic ======
-    """
-    elemType1 = mesh.ElemType(elemCode=C3D10,
-        elemLibrary=STANDARD,
-        secondOrderAccuracy=OFF,
-        distortionControl=DEFAULT)
+    # ================================================================
+    # SECTION 3.1 : optionally upgrade the mesh to quadratic tets
+    # ================================================================
+    if quadratic_tets == 1:
+        logger.info("upgrading mesh to quadratic tets (C3D10) for non-linear geometry analysis")
+        _set_quadratic_tets(P, logger)
+    else:
+        logger.info("using linear tets (C3D4) for linear geometry analysis")
 
-    e = P.elements
-    elements = e[0:len(e)]
-    pickedRegions =(elements, )
-    p.setElementType(regions=pickedRegions, elemTypes=(elemType1, ))
-    """
     # ================================================================
     # SECTION 4 : apply material properties
     # ================================================================
@@ -186,8 +201,10 @@ if __name__ == "__main__":
     young_modulus = float(args.get("young_modulus", 300000))    # with this, if the args are not provided, default values are used
     poisson_ratio = float(args.get("poisson_ratio", 0.21))
     density = float(args.get("density", 3.9e-09))
+    quadratic_tets = int(args.get("quadratic_tets", 0))
     built_simulation_of_gyroid(model_name, 
                             working_path, 
                             young_modulus,
                             poisson_ratio,
-                            density)
+                            density,
+                            quadratic_tets)

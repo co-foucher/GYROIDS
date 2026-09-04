@@ -1,5 +1,9 @@
-2026-09-01 16:42:54,049 - INFO - Current working directory: D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs\my_tpms_sim
-2026-09-01 16:42:54,050 - INFO - loading file : D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs/my_tpms.inp
-2026-09-01 16:42:55,352 - INFO - job has been created : D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs\my_tpms_sim/Job-my_tpms.inp
-2026-09-01 16:42:55,352 - INFO - Run it through : python abq_windows debug=DEBUG cpus=6 job=Job-my_tpms
-2026-09-01 16:42:55,352 - INFO - Simulation created successfully.
+2026-09-04 16:55:47,503 - INFO - Current working directory: D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs\my_tpms_sim
+2026-09-04 16:55:47,503 - INFO - loading file : D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs/my_tpms.inp
+2026-09-04 16:55:48,403 - INFO - material assigned: E=100000, nu=0.21, rho=3.9e-09
+2026-09-04 16:55:48,414 - INFO - axis=Z, extent=20.1593, face tolerance=0.201593 (1 %)
+2026-09-04 16:55:48,414 - INFO - bottom face: 433 nodes | top face: 402 nodes
+2026-09-04 16:55:48,423 - INFO - rigid-body pins: node 91162 near (4.59259939193726, 9.48148345947266, -0.0740726739168167) (U1, U2) and node 2264 near (0.22209320962429, 9.48159980773926, -0.073066420853138) (U2)
+2026-09-04 16:55:48,427 - INFO - load: total 100 in compression along Z -> -0.248756 per node on 402 nodes
+2026-09-04 16:55:48,890 - INFO - job has been created : D:\COFO - HP\03 - Github\GYROIDS\app\gui_outputs\my_tpms_sim/Job-my_tpms.inp
+2026-09-04 16:55:48,890 - INFO - Simulation created successfully.

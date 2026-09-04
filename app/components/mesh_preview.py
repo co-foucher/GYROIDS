@@ -29,7 +29,7 @@ _COLORSCALE_FLAGS = {
 # 1) _build_mesh_figure
 # =====================================================================
 @st.cache_data(show_spinner="Building mesh preview...", max_entries=8)
-def _build_mesh_figure(faces, verts, selected_flag: str):
+def _build_mesh_figure(_faces, verts, selected_flag: str):
     """
     ============================================================================
     1) _BUILD_MESH_FIGURE
@@ -60,7 +60,7 @@ def _build_mesh_figure(faces, verts, selected_flag: str):
     combos shouldn't evict each other on every call.
     """
     flags = {flag: (flag == selected_flag) for flag in _COLORSCALE_FLAGS.values()}
-    return viz.build_mesh_figure(faces, verts, **flags)
+    return viz.build_mesh_figure(_faces, verts, **flags)
 
 
 # =====================================================================

@@ -168,6 +168,7 @@ def render_threshold(field_mode: str) -> float:
         return st.number_input(
             "Field threshold",
             value=0.0,
+            key="tpms_threshold",
         )
 
 
@@ -224,7 +225,7 @@ def render_thickness(
         return None
 
     if field_mode in SHEET_MODES:
-        return st.number_input("Thickness", value=1.0, min_value=0.05)
+        return st.number_input("Thickness", value=1.0, min_value=0.05, key="tpms_thickness")
     return 0.0
 
 
@@ -361,10 +362,10 @@ def generate_ui_tpms(
             # ----- generate mesh ------
             st.session_state["current_field_range"] = (float(model.implicit_field.min()), float(model.implicit_field.max()))
             model.generate_mesh(iso_level=mesh_iso_level)
-            target_faces = params.max_faces_count if params.max_faces else params.simplification_factor
-            model.simplify_mesh(target_faces=target_faces)
             if params.auto_smooth:
                 model.smooth_mesh(smoothing_factor=params.smoothing_factor)
+            target_faces = params.max_faces_count if params.max_faces else params.simplification_factor
+            model.simplify_mesh(target_faces=target_faces)
             model.fix_mesh()
             is_valid = model.check_mesh_quality()
 

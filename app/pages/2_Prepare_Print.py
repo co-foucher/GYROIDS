@@ -6,17 +6,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import streamlit as st
 import numpy as np
 
-from gyroid_utils import voxel_tools
-from gyroid_utils.mesh_tools import matrix_from_mesh, mesh_from_matrix
+# Heavy imports (mesh/vtk/plotly stack via gyroid_utils) live behind a
+# spinner so the page shows something immediately instead of appearing
+# frozen on first load. Cached after the first import - see
+# src/gyroid_utils/__init__.py.
+with st.spinner("Loading GYROIDS toolkit..."):
+    from gyroid_utils import voxel_tools
+    from gyroid_utils.mesh_tools import matrix_from_mesh, mesh_from_matrix
 
-from app.components.tpms_source_panel import load_STL
-from app.components.file_picker import browse_file
-from app.components.mesh_preview import render_mesh_preview
-from app.components.field_view import render_field_slice
-from app.components.prepare_print_source import detect_overhangs, render_overhang_legend, minimize_overhangs
+    from app.components.tpms_source_panel import load_STL
+    from app.components.file_picker import browse_file
+    from app.components.mesh_preview import render_mesh_preview
+    from app.components.field_view import render_field_slice
+    from app.components.prepare_print_source import detect_overhangs, render_overhang_legend, minimize_overhangs
 
-from app.components.tpms_source_panel import (load_STL,
-    pad_to_square,)
+    from app.components.tpms_source_panel import (load_STL,
+        pad_to_square,)
 
 # ============================================================
 # ============== define internal variables ===================

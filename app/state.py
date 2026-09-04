@@ -8,6 +8,7 @@ that stays in gyroid_utils.
 from pathlib import Path
 
 import streamlit as st
+from app.components.logger_def import set_log_level
 
 # Default folder for generated .npz/.stl/.html files. Overridable per
 # session from the sidebar (see init_state()). Lives inside app/ (this
@@ -32,6 +33,7 @@ def init_state() -> None:
             value=st.session_state["output_dir"],
             help="Where generated .stl/.html/.npz files are written and read from.",
         )
+        set_log_level()  # add the log level selector to the sidebar
 
 
 def get_output_dir() -> Path:

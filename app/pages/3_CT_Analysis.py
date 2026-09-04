@@ -13,20 +13,27 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import numpy as np
-import plotly.graph_objects as go
 import streamlit as st
-import SimpleITK as sitk
-
-from gyroid_utils import CT_scans, mesh_tools
-
-from app.state import init_state, get_output_dir
-from app.components.file_picker import browse_file, browse_directory
-from app.components.ct_pipeline import render_ct_pipeline
-from app.components.mesh_preview import render_mesh_preview
-from app.components.ct_viewer_launcher import render_lightweight_toggle, launch_ct_viewer, CT_histogram
 
 st.set_page_config(page_title="CT Analysis", layout="wide")
+
+# Heavy imports (SimpleITK/vtk/mesh/plotly stack) live behind a spinner so
+# the page shows something immediately instead of appearing frozen on
+# first load. Cached after the first import - see
+# src/gyroid_utils/__init__.py.
+with st.spinner("Loading GYROIDS toolkit..."):
+    import numpy as np
+    import plotly.graph_objects as go
+    import SimpleITK as sitk
+
+    from gyroid_utils import CT_scans, mesh_tools
+
+    from app.state import init_state, get_output_dir
+    from app.components.file_picker import browse_file, browse_directory
+    from app.components.ct_pipeline import render_ct_pipeline
+    from app.components.mesh_preview import render_mesh_preview
+    from app.components.ct_viewer_launcher import render_lightweight_toggle, launch_ct_viewer, CT_histogram
+
 init_state()
 st.title("CT Scan Analysis")
 

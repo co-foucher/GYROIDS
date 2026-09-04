@@ -296,8 +296,14 @@ class TestMatrixFromMesh:
         assert matrix.shape == (len(vx), len(vy), len(vz))
         assert matrix.any()  # something got voxelized and filled in
 
+        # matrix_from_mesh returns uint8 (1 = solid), not bool, so it has to
+        # be cast before it can be used as a mask. Indexing with it directly
+        # is *integer* indexing along axis 0 - numpy gives no error, it just
+        # silently returns a 5-D gather of the wrong voxels.
+        occupied = matrix.astype(bool)
+
         gx, gy, gz = np.meshgrid(vx, vy, vz, indexing="ij")
-        occupied_radii = np.sqrt(gx[matrix] ** 2 + gy[matrix] ** 2 + gz[matrix] ** 2)
+        occupied_radii = np.sqrt(gx[occupied] ** 2 + gy[occupied] ** 2 + gz[occupied] ** 2)
 
         assert occupied_radii.max() < 1.5  # nothing filled well outside the sphere
         assert occupied_radii.min() < 0.3  # the center is filled, not just the shell

@@ -115,26 +115,49 @@ def start_job(jobs: dict,
 # =====================================================================
 # 3) render_job_status
 # =====================================================================
-def render_job_status(job: Job) -> None:
+@st.fragment(run_every="2s")
+def render_job_status(jobs: dict, job_id_key: str) -> None:
     """
     ============================================================================
     1) RENDER_JOB_STATUS
-    Shows a job's current status and log tail. Streamlit doesn't poll
-    background threads on its own, so a "Refresh status" button is offered
-    click it (or add the `streamlit-autorefresh`
-    package and call it once at the top of the page) to see progress update.
+    Shows a job's current status and log tail. Auto-polls every 2s (via
+    st.fragment's run_every) so background-thread progress shows up without
+    the user having to click anything - cheap because only this small
+    fragment reruns, not the whole page. The "Refresh status" button is kept
+    as a manual/immediate option (scoped to the fragment too, so it doesn't
+    force a full-page rerun either).
+
+    Takes `job_id_key` (a session_state key, e.g. "abaqus_job_id") rather
+    than an already-resolved Job. The button that starts a job usually lives
+    in its OWN sibling fragment (see app/pages/2_Simulation.py -
+    render_create_abaqus_section / render_run_abaqus_section) - it sets
+    st.session_state[job_id_key] but, being a fragment-scoped rerun, does
+    NOT re-run this function's call site. If this function were handed an
+    already-resolved `job` object instead, that argument would stay frozen
+    at whatever it was on the last FULL page rerun (typically None, since
+    no job had started yet) - run_every would then keep re-rendering that
+    same stale None forever, never picking up the newly-started job. Doing
+    the `jobs.get(st.session_state.get(job_id_key))` lookup INSIDE this
+    fragment's own body instead means every rerun of THIS fragment (the
+    2s timer, or the Refresh button) re-reads current session_state, so it
+    always finds the live job once one exists.
     ============================================================================
 
     PARAMETERS
     ----------
-    job : app.jobs.Job or None
-        The job to display. If None, shows an info message and returns
-        immediately (e.g. before the user has started any job yet).
+    jobs : dict
+        The job registry - pass st.session_state["jobs"].
+    job_id_key : str
+        session_state key holding the id of the job to display (e.g.
+        "mesh_job_id", "abaqus_job_id", "run_job_id"). Looked up fresh on
+        every rerun of this fragment - see WHY above.
 
     RETURNS
     -------
     None
     """
+    job = jobs.get(st.session_state.get(job_id_key))
+
     if job is None:
         st.info("No job has been started yet.")
         return
@@ -158,5 +181,5 @@ def render_job_status(job: Job) -> None:
     if job.log:
         st.code("\n".join(job.log[-200:]))
 
-    if st.button("Refresh status", key=f"refresh_{job.id}"):
-        st.rerun()
+    if st.button("Refresh status", key=f"refresh_{job_id_key}"):
+        st.rerun(scope="fragment")

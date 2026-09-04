@@ -765,8 +765,20 @@ def matrix_from_mesh(verts: np.ndarray,
     x, y, z : (nx,), (ny,), (nz,) ndarray
         Physical coordinates of each voxel along each axis, read back from
         the resulting VoxelGrid so they exactly match matrix.shape.
-    matrix : (nx, ny, nz) ndarray (bool)
-        Filled (interior included, not just the surface shell) voxel grid.
+    matrix : (nx, ny, nz) ndarray (uint8)
+        Filled (interior included, not just the surface shell) voxel grid:
+        1 = solid, 0 = empty.
+
+        uint8 rather than bool, deliberately. A bool grid serializes to JSON
+        as true/false instead of 1.0/0.0, which Plotly.js will not colorize
+        (see viz.twod_view_of_matrix), and it silently clips any downstream
+        code that assigns labels above 1 - voxel_tools stores 2/3/4 for
+        overhang/bridge/support and a bool grid collapses all of them to
+        True. Keeping it numeric here saves every caller from widening it.
+
+        NOTE for callers: because it is numeric, `coords[matrix]` is
+        *integer* indexing along axis 0, not masking. Use
+        `matrix.astype(bool)` when you want a mask.
 
     RAISES
     ------

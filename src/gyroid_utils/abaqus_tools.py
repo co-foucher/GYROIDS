@@ -12,6 +12,7 @@ import numpy as np
 2 - run_simulation
 3 - _is_simulation_started
 4 - wait_for_simulation_completed
+5 - extract_field_at_nodeset
 #=====================================================================================================================
 """
 
@@ -25,7 +26,9 @@ def create_simulation(input_path:str,
                       max_wait_time:int = 600, 
                       young_modulus:float = 300000.0,
                       poisson_ratio:float = 0.21,
-                      density:float = 3.9e-09) -> bool:
+                      density:float = 3.9e-09,
+                      quadratic_tets:int = 0,
+                      extra_args:dict = None) -> bool:
     """
     ============================================================================
     1) CREATE_SIMULATION
@@ -50,6 +53,15 @@ def create_simulation(input_path:str,
         simulation types. Default = "generate_frequency_sim.py".
     max_wait_time : int, optional
         Maximum time to wait for simulation creation, in seconds (default = 600).
+    extra_args : dict, optional
+        Additional key=value arguments forwarded verbatim to the Abaqus
+        script on the command line, on top of the material properties that
+        every script takes. This is how simulation-type-specific options get
+        through without every script having to accept every other script's
+        parameters - e.g. generate_static_sim.py needs
+        ``{"axis": "z", "load": 100.0, "compression": 1, "tol_frac": 0.01}``
+        while generate_frequency_sim.py needs none of them. Keys and values
+        must be str()-able and must not contain "=" or spaces.
 
     RETURNS
     -------
@@ -83,43 +95,67 @@ def create_simulation(input_path:str,
     # Running with `cwd=str(script_folder)` ensures Abaqus starts in the folder containing temp_file.txt
     cmd = ["abaqus", "cae",
            "noGUI=" + script_name,
-           "--", "input=" + file_name, 
+           "--", "input=" + file_name,
            "--", "output=" + output_path,
            "--", "young_modulus=" + str(young_modulus),
            "--", "poisson_ratio=" + str(poisson_ratio),
-           "--", "density=" + str(density)
+           "--", "density=" + str(density),
+           "--", "quadratic_tets=" + str(quadratic_tets)
            ]  # pass the file name as an argument to the script
-    #logger.error(f"Running command: {' '.join(cmd)} in {script_folder}")
+    # simulation-type-specific options (axis, load, ... for the static case)
+    for key, value in (extra_args or {}).items():
+        cmd += ["--", f"{key}={value}"]
+    logger.debug(f"Running command: {' '.join(cmd)} in {script_folder}")
+
+    # The Abaqus scripts open their log with filemode='a', so a stale log from
+    # a previous run would still end in "Simulation created successfully" and
+    # the poll below would return True before this run wrote anything at all.
+    temp = Path(output_path) / ("generate_sim_logger_" + file_name + ".txt")
+    temp.unlink(missing_ok=True)
 
     subprocess.run(cmd, check=True, cwd=str(script_folder), shell=True)
 
     # --- wait for external script to signal completion ---
-    # The external script is expected to write 'generate_sim_logger.txt' and append a line
-    # containing 'Simulation created successfully' when done. We poll that file until we see it.
-    simulation_created = False
-    temp = Path(output_path) / ("generate_sim_logger_"+ file_name +".txt")
+    # The external script writes 'generate_sim_logger_<file_name>.txt' and ends
+    # it with either 'Simulation created successfully' or 'Simulation creation
+    # FAILED: <reason>'. We poll that file until one of the two shows up.
+    #
+    # NOTE: the timeout is checked at the top of the loop, not only on the
+    # file-not-found path. A script that starts, writes a few log lines and
+    # then dies (or hits a case it can't handle - e.g. the static script
+    # finding an empty face node set) leaves a log file that exists but never
+    # reaches a terminal line; guarding only the missing-file branch would
+    # spin here forever, and this runs in a background job thread that nothing
+    # can cancel.
     start_time = time.time()
-    while not simulation_created:
+    while True:
+        if time.time() - start_time > max_wait_time:
+            logger.warning(f"Simulation creation did not complete within {max_wait_time} seconds. Giving up")
+            return False
         try:
             with open(temp) as file:
-                lines = [line.rstrip() for line in file]
-            # If the last line indicates success, we're done
-            if "Simulation created successfully" in lines[-1]:
-                logger.info("Simulation created successfully.")
-                break
-            else:
-                # Not ready yet: sleep briefly and try again
-                time.sleep(1)
-                logger.debug("simulation not created yet, waiting...")
-                logger.debug(f"last 2 lines are {lines[-2]}")
-                logger.debug(f"                 {lines[-1]}")
+                lines = [line.rstrip() for line in file if line.strip()]
         except FileNotFoundError:
             # Log file not present yet; wait and retry
-            if time.time() - start_time > max_wait_time:
-                logger.warning(f"Simulation creation did not complete within {max_wait_time} seconds. Giving up")
-                return False
             logger.debug("file not found, waiting...")
-            time.sleep(10)
+            time.sleep(5)
+            continue
+
+        if not lines:
+            time.sleep(1)
+            continue
+
+        last_line = lines[-1]
+        if "Simulation created successfully" in last_line:
+            logger.info("Simulation created successfully.")
+            break
+        if "Simulation creation FAILED" in last_line:
+            logger.error(f"The Abaqus script reported a failure: {last_line}")
+            return False
+        # Not ready yet: sleep briefly and try again
+        logger.debug(f"simulation not created yet, waiting... last line: {last_line}")
+        time.sleep(1)
+
     # --- delete temporary file (best-effort) ---
     # Use missing_ok=True so we don't raise if the file was removed elsewhere
     #temp_path.unlink(missing_ok=True)
@@ -289,3 +325,80 @@ def wait_for_simulation_completed(ODB_path:str,
             # Log file not present yet; wait and retry
             logger.info("file not found, waiting...")
             time.sleep(1)
+
+
+# =====================================================================
+# 5) extract_field_at_nodeset
+# =====================================================================
+def extract_field_at_nodeset(odb_path:str,
+                            nset_name:str,
+                            field_name:str,
+                            out_path:str = None) -> bool:
+    """
+    ============================================================================
+    5) EXTRACT_FIELD_AT_NODESET
+    Utility function to extract a field output at a node set, at the last
+    frame of the last step, from a completed Abaqus simulation. Runs the
+    pybaqus/extract_field_at_nodeset.py script through Abaqus's own Python
+    interpreter (abaqus python), since odbAccess is only importable there.
+    ============================================================================
+
+    PARAMETERS
+    ----------
+    odb_path : str
+        Full path to the ODB file to read.
+    nset_name : str
+        Name of the node set to extract the field output from, as defined
+        in the ODB assembly (case-sensitive, usually uppercase).
+    field_name : str
+        Name of the field output to extract (e.g. "U", "RF", "S").
+    out_path : str, optional
+        Path of the text file to write the extracted values to. Defaults
+        to "<odb folder>/<odb stem>_<nset_name>_<field_name>.csv".
+
+    RETURNS
+    -------
+    success : bool
+        True if the output file was written successfully, False otherwise.
+
+    NOTES
+    -----
+    - The pybaqus script always exits with code 0, even when it fails
+      internally (e.g. node set or field not found), because it only
+      prints an error and returns False without setting the process exit
+      code. Success is therefore checked by confirming the output file
+      exists after the call, not by the subprocess return code.
+    """
+    odb_file = Path(odb_path)
+    if not odb_file.exists():
+        logger.error(f"ODB file not found: {odb_file}")
+        return False
+
+    if out_path is None:
+        out_path = str(odb_file.parent / f"{odb_file.stem}_{nset_name}_{field_name}.csv")
+
+    script_path = Path(__file__).parent / "pybaqus" / "extract_field_at_nodeset.py"
+
+    # Remove any stale output from a previous extraction first. Otherwise a run
+    # that fails inside Abaqus (bad field/component name, missing node set, ...)
+    # still exits 0 - see the NOTES above - and the exists() check below would
+    # find the leftover file from an earlier, different extraction and report
+    # success with the wrong data still sitting at out_path.
+    Path(out_path).unlink(missing_ok=True)
+
+    # --- run the extraction script through Abaqus's own Python interpreter ---
+    cmd = ["abaqus", "python", str(script_path),
+           str(odb_file), nset_name, field_name, out_path]
+    logger.debug(f"Running command: {' '.join(cmd)}")
+    try:
+        subprocess.run(cmd, check=True, cwd=str(odb_file.parent), shell=True)
+    except Exception as e:
+        logger.error(f"Error running Abaqus extraction script for {odb_file.name}: {e}")
+        return False
+
+    if not Path(out_path).exists():
+        logger.error(f"Extraction did not produce an output file: {out_path}")
+        return False
+
+    logger.info(f"Field '{field_name}' at node set '{nset_name}' extracted to {out_path}")
+    return True

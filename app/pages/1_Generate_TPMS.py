@@ -13,23 +13,30 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 import streamlit as st
 
-from gyroid_utils.TPMS_classes import (
-    GyroidModel, SchwartzPModel, DiamondModel, IWPModel, NeoviusModel,
-    FischerKochSModel, FRDModel, LidinoidModel, SplitPModel,
-)
-
-from app.state import init_state, get_output_dir
-from app.components.equation_input import render_equation_input
-from app.components.mesh_preview import render_mesh_preview
-from app.components.field_view import render_field_slice
-from app.components.file_picker import browse_file, browse_directory
-from app.components.import_TPMS_files import import_matrix_from_file
-
 st.set_page_config(page_title="Generate TPMS", layout="wide")
+
+# Heavy imports (mesh/vtk/plotly/sympy stack, pulled in transitively via
+# gyroid_utils.TPMS_classes) live behind a spinner so the page shows
+# something immediately instead of appearing frozen on first load. Cached
+# after the first import - see src/gyroid_utils/__init__.py.
+with st.spinner("Loading GYROIDS toolkit..."):
+    from gyroid_utils.TPMS_classes import (
+        GyroidModel, SchwartzPModel, DiamondModel, IWPModel, NeoviusModel,
+        FischerKochSModel, FRDModel, LidinoidModel, SplitPModel,
+    )
+
+    from app.state import init_state, get_output_dir
+    from app.components.equation_input import render_equation_input
+    from app.components.mesh_preview import render_mesh_preview
+    from app.components.field_view import render_field_slice
+    from app.components.file_picker import browse_file, browse_directory
+    from app.components.import_TPMS_files import import_matrix_from_file
+
 init_state()
 
 # ============================================================
@@ -65,12 +72,14 @@ from app.components.tpms_source_panel import (
 @dataclass
 class TPMSParams:
     """
-    Bundles the generation settings shared across all three "Surface"
-    sources (Built-in type / Custom equation / Import from file), with
-    their default values in one place. Per-source-only inputs - the
-    periods (px/py/pz), the built-in type_name, and the raw equation
-    string - stay as local variables in their own branch below, since
-    only one branch at a time ever uses them.
+    Bundles every generation setting the "Generate" button and
+    generate_ui_tpms() need, including the per-source-only inputs
+    (periods px/py/pz, type_name, custom_equation, ...) that only one
+    "Surface" branch at a time fills in. All of it lives on this one
+    object - and is mutated in place, never reassigned - because
+    _make_user_define_parameters() is an @st.fragment: a fragment-only
+    rerun only re-executes that function, so a plain local variable set
+    there would never reach the rest of the script.
     """
     size_x: float = 10.0
     size_y: float = 10.0
@@ -85,6 +94,17 @@ class TPMSParams:
     max_faces_count: int = 100_000
     auto_smooth: bool = True
     smoothing_factor: float = 0.9
+    source: str = "Built-in type"
+    type_name: Optional[str] = None
+    px: Optional[float] = None
+    py: Optional[float] = None
+    pz: Optional[float] = None
+    custom_equation: Optional[str] = None
+    custom_thickness: Optional[str] = None
+    field: Optional[np.ndarray] = None
+    thickness_value: Optional[np.ndarray] = None
+    geometry: Optional[np.ndarray] = None
+    combination_type: Optional[str] = None
 
 # ============================================================
 # ============== define internal functions ===================
@@ -101,41 +121,50 @@ col_params, col_preview = st.columns([1, 1.4])
 # ==========================================================
 # ============== user defined parameters ===================
 # ==========================================================
-params = TPMSParams()  # fresh instance each rerun; each widget below overwrites
-                        # its own field with its own persisted value (Streamlit
-                        # keeps that per-widget, independent of this object)
-with col_params:
+params = TPMSParams()  # fresh instance every full rerun, filled with dataclass
+                        # defaults. Each widget below overwrites its own field with
+                        # its actual current value. This only works because every
+                        # widget has an explicit, stable key= - without one, passing
+                        # a changing `value=params.xxx` as the widget's default makes
+                        # Streamlit treat it as a new widget each rerun and reset it
+                        # to that default, discarding whatever the user had set.
+
+@st.fragment
+def _make_user_define_parameters(params: TPMSParams):
     # ------ grid parameters ------
     st.subheader("Grid parameters")
     params.resolution = st.slider(
         "Grid resolution (per axis)", 16, 500, params.resolution, step=8,
+        key="tpms_resolution",
         help="Higher = finer surface but slower generation. Start low (~48-64) while iterating.",
     )
     d1, d2, d3 = st.columns(3)
-    params.size_x = d1.number_input("Size X", value=params.size_x, min_value=0.01)
-    params.size_y = d2.number_input("Size Y", value=params.size_y, min_value=0.01)
-    params.size_z = d3.number_input("Size Z", value=params.size_z, min_value=0.01)
+    params.size_x = d1.number_input("Size X", value=params.size_x, min_value=0.01, key="tpms_size_x")
+    params.size_y = d2.number_input("Size Y", value=params.size_y, min_value=0.01, key="tpms_size_y")
+    params.size_z = d3.number_input("Size Z", value=params.size_z, min_value=0.01, key="tpms_size_z")
     st.divider()
 
     # ------ choose TPMS type / paste equation / import from file ------
     st.subheader("TPMS Definition")
-    source = st.radio("Surface", ["Built-in type", "Custom equation", "Import from file"], horizontal=True)
-    equation = None
-    type_name = None
-    # Pre-initialized so generate_ui_tpms() below always receives bound
-    # names, even for the branches the current "Surface" selection doesn't use.
-    px = py = pz = None
-    thickness = None
-    field = None
-    thickness_value = None
+    params.source = st.radio("Surface", ["Built-in type", "Custom equation", "Import from file"], horizontal=True, key="tpms_source")
+    # Reset every fragment run so generate_ui_tpms() below always sees
+    # values matching the current "Surface" selection, even for the
+    # branches it doesn't use. Stored on params (not plain local
+    # variables) so they survive being set inside this @st.fragment.
+    params.custom_equation = None
+    params.type_name = None
+    params.px = params.py = params.pz = None
+    params.custom_thickness = None
+    params.field = None
+    params.thickness_value = None
 
     # ---- Built-in type ----
-    if source == "Built-in type":
-        type_name = st.selectbox("TPMS type", list(BUILTIN_TYPES.keys()))
+    if params.source == "Built-in type":
+        params.type_name = st.selectbox("TPMS type", list(BUILTIN_TYPES.keys()), key="tpms_type_name")
         c1, c2, c3 = st.columns(3)
-        px = c1.number_input("Period X", value=5.0, min_value=0.01)
-        py = c2.number_input("Period Y", value=5.0, min_value=0.01)
-        pz = c3.number_input("Period Z", value=5.0, min_value=0.01)
+        params.px = c1.number_input("Period X", value=5.0, min_value=0.01, key="tpms_px")
+        params.py = c2.number_input("Period Y", value=5.0, min_value=0.01, key="tpms_py")
+        params.pz = c3.number_input("Period Z", value=5.0, min_value=0.01, key="tpms_pz")
 
         st.divider()
         params.field_mode = render_field_mode()
@@ -143,8 +172,8 @@ with col_params:
         params.thickness = render_thickness(params.field_mode)
 
     # ---- Custom equation ----
-    elif source == "Custom equation":
-        equation, thickness = render_equation_input()
+    elif params.source == "Custom equation":
+        params.custom_equation, params.custom_thickness = render_equation_input()
         params.field_mode = render_field_mode()
         params.threshold = render_threshold(params.field_mode)
         render_thickness(params.field_mode, draw_widget=False,
@@ -152,18 +181,18 @@ with col_params:
 
     # ---- Import from file ----
     # (after field/thickness_value are loaded from disk)
-    elif source == "Import from file":
+    elif params.source == "Import from file":
         # define TPMS field
         browse_file(key = "field_matrix_path",
             title="Select a matrix file",
             filetypes=[("Numpy files", "*.npy"), ("CSV files", "*.csv"), ("All files", "*.*")],)
-        field = import_matrix_from_file(file_path = st.session_state["field_matrix_path"])
+        params.field = import_matrix_from_file(file_path = st.session_state["field_matrix_path"])
 
         #define thickness field
         browse_file(key = "thickness_matrix_path",
             title="Select a matrix file",
             filetypes=[("Numpy files", "*.npy"), ("CSV files", "*.csv"), ("All files", "*.*")],)
-        thickness_value = import_matrix_from_file(file_path = st.session_state["thickness_matrix_path"])
+        params.thickness_value = import_matrix_from_file(file_path = st.session_state["thickness_matrix_path"])
         params.field_mode = render_field_mode()
         params.threshold = render_threshold(params.field_mode)
         render_thickness(params.field_mode, draw_widget=False,
@@ -172,13 +201,13 @@ with col_params:
 
     # ----- add baseplate ------
     st.subheader("Baseplates")
-    params.baseplate_thickness = st.number_input("Baseplate thickness (0 = none)", value=params.baseplate_thickness, min_value=0.0)
+    params.baseplate_thickness = st.number_input("Baseplate thickness (0 = none)", value=params.baseplate_thickness, min_value=0.0, key="tpms_baseplate_thickness")
     st.divider()
 
     # ----- Combine with geometry ------
     col_1, col_2 = st.columns([1, 15], vertical_alignment="bottom")
     with col_1:
-        combine_with_geometry = st.checkbox(" ", value=False,)
+        combine_with_geometry = st.checkbox(" ", value=False, key="tpms_combine_with_geometry")
     with col_2:
         st.subheader("Combine with existing geometry")
     if combine_with_geometry:
@@ -187,23 +216,23 @@ with col_params:
             title="Select a matrix file",
             filetypes=[("STL files", "*.stl"), ("Numpy files", "*.npy"), ("All files", "*.*")],)
         if '.npy' in st.session_state["combined_geometry_path"]:
-            geometry = import_matrix_from_file(file_path = st.session_state["combined_geometry_path"])
-            geometry = pad_to_square(geometry)
+            params.geometry = import_matrix_from_file(file_path = st.session_state["combined_geometry_path"])
+            params.geometry = pad_to_square(params.geometry)
         elif '.stl' in st.session_state["combined_geometry_path"]:
             from gyroid_utils.mesh_tools import matrix_from_mesh
             verts, faces = load_STL(st.session_state["combined_geometry_path"])
-            _,_,_, geometry = matrix_from_mesh(verts, faces, params.resolution)
-            geometry = pad_to_square(geometry)
+            _,_,_, params.geometry = matrix_from_mesh(verts, faces, params.resolution)
+            params.geometry = pad_to_square(params.geometry)
         else:
             st.error("Please select a valid .npy or .stl file for the geometry.")
-        combination_type = st.selectbox("Combination type", ["Intersection", "Union", "Substraction"])
+        params.combination_type = st.selectbox("Combination type", ["Intersection", "Union", "Substraction"], key="tpms_combination_type")
         with col_preview:
             st.subheader("combined geometry preview")
             render_mesh_preview(faces, verts, key="c_geometry")
 
     else:
-        geometry = None
-        combination_type = None
+        params.geometry = None
+        params.combination_type = None
 
 
     st.divider()
@@ -212,23 +241,34 @@ with col_params:
     st.subheader("Mesh parameters")
     params.simplification_factor = st.slider(
         "Mesh simplification (fraction of faces kept)", 0.1, 1.0, params.simplification_factor,
+        key="tpms_simplification_factor",
         help="Passed to TPMSModel.simplify_mesh(target_faces=...).",)
     params.max_faces = st.checkbox("Limit maximum faces", value=params.max_faces,
+        key="tpms_max_faces",
         help="If checked, the mesh is simplified to a maximum number of faces.")
     if params.max_faces:
         params.max_faces_count = st.number_input(
             "Maximum faces", value=params.max_faces_count, min_value=1,
+            key="tpms_max_faces_count",
             help="If 'Limit maximum faces' is checked, the mesh is simplified to this many faces.",)
     params.auto_smooth = st.checkbox("Auto-smooth mesh", value=params.auto_smooth,
+        key="tpms_auto_smooth",
         help="If checked, the mesh is smoothed after simplification and again after fixing.")
     if params.auto_smooth:
         params.smoothing_factor = st.slider(
             "Smoothing factor", 0.0, 1.0, params.smoothing_factor, step=0.01,
+            key="tpms_smoothing_factor",
             help="Passed to TPMSModel.smooth_mesh(smoothing_factor=...). Higher = more smoothing.")
+
+    return params
+
+with col_params:
+    params = _make_user_define_parameters(params=params)
     # ----- generate button ------
     generate = st.button(
         "Generate", type="primary",
-        disabled=(source == "Custom equation" and equation is None),)
+        disabled=(params.source == "Custom equation" and params.custom_equation is None),)
+
 
 
 # ==========================================================
@@ -236,17 +276,17 @@ with col_params:
 # ==========================================================
 if generate:
     generate_ui_tpms(
-        source=source, 
-        params=params, 
+        source=params.source,
+        params=params,
         BUILTIN_TYPES=BUILTIN_TYPES,
-        type_name=type_name, 
-        px=px, py=py, pz=pz,
-        custom_equation=equation, 
-        custom_thickness=thickness,
-        field=field, 
-        thickness_value=thickness_value,
-        geometry=geometry,
-        combination_type = combination_type,
+        type_name=params.type_name,
+        px=params.px, py=params.py, pz=params.pz,
+        custom_equation=params.custom_equation,
+        custom_thickness=params.custom_thickness,
+        field=params.field,
+        thickness_value=params.thickness_value,
+        geometry=params.geometry,
+        combination_type=params.combination_type,
     )
 
 model = st.session_state.get("current_model")
